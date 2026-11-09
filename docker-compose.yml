@@ -1,0 +1,22 @@
+name: twinvet-care
+
+services:
+  db:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_DB: twinvet
+      POSTGRES_USER: twinvet
+      POSTGRES_PASSWORD: ${TWINVET_DB_PASSWORD:-twinvet_local}
+    ports:
+      # 5432 is already used on this host; keep a dedicated port.
+      - "127.0.0.1:${TWINVET_DB_PORT:-55433}:5432"
+    volumes:
+      - twinvet_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U twinvet -d twinvet"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+volumes:
+  twinvet_pgdata:

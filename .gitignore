@@ -218,3 +218,16 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# --- TwinVet Care project rules ---
+# Local secrets and generated data (raw AI Hub data lives outside the repo)
+.env
+.env.*
+!.env.example
+data_output/
+# Frontend
+node_modules/
+frontend/dist/
+# Python's default `lib/` rule above must not hide frontend source folders
+!frontend/src/lib/
+*.tsbuildinfo
