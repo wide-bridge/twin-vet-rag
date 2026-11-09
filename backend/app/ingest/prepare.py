@@ -16,6 +16,7 @@ from pathlib import Path
 from typing import Iterable, Iterator
 
 from ..domain.dog import SOURCE_LIFECYCLE_MAP
+from .spacing import SpacingFixer
 
 DATASET_CODE = "aihub59"
 DATASET_DIRNAME = "59.반려견 성장 및 질병 관련 말뭉치 데이터"
@@ -271,8 +272,20 @@ def _stratified_split(records: list[QARecord], dev_ratio: float, seed: int) -> t
     return dev, final
 
 
-def prepare(dataset_root: Path, out_dir: Path, *, seed: int = 20261109, dev_ratio: float = 0.25, count_tokens=None) -> PrepareResult:
+def prepare(dataset_root: Path, out_dir: Path, *, seed: int = 20261109, dev_ratio: float = 0.25, count_tokens=None,
+            fix_spacing=None) -> PrepareResult:
+    """fix_spacing: callable text -> (text, changes); default SpacingFixer. Applied to the indexed
+    Training text only (QA question/answer, reference body). Validation/eval text is kept as typed."""
     count_tokens = count_tokens or TokenCounter()
+    fix_spacing = fix_spacing or SpacingFixer()
+    spacing_log: list[dict] = []
+
+    def fix(text: str, source_record_id: str, field_name: str) -> tuple[str, int]:
+        fixed, changes = fix_spacing(text)
+        for c in changes:
+            spacing_log.append({"source_record_id": source_record_id, "field": field_name, "rule": c.rule,
+                                "before": c.before, "after": c.after})
+        return fixed, len(changes)
     out_dir.mkdir(parents=True, exist_ok=True)
     res = PrepareResult()
     excluded: list[dict] = []
@@ -289,6 +302,10 @@ def prepare(dataset_root: Path, out_dir: Path, *, seed: int = 20261109, dev_rati
         except (json.JSONDecodeError, UnicodeDecodeError, AttributeError) as e:
             excluded.append({"relative_path": sf.relative_path, "reason": f"parse_error:{type(e).__name__}"})
 
+    # corpus evidence for the 이/가 swap repair: all indexed Training text, as parsed
+    if hasattr(fix_spacing, "set_corpus"):
+        fix_spacing.set_corpus([x for r in qa_train for x in (r.question, r.answer)] + [r.body for r in ref_train])
+
     # ---- Training QA -> qa_case (1 case = 1 chunk), exact-duplicate removal
     seen: dict[str, str] = {}
     qa_rows, qa_tokens, qa_over = [], [], 0
@@ -301,6 +318,8 @@ def prepare(dataset_root: Path, out_dir: Path, *, seed: int = 20261109, dev_rati
             excluded.append({"source_record_id": r.source_record_id, "split": "train", "reason": "duplicate_in_train", "duplicate_of": seen[key]})
             continue
         seen[key] = r.source_record_id
+        r.question, nq = fix(r.question, r.source_record_id, "question")
+        r.answer, na = fix(r.answer, r.source_record_id, "answer")
         tokens = count_tokens(r.content)
         if tokens > EMBEDDING_MAX_TOKENS:
             # not truncated or split automatically (docs/03 §5) — reported for review
@@ -321,7 +340,8 @@ def prepare(dataset_root: Path, out_dir: Path, *, seed: int = 20261109, dev_rati
             "content": r.content,
             "content_hash": sha256(r.content),
             "tokens": tokens,
-            "metadata": {"lifeCycle": r.lifecycle_raw, "disease": r.disease_raw, "pii_masked": r.pii_masked},
+            "metadata": {"lifeCycle": r.lifecycle_raw, "disease": r.disease_raw, "pii_masked": r.pii_masked,
+                         "spacing_fixes": nq + na},
         })
 
     # ---- Training reference -> chunks (Validation reference is not indexed; reported only)
@@ -336,6 +356,7 @@ def prepare(dataset_root: Path, out_dir: Path, *, seed: int = 20261109, dev_rati
             excluded.append({"source_record_id": r.source_record_id, "split": "train", "reason": "duplicate_reference", "duplicate_of": ref_seen[key]})
             continue
         ref_seen[key] = r.source_record_id
+        r.body, nb = fix(r.body, r.source_record_id, "body")  # locators below refer to this corrected copy
         chunks = chunk_paragraphs(r.body, count_tokens)
         ref_docs.append({
             "document_type": "reference",
@@ -352,7 +373,7 @@ def prepare(dataset_root: Path, out_dir: Path, *, seed: int = 20261109, dev_rati
             "content_hash": sha256(r.body),
             "chars": len(r.body),
             "chunks": len(chunks),
-            "metadata": {"literal_newlines_converted": r.literal_newlines, "pii_masked": r.pii_masked},
+            "metadata": {"literal_newlines_converted": r.literal_newlines, "pii_masked": r.pii_masked, "spacing_fixes": nb},
         })
         for c in chunks:
             ref_tokens.append(c.tokens)
@@ -407,6 +428,7 @@ def prepare(dataset_root: Path, out_dir: Path, *, seed: int = 20261109, dev_rati
         "eval_dev.jsonl": [eval_row(r, "dev") for r in dev],
         "eval_final.jsonl": [eval_row(r, "final") for r in final],
         "excluded.jsonl": excluded,
+        "spacing_changes.jsonl": spacing_log,
     }
     for name, rows in files.items():
         res.counts[name] = _write_jsonl(out_dir / name, rows)
@@ -434,6 +456,13 @@ def prepare(dataset_root: Path, out_dir: Path, *, seed: int = 20261109, dev_rati
         "reference_literal_newline_files": sum(1 for r in ref_train + ref_valid if r.literal_newlines),
         "pii_masked_total": sum(r.pii_masked for r in qa_train + qa_valid + ref_train + ref_valid),
         "excluded_by_reason": dict(Counter(e["reason"] for e in excluded)),
+        "spacing_fixes": {
+            "changes": len(spacing_log),
+            "records_changed": len({e["source_record_id"] for e in spacing_log}),
+            "by_field": dict(Counter(e["field"] for e in spacing_log)),
+            "by_rule": dict(Counter(e["rule"] for e in spacing_log).most_common()),
+            "applied_to": "Training qa_case question/answer and reference body; eval sets kept as typed",
+        },
         "eval_by_department": {
             "dev": dict(Counter(r.department for r in dev)),
             "final": dict(Counter(r.department for r in final)),

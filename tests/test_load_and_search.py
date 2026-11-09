@@ -39,7 +39,8 @@ def q(content):
 
 def test_load_activate_and_search_with_life_stage_filter(db):
     run_all(db, [qa("p1", "강아지 예방접종 일정", ["puppy"]), qa("s1", "노령견 관절 관리", ["senior"]), ref("r1", ["공통 교재 문단 A", "공통 교재 문단 B"])])
-    hits = search(db, q("노령견 관절 관리"), model=E.model, life_stage=LifeStage.senior, top_k=10)
+    # chunks are embedded with their source header (load.embedding_text); same text -> same fake vector
+    hits = search(db, q(load.embedding_text("qa_case", "", "내과", [], "노령견 관절 관리")), model=E.model, life_stage=LifeStage.senior, top_k=10)
     titles = {h.title for h in hits}
     assert hits[0].content == "노령견 관절 관리" and hits[0].score > 0.999  # identical text -> identical fake vector
     assert "합성 사례 p1" not in titles  # puppy-only case filtered out for a senior dog

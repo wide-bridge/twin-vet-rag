@@ -172,13 +172,27 @@ def stage(db: Session, run: IngestionRun, docs: list[DocInput], batch: int = 100
 
 
 # ---------------------------------------------------------------- embed
+HEADER_TOKENS_ESTIMATE = 25  # per chunk, for the cost estimate
+
+
+def embedding_text(document_type: str, title: str, department: str | None, disease_names: list[str] | None, content: str) -> str:
+    """Text sent to the embedding model: a one-line source header + the chunk. The header gives a
+    bare paragraph its context (which book, which department). chunk.content stays header-free
+    for display; queries are embedded as typed."""
+    if document_type == "reference":
+        head = f"자료명: {title}" + (f" · 진료과: {department}" if department else "")
+    else:
+        head = f"진료과: {department or '미상'}" + (f" · 질병: {', '.join(disease_names)}" if disease_names else "")
+    return f"{head}\n{content}"
+
+
 def pending_chunk_stats(db: Session, run: IngestionRun) -> dict:
     row = db.execute(
         select(func.count(Chunk.id), func.coalesce(func.sum(Chunk.tokens), 0))
         .join(DocumentVersion, DocumentVersion.id == Chunk.document_version_id)
         .where(DocumentVersion.ingestion_run_id == run.id, DocumentVersion.status == "staging", Chunk.embedding.is_(None))
     ).one()
-    return {"chunks": int(row[0]), "tokens": int(row[1])}
+    return {"chunks": int(row[0]), "tokens": int(row[1]) + int(row[0]) * HEADER_TOKENS_ESTIMATE}
 
 
 def embed_pending(db: Session, run: IngestionRun, embedder: Embedder, batch: int = 256, max_tokens_per_batch: int = 250_000, progress=None) -> dict:
@@ -186,8 +200,10 @@ def embed_pending(db: Session, run: IngestionRun, embedder: Embedder, batch: int
     done = 0
     while True:
         rows = db.execute(
-            select(Chunk.id, Chunk.content, Chunk.tokens)
+            select(Chunk.id, Chunk.content, Chunk.tokens, Document.document_type, DocumentVersion.title,
+                   Document.department, Document.disease_names)
             .join(DocumentVersion, DocumentVersion.id == Chunk.document_version_id)
+            .join(Document, Document.id == DocumentVersion.document_id)
             .where(DocumentVersion.ingestion_run_id == run.id, DocumentVersion.status == "staging", Chunk.embedding.is_(None))
             .order_by(Chunk.id)
             .limit(batch)
@@ -196,11 +212,11 @@ def embed_pending(db: Session, run: IngestionRun, embedder: Embedder, batch: int
             break
         picked, tokens = [], 0
         for r in rows:  # keep each API request under the token budget
-            if picked and tokens + r.tokens > max_tokens_per_batch:
+            if picked and tokens + r.tokens + HEADER_TOKENS_ESTIMATE > max_tokens_per_batch:
                 break
             picked.append(r)
-            tokens += r.tokens
-        vectors = embedder.embed([r.content for r in picked])
+            tokens += r.tokens + HEADER_TOKENS_ESTIMATE
+        vectors = embedder.embed([embedding_text(r.document_type, r.title, r.department, r.disease_names, r.content) for r in picked])
         db.execute(
             update(Chunk.__table__).where(Chunk.__table__.c.id == bindparam("cid")).values(
                 embedding=bindparam("emb"), embedding_model=embedder.model, embedding_version=ivers,

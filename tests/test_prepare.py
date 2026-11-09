@@ -92,3 +92,34 @@ def test_prepare_end_to_end(tmp_path):
     res2 = prepare(root, tmp_path / "out2", count_tokens=char_tokens, dev_ratio=0.25)
     assert (tmp_path / "out2" / "eval_dev.jsonl").read_text(encoding="utf-8") == "\n".join(dev) + "\n"
     assert res2.report["outputs"] == res.report["outputs"]
+
+
+def test_spacing_fixed_in_index_copy_only(tmp_path):
+    root = tmp_path / "ds"
+    _qa(root, "Training", "내과", "t1", "체중이 증가 하였어요", "효과 를 확인하세요")
+    for i in range(4):
+        _qa(root, "Validation", "내과", f"v{i}", f"체중이 증가 하였어요 {i}", "답")
+    _ref(root, "Training", "r1", "합성 교재", "당뇨가 발생 하게 된다.")
+    raw = sorted((root / EXTRACTED_SUBPATH).rglob("*.json"))
+    raw_before = [p.read_bytes() for p in raw]
+
+    out = tmp_path / "out"
+    res = prepare(root, out, count_tokens=char_tokens, dev_ratio=0.5)
+
+    qa = json.loads((out / "qa_cases.jsonl").read_text(encoding="utf-8"))
+    assert "증가하였어요" in qa["content"] and "효과를" in qa["content"]
+    assert qa["metadata"]["spacing_fixes"] == 2
+    chunk = json.loads((out / "reference_chunks.jsonl").read_text(encoding="utf-8"))
+    assert chunk["content"] == "당뇨가 발생하게 된다."
+    evals = [json.loads(x) for f in ("eval_dev.jsonl", "eval_final.jsonl") for x in (out / f).read_text(encoding="utf-8").splitlines()]
+    assert all("증가 하였어요" in e["question"] for e in evals)  # user-typed text kept as is
+    log = [json.loads(x) for x in (out / "spacing_changes.jsonl").read_text(encoding="utf-8").splitlines()]
+    assert len(log) == res.report["spacing_fixes"]["changes"] == 3
+    assert [p.read_bytes() for p in raw] == raw_before  # raw files untouched
+
+
+def test_embedding_text_header():
+    from backend.app.ingest.load import embedding_text
+    assert embedding_text("reference", "동물행동학", "외과", [], "본문") == "자료명: 동물행동학 · 진료과: 외과\n본문"
+    assert embedding_text("qa_case", "내과 상담 사례 · 중독", "내과", ["중독"], "보호자 질문: …") == "진료과: 내과 · 질병: 중독\n보호자 질문: …"
+    assert embedding_text("qa_case", "내과 상담 사례", "내과", [], "Q") == "진료과: 내과\nQ"
