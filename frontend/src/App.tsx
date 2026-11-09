@@ -1,24 +1,38 @@
-import { useEffect, useState } from "react";
-import { EmergencyNotice } from "./components/EmergencyNotice";
+// Screen switch: S01 start -> S02 consult (S03 opens inside it) / session-expired screen.
+import { useCallback, useEffect, useState } from "react";
+import { api, type UiConfig } from "./api";
+import { ConsultScreen } from "./components/ConsultScreen";
+import { ExpiredScreen, StartScreen } from "./components/StartScreen";
+import { store } from "./lib/store";
 
-type Health = { status: "ok" | "degraded"; checks: Record<string, string> };
+type View = "boot" | "start" | "consult" | "expired";
+const DEFAULT_CONFIG: UiConfig = { question_max_chars: 1000, session_ttl_days: 7, run_timeout_seconds: 120 };
 
-// Step-1 placeholder: verifies the Vite -> FastAPI proxy. S01/S02/S03 screens come in the API·UI step.
 export function App() {
-  const [health, setHealth] = useState<Health | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [view, setView] = useState<View>("boot");
+  const [config, setConfig] = useState<UiConfig>(DEFAULT_CONFIG);
 
   useEffect(() => {
-    fetch("/api/v1/health")
-      .then(async (r) => setHealth((await r.json()) as Health))
-      .catch(() => setError("서버에 연결할 수 없습니다."));
+    api.config().then(setConfig).catch(() => undefined);
+    // a valid session + a remembered consultation resumes the conversation; otherwise show S01
+    api.session()
+      .then(() => setView("consult"))
+      .catch(() => setView(store.consultationId() ? "expired" : "start"));
   }, []);
 
-  return (
-    <main>
-      <h1>TwinVet Care</h1>
-      <EmergencyNotice />
-      <p>서버 상태: {error ?? (health ? health.status : "확인 중…")}</p>
-    </main>
-  );
+  const expired = useCallback(() => setView("expired"), []);
+  const restart = async () => {
+    store.setConsultationId(null);
+    try {
+      await api.startSession();
+      setView("consult");
+    } catch {
+      setView("start");
+    }
+  };
+
+  if (view === "boot") return null;
+  if (view === "start") return <StartScreen ttlDays={config.session_ttl_days} onStarted={() => setView("consult")} />;
+  if (view === "expired") return <ExpiredScreen onRestart={restart} />;
+  return <ConsultScreen maxChars={config.question_max_chars} onExpired={expired} />;
 }
