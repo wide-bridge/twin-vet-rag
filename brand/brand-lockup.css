@@ -1,0 +1,36 @@
+/*
+ * TwinVet + "Care" lockup.
+ * The original logo (twinvet-logo-original.png, 683x283) is not modified; "Care" is live text
+ * sized from measurements of that image so it matches the wordmark at any logo width:
+ *   - cap height of "T"/"V": 121px (rows 129..250)  -> 121/683 = 0.1772 of logo width
+ *   - baseline: row 250, i.e. 33px above image bottom -> 33/683 = 0.0483 of logo width
+ * Care uses Nunito 700 (rounded, close to the wordmark); Nunito cap height = 0.705 em.
+ * Change only --logo-w to resize the whole lockup.
+ */
+.brand-lockup {
+  /* scales with the viewport; whole lockup is ~1.55x logo width, so it fits a 320px screen */
+  --logo-w: clamp(150px, 45vw, 340px);
+  --cap-ratio: 0.1772;
+  --baseline-ratio: 0.0483;
+  --care-cap-em: 0.705;
+  display: inline-flex;
+  flex-wrap: nowrap; /* never let "Care" drop to a new line */
+  align-items: baseline; /* image baseline = its bottom edge; text baseline aligned to it */
+  gap: calc(var(--logo-w) * 0.04); /* ~ one word space at wordmark scale */
+  line-height: 1;
+}
+.brand-lockup img {
+  width: var(--logo-w);
+  height: auto;
+  display: inline-block;
+}
+.brand-lockup .care {
+  font-family: "Nunito", "Pretendard", system-ui, sans-serif;
+  font-weight: 700; /* 800 looked heavier than the wordmark strokes */
+  font-size: calc(var(--logo-w) * var(--cap-ratio) / var(--care-cap-em));
+  color: var(--brand-purple);
+  letter-spacing: 0.01em;
+  position: relative;
+  top: calc(var(--logo-w) * var(--baseline-ratio) * -1); /* lift to the wordmark baseline */
+  white-space: nowrap;
+}
