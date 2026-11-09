@@ -1,0 +1,13 @@
+.git
+**/__pycache__
+**/*.pyc
+.pytest_cache
+.env
+.env.*
+data_output
+design
+brand/references
+frontend/node_modules
+frontend/dist
+tests
+docs
