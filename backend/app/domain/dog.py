@@ -23,7 +23,7 @@ class DogProfileIn(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     breed: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=40)]
-    age_months: int = Field(ge=0, le=360)
+    age_months: int = Field(ge=0, le=371)  # UI max 30y 11m (docs/03 §6)
     weight_kg: float | None = Field(default=None, ge=0.1, le=120.0)
     neutered: Neutered | None = None
     health_notes: Annotated[str, StringConstraints(strip_whitespace=True, max_length=300)] | None = None

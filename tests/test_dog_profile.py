@@ -6,7 +6,7 @@ from backend.app.domain.dog import DogProfileIn, LifeStage, derive_life_stage
 
 @pytest.mark.parametrize(
     ("months", "expected"),
-    [(0, LifeStage.puppy), (11, LifeStage.puppy), (12, LifeStage.adult), (83, LifeStage.adult), (84, LifeStage.senior), (360, LifeStage.senior)],
+    [(0, LifeStage.puppy), (11, LifeStage.puppy), (12, LifeStage.adult), (83, LifeStage.adult), (84, LifeStage.senior), (371, LifeStage.senior)],
 )
 def test_life_stage_boundaries(months, expected):
     assert derive_life_stage(months) is expected
@@ -23,7 +23,7 @@ def test_profile_required_and_trimmed():
         {"age_months": 10},  # breed missing
         {"breed": "   ", "age_months": 10},  # blank breed
         {"breed": "푸들", "age_months": -1},
-        {"breed": "푸들", "age_months": 361},
+        {"breed": "푸들", "age_months": 372},
         {"breed": "푸들", "age_months": 10, "weight_kg": 0},
         {"breed": "푸들", "age_months": 10, "health_notes": "가" * 301},
         {"breed": "푸들", "age_months": 10, "species": "cat"},  # no species field allowed
