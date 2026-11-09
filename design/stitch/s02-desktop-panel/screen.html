@@ -1,0 +1,368 @@
+<!DOCTYPE html>
+
+<html lang="ko"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>TwinVet Care - 수의 건강 상담</title>
+<!-- Fonts -->
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;600;700&amp;family=Noto+Sans:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<!-- Material Symbols Outlined -->
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<!-- Tailwind CSS -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          "colors": {
+            "outline-variant": "#c2c6d4",
+            "tertiary-fixed": "#ffdad6",
+            "on-background": "#191c22",
+            "on-secondary": "#ffffff",
+            "secondary-fixed": "#e9ddff",
+            "on-surface-variant": "#526078",
+            "error-container": "#FFF0EE",
+            "surface-container-low": "#f2f3fc",
+            "primary": "#004994",
+            "on-secondary-container": "#4e3686",
+            "secondary": "#6750a1",
+            "surface-container": "#ecedf6",
+            "surface-variant": "#e1e2eb",
+            "on-secondary-fixed-variant": "#4f3888",
+            "primary-container": "#E6F0FA",
+            "on-surface": "#191c22",
+            "primary-fixed": "#d7e3ff",
+            "surface-dim": "#d8d9e2",
+            "tertiary-container": "#b23532",
+            "warm-orange": "#FF7000",
+            "inverse-on-surface": "#eff0f9",
+            "error": "#B42318",
+            "on-tertiary-container": "#ffd5d1",
+            "inverse-primary": "#aac7ff",
+            "tertiary-fixed-dim": "#ffb3ad",
+            "leaf-green": "#58B828",
+            "tertiary": "#911c1d",
+            "surface-container-highest": "#e1e2eb",
+            "on-primary-fixed": "#001b3e",
+            "on-primary": "#ffffff",
+            "secondary-container": "#bea5fe",
+            "on-tertiary-fixed": "#410003",
+            "surface-bright": "#f9f9ff",
+            "on-primary-container": "#d0deff",
+            "on-error": "#ffffff",
+            "on-tertiary-fixed-variant": "#8b181a",
+            "on-error-container": "#93000a",
+            "secondary-fixed-dim": "#d0bcff",
+            "surface-container-high": "#e7e8f0",
+            "outline": "#7A879A",
+            "surface-tint": "#005cb9",
+            "on-tertiary": "#ffffff",
+            "on-primary-fixed-variant": "#00458e",
+            "surface": "#FFFFFF",
+            "surface-container-lowest": "#ffffff",
+            "on-secondary-fixed": "#23015b",
+            "background": "#F7F9FC",
+            "primary-fixed-dim": "#aac7ff",
+            "inverse-surface": "#2e3037"
+          },
+          "borderRadius": {
+            "DEFAULT": "0.125rem",
+            "lg": "0.25rem",
+            "xl": "0.75rem", /* 12px for cards */
+            "full": "9999px"
+          },
+          "spacing": {
+            "space-xs": "0.25rem",
+            "space-xl": "2rem",
+            "space-lg": "1.5rem",
+            "margin": "1rem",
+            "space-md": "1rem",
+            "space-sm": "0.5rem",
+            "gutter": "1rem"
+          },
+          "fontFamily": {
+            "headline-lg": ["Noto Sans", "Noto Sans KR", "sans-serif"],
+            "headline-sm": ["Noto Sans", "Noto Sans KR", "sans-serif"],
+            "title-md": ["Noto Sans", "Noto Sans KR", "sans-serif"],
+            "label-md": ["Noto Sans", "Noto Sans KR", "sans-serif"],
+            "body-md": ["Noto Sans", "Noto Sans KR", "sans-serif"]
+          },
+          "fontSize": {
+            "headline-lg": ["28px", { "lineHeight": "38px", "fontWeight": "700" }],
+            "headline-sm": ["20px", { "lineHeight": "28px", "fontWeight": "700" }],
+            "title-md": ["18px", { "lineHeight": "26px", "fontWeight": "600" }],
+            "label-md": ["14px", { "lineHeight": "20px", "fontWeight": "600" }],
+            "body-md": ["16px", { "lineHeight": "26px", "fontWeight": "400" }]
+          }
+        },
+      },
+    }
+  </script>
+<style>
+    body {
+      font-family: 'Noto Sans KR', 'Noto Sans', sans-serif;
+      background-color: #F7F9FC;
+      color: #102858;
+    }
+    .material-symbols-outlined {
+      font-size: 20px;
+      line-height: 1;
+      display: inline-block;
+      vertical-align: middle;
+    }
+    .twinvet-blue {
+      color: #0060C0;
+    }
+    .bg-twinvet-blue {
+      background-color: #0060C0;
+    }
+    .twinvet-purple {
+      color: #402878;
+    }
+    .border-divider {
+      border-color: #DCE3EE;
+    }
+    /* Custom subtle scrollbar */
+    ::-webkit-scrollbar {
+      width: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #DCE3EE;
+      border-radius: 4px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #c2c6d4;
+    }
+  </style>
+<!-- TwinVet Care brand lockup (scripts/apply_brand_lockup.py) -->
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@700&amp;display=swap" rel="stylesheet"/>
+<link href="../../../brand/brand-tokens.css" rel="stylesheet"/>
+<link href="../../../brand/brand-lockup.css" rel="stylesheet"/>
+<style>
+  header .brand-lockup { --logo-w: 124px; text-decoration: none; }
+  header:has(.brand-lockup) { background-color: #FFFFFF; } /* logo is made for a white background */
+  /* the logo's speech bubbles reach the image top: give the header breathing room above the lockup */
+  header:has(.brand-lockup) { height: auto; min-height: 64px; padding-top: 14px; padding-bottom: 8px; }
+</style>
+</head>
+<body class="bg-background min-h-screen flex flex-col antialiased select-none">
+<!-- Top Navigation Bar (Shared Component Anchor) -->
+<header class="w-full bg-surface border-b border-divider shadow-sm sticky top-0 z-30">
+<div class="max-w-[1280px] mx-auto px-6 h-16 flex items-center justify-between">
+<!-- Left: Brand Lockup -->
+<a class="brand-lockup" href="#" aria-label="TwinVet Care"><img src="../../../brand/twinvet-logo-original.png" alt="" width="683" height="283"/><span class="care" aria-hidden="true">Care</span></a>
+<!-- Right: Action Buttons -->
+<div class="flex items-center gap-2.5">
+<button class="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg border border-divider text-[#526078] hover:text-[#102858] hover:bg-[#F2F5F9] transition-all text-sm font-medium" type="button">
+<span class="material-symbols-outlined text-lg" data-icon="add_circle">add_circle</span>
+          새 상담
+        </button>
+<button class="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg border border-divider text-[#526078] hover:text-error hover:border-error/30 hover:bg-[#FFF0EE]/50 transition-all text-sm font-medium" type="button">
+<span class="material-symbols-outlined text-lg" data-icon="delete_outline">delete_outline</span>
+          대화 삭제
+        </button>
+</div>
+</div>
+</header>
+<!-- Main Consultation Workspace Container (1280px) -->
+<main class="flex-1 max-w-[1280px] w-full mx-auto px-6 py-6 flex gap-6 overflow-hidden items-start">
+<!-- Left & Center: Conversation Column (max 720px wide) -->
+<div class="flex-1 max-w-[720px] flex flex-col h-[calc(100vh-140px)] min-h-[640px]">
+<!-- Top Animal Identification Chip (Strict, no age-range or life-stage tags) -->
+<div class="flex justify-center mb-4">
+<div class="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-[#EAEFF7] border border-[#D0DAE7] text-[#102858] text-xs font-medium">
+<span class="w-1.5 h-1.5 rounded-full bg-[#0060C0]"></span>
+<span>말티즈 · 10세 3개월 · 3.2kg</span>
+</div>
+</div>
+<!-- Scrollable Message Flow Area -->
+<div class="flex-1 overflow-y-auto pr-2 space-y-6">
+<!-- User Bubble -->
+<div class="flex flex-col items-end">
+<div class="max-w-[85%] bg-[#0060C0] text-white px-5 py-3.5 rounded-2xl rounded-tr-none shadow-sm">
+<p class="font-body-md text-body-md leading-relaxed">
+              어제부터 하루에 두 번 토했어요. 밥은 조금 먹어요. 병원에 가야 할까요?
+            </p>
+</div>
+<span class="text-xs text-[#526078] mt-1 mr-1">오전 10:24</span>
+</div>
+<!-- AI Answer Card Component -->
+<div class="bg-surface rounded-xl border border-divider p-6 shadow-sm">
+<!-- Card Header Info -->
+<div class="flex items-center justify-between pb-4 border-b border-divider">
+<div class="flex items-center gap-2">
+<span class="px-2.5 py-0.5 rounded-md text-xs font-bold" style="background-color: #F3EFFC; color: #402878;">
+                AI 답변
+              </span>
+<span class="text-xs text-[#526078] flex items-center gap-1">
+<span class="material-symbols-outlined text-sm text-[#526078]" data-icon="schedule">schedule</span>
+                오전 10:25
+              </span>
+</div>
+</div>
+<!-- Structured Clinical AI Body Text -->
+<div class="py-4 space-y-4 text-[#102858] text-body-md font-body-md leading-relaxed">
+<p>
+              반려견이 하루 두 차례 구토를 보인 후에도 약간의 식욕을 유지하고 있으나, 반복적인 구토는 소화기계의 급성 자극 또는 신체 내부 이상을 반영할 수 있어 면밀한 경과 관찰이 요구됩니다.
+            </p>
+<p>
+              입력하신 10세 말티즈 기준으로 신체 대사 조절 능력과 수분 보존력이 민감할 수 있으므로 아래와 같은 주요 징후의 동반 유무를 면밀히 확인해 주셔야 합니다:
+            </p>
+<ul class="space-y-2 text-sm pl-2">
+<li class="flex items-start gap-2">
+<span class="text-[#0060C0] font-bold mt-0.5">•</span>
+<span><strong class="font-semibold text-[#102858]">탈수 징후:</strong> 잇몸이 마르고 끈적거리거나 목덜미 피부를 살짝 당겼을 때 제자리로 즉각 돌아오지 않는 현상</span>
+</li>
+<li class="flex items-start gap-2">
+<span class="text-[#0060C0] font-bold mt-0.5">•</span>
+<span><strong class="font-semibold text-[#102858]">기력 저하:</strong> 꼬리 흔들기나 보호자 반응이 현저히 줄고 지속적으로 엎드려만 있는 상태</span>
+</li>
+<li class="flex items-start gap-2">
+<span class="text-[#0060C0] font-bold mt-0.5">•</span>
+<span><strong class="font-semibold text-[#102858]">토사물 변화:</strong> 짙은 갈색 또는 피가 섞인 혈토, 혹은 노란 담즙성 거품토가 짧은 주기로 재발하는 양상</span>
+</li>
+</ul>
+<p>
+              만약 구토 횟수가 늘어나거나 기력 소실이 관찰된다면 지체 없이 가까운 동물병원에 내원하여 복부 방사선 및 혈액 기본 검사를 받아보시는 것을 권장합니다.
+            </p>
+</div>
+<!-- Grounding Source Reference Chips Row -->
+<div class="pt-4 border-t border-divider">
+<div class="flex items-center gap-2 flex-wrap mb-4">
+<!-- Selected state (Reflects current open side-panel) -->
+<button class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-[#0060C0] bg-[#E6F0FA] text-[#0060C0] text-xs font-semibold shadow-xs" type="button">
+<span class="material-symbols-outlined text-sm" data-icon="menu_book">menu_book</span>
+                근거 1 · 상담 사례 · 내과
+                <span class="w-1.5 h-1.5 rounded-full bg-[#0060C0]"></span>
+</button>
+<!-- Normal state -->
+<button class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-divider bg-surface hover:bg-[#F7F9FC] text-[#526078] text-xs font-medium transition-colors" type="button">
+<span class="material-symbols-outlined text-sm" data-icon="article">article</span>
+                근거 2 · 전문 자료 · 내과
+              </button>
+</div>
+<!-- Feedback & Micro-Interactions -->
+<div class="flex items-center justify-between pt-2">
+<div class="flex items-center gap-1.5">
+<button class="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium text-[#526078] hover:text-[#0060C0] hover:bg-[#F2F5F9] transition-colors" type="button">
+<span class="material-symbols-outlined text-base" data-icon="thumb_up">thumb_up</span>
+                  도움 됐어요
+                </button>
+<button class="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium text-[#526078] hover:text-[#0060C0] hover:bg-[#F2F5F9] transition-colors" type="button">
+<span class="material-symbols-outlined text-base" data-icon="thumb_down">thumb_down</span>
+                  아쉬워요
+                </button>
+</div>
+<button class="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium text-[#526078] hover:text-[#102858] hover:bg-[#F2F5F9] transition-colors" type="button">
+<span class="material-symbols-outlined text-base" data-icon="rate_review">rate_review</span>
+                의견 남기기
+              </button>
+</div>
+</div>
+</div>
+</div>
+<!-- Bottom Consultation Input Bar Area -->
+<div class="pt-3 flex flex-col gap-2">
+<!-- Emergency Static Banner (No simulated urgency triage score) -->
+<div class="flex items-center gap-2 px-3.5 py-2 rounded-lg bg-[#FFF0EE] border border-[#FCD2CD] text-[#B42318] text-xs font-medium">
+<span class="material-symbols-outlined text-base text-[#B42318]" data-icon="warning">warning</span>
+<span>⚠ 응급하면 바로 동물병원에 연락하세요</span>
+</div>
+<!-- Input Box with Primary Button -->
+<div class="relative bg-surface rounded-xl border border-divider focus-within:border-[#0060C0] focus-within:ring-2 focus-within:ring-[#0060C0]/20 shadow-sm p-3 transition-all">
+<textarea class="w-full resize-none border-0 p-0 text-sm text-[#102858] placeholder-[#7A879A] focus:ring-0 focus:outline-none bg-transparent" placeholder="반려견에 대해 궁금한 점을 적어 주세요" rows="2"></textarea>
+<div class="flex items-center justify-between pt-2 mt-1 border-t border-[#F0F4F8]">
+<span class="text-[11px] text-[#7A879A] select-none">
+              Enter 전송 · Shift+Enter 줄바꿈
+            </span>
+<button class="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-lg bg-twinvet-blue hover:bg-[#004E9E] active:scale-95 text-white text-xs font-bold transition-all shadow-xs" type="button">
+<span>보내기</span>
+<span class="material-symbols-outlined text-sm" data-icon="send">send</span>
+</button>
+</div>
+</div>
+</div>
+</div>
+<!-- Right Side Panel (~360px docked inspection panel) -->
+<aside class="w-[360px] bg-surface rounded-xl border border-divider shadow-sm flex flex-col overflow-hidden h-[calc(100vh-140px)] min-h-[640px]">
+<!-- Panel Header -->
+<div class="px-5 py-4 border-b border-divider flex items-center justify-between bg-surface">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-[#0060C0]" data-icon="fact_check">fact_check</span>
+<h2 class="text-[18px] font-bold text-[#102858]">근거 상세</h2>
+</div>
+<button class="w-8 h-8 rounded-lg flex items-center justify-center text-[#526078] hover:text-[#102858] hover:bg-[#F2F5F9] transition-colors" title="패널 닫기" type="button">
+<span class="material-symbols-outlined text-xl" data-icon="close">close</span>
+</button>
+</div>
+<!-- Panel Body Content -->
+<div class="p-5 flex-1 overflow-y-auto space-y-6">
+<!-- Metadata Definition List -->
+<div class="space-y-4 bg-[#F8FAFD] p-4 rounded-xl border border-divider">
+<div>
+<span class="text-xs text-[#526078] font-medium block mb-1">자료 유형</span>
+<p class="text-sm font-semibold text-[#102858] flex items-center gap-1.5">
+<span class="material-symbols-outlined text-base text-[#0060C0]" data-icon="chat_bubble_outline">chat_bubble_outline</span>
+              상담 사례
+            </p>
+</div>
+<div class="pt-2 border-t border-divider/60">
+<span class="text-xs text-[#526078] font-medium block mb-1">자료명</span>
+<p class="text-sm font-semibold text-[#102858]">
+              내과 상담 사례
+            </p>
+</div>
+<div class="pt-2 border-t border-divider/60">
+<span class="text-xs text-[#526078] font-medium block mb-1">출처</span>
+<p class="text-sm font-semibold text-[#102858]">
+              AI Hub 반려견 성장 및 질병 관련 말뭉치
+            </p>
+</div>
+<div class="pt-2 border-t border-divider/60">
+<span class="text-xs text-[#526078] font-medium block mb-1">진료과</span>
+<span class="inline-block px-2 py-0.5 rounded bg-[#E6F0FA] text-[#0060C0] text-xs font-bold">
+              내과
+            </span>
+</div>
+</div>
+<!-- Scope & Access Restriction Box (Strictly NO quoted text) -->
+<div class="bg-[#F7F9FC] border border-divider rounded-xl p-4">
+<div class="flex items-start gap-2.5">
+<span class="material-symbols-outlined text-[#526078] text-base mt-0.5" data-icon="info">info</span>
+<div>
+<h3 class="text-xs font-bold text-[#102858] mb-1">자료 열람 정책 안내</h3>
+<p class="text-xs text-[#526078] leading-relaxed">
+                원문 구절은 자료 이용 조건 확인 후 제공됩니다.
+              </p>
+</div>
+</div>
+</div>
+<!-- Reassurance Notice -->
+<div class="p-3.5 rounded-lg border border-divider/70 text-[11px] text-[#7A879A] leading-relaxed">
+          TwinVet Care의 모든 답변은 검증된 반려견 전문 말뭉치 데이터베이스를 매칭하여 생성됩니다.
+        </div>
+</div>
+<!-- Panel Footer Note -->
+<div class="p-4 border-t border-divider bg-[#FAFBFD] text-center">
+<span class="text-[11px] text-[#7A879A]">
+          인덱스 식별자: SRC-IM-2023-094
+        </span>
+</div>
+</aside>
+</main>
+<!-- Legal / Medical Disclaimer Footer -->
+<footer class="w-full bg-[#F2F5F9] border-t border-divider py-3 px-6 mt-auto">
+<div class="max-w-[1280px] mx-auto text-center">
+<p class="text-[11px] text-[#7A879A] tracking-tight">
+        TwinVet Care는 보호자의 이해를 돕기 위한 보조 수의 건강 정보 서비스이며, 의학적 진단이나 처방을 대신할 수 없습니다.
+      </p>
+</div>
+</footer>
+</body></html>

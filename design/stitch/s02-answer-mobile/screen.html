@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+
+<html lang="ko"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>TwinVet Care - 반려견 건강 상담</title>
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          colors: {
+            "tertiary": "#911c1d",
+            "secondary-fixed": "#e9ddff",
+            "inverse-primary": "#aac7ff",
+            "surface-container": "#ecedf6",
+            "leaf-green": "#58B828",
+            "secondary": "#402878",
+            "on-primary-container": "#d0deff",
+            "surface": "#FFFFFF",
+            "on-surface": "#191c22",
+            "primary-fixed": "#d7e3ff",
+            "warm-orange": "#FF7000",
+            "on-secondary": "#ffffff",
+            "outline-variant": "#DCE3EE",
+            "on-error-container": "#93000a",
+            "error-container": "#FFF0EE",
+            "on-background": "#191c22",
+            "tertiary-container": "#b23532",
+            "secondary-container": "#bea5fe",
+            "on-error": "#ffffff",
+            "surface-container-low": "#f2f3fc",
+            "primary-container": "#E6F0FA",
+            "on-primary": "#ffffff",
+            "on-secondary-container": "#402878",
+            "tertiary-fixed": "#ffdad6",
+            "on-tertiary-container": "#ffd5d1",
+            "surface-bright": "#f9f9ff",
+            "inverse-surface": "#2e3037",
+            "on-primary-fixed-variant": "#00458e",
+            "on-tertiary-fixed-variant": "#8b181a",
+            "on-surface-variant": "#526078",
+            "primary": "#0060C0",
+            "on-tertiary": "#ffffff",
+            "primary-fixed-dim": "#aac7ff",
+            "background": "#F7F9FC",
+            "surface-dim": "#d8d9e2",
+            "on-secondary-fixed-variant": "#4f3888",
+            "error": "#B42318",
+            "on-secondary-fixed": "#23015b",
+            "surface-container-lowest": "#ffffff",
+            "tertiary-fixed-dim": "#ffb3ad",
+            "secondary-fixed-dim": "#d0bcff",
+            "surface-tint": "#0060C0",
+            "outline": "#7A879A",
+            "on-primary-fixed": "#001b3e",
+            "surface-variant": "#e1e2eb",
+            "inverse-on-surface": "#eff0f9",
+            "on-tertiary-fixed": "#410003",
+            "surface-container-highest": "#e1e2eb",
+            "surface-container-high": "#e7e8f0"
+          },
+          borderRadius: {
+            "DEFAULT": "0.125rem",
+            "lg": "0.25rem",
+            "xl": "0.75rem",
+            "full": "9999px"
+          },
+          spacing: {
+            "space-xs": "0.25rem",
+            "space-sm": "0.5rem",
+            "margin": "1rem",
+            "gutter": "1rem",
+            "space-xl": "2rem",
+            "space-md": "1rem",
+            "space-lg": "1.5rem"
+          },
+          fontFamily: {
+            "title-md": ["Noto Sans KR", "Noto Sans", "sans-serif"],
+            "headline-lg": ["Noto Sans KR", "Noto Sans", "sans-serif"],
+            "body-md": ["Noto Sans KR", "Noto Sans", "sans-serif"],
+            "headline-sm": ["Noto Sans KR", "Noto Sans", "sans-serif"],
+            "label-md": ["Noto Sans KR", "Noto Sans", "sans-serif"]
+          },
+          fontSize: {
+            "title-md": ["18px", { "lineHeight": "26px", "fontWeight": "600" }],
+            "headline-lg": ["28px", { "lineHeight": "38px", "fontWeight": "700" }],
+            "body-md": ["16px", { "lineHeight": "26px", "fontWeight": "400" }],
+            "headline-sm": ["20px", { "lineHeight": "28px", "fontWeight": "700" }],
+            "label-md": ["14px", { "lineHeight": "20px", "fontWeight": "600" }]
+          }
+        }
+      }
+    };
+  </script>
+<style>
+    body {
+      font-family: 'Noto Sans KR', sans-serif;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .material-symbols-outlined {
+      font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+      display: inline-block;
+      vertical-align: middle;
+      line-height: 1;
+    }
+    @keyframes pulse-subtle {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.45; transform: scale(0.96); }
+    }
+    .animate-pulse-subtle {
+      animation: pulse-subtle 1.8s ease-in-out infinite;
+    }
+    @keyframes spin-slow {
+      from { transform: rotate(0deg); }
+      to { transform: rotate(360deg); }
+    }
+    .animate-spin-slow {
+      animation: spin-slow 1.4s linear infinite;
+    }
+  </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  <!-- TwinVet Care brand lockup (scripts/apply_brand_lockup.py) -->
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@700&amp;display=swap" rel="stylesheet"/>
+<link href="../../../brand/brand-tokens.css" rel="stylesheet"/>
+<link href="../../../brand/brand-lockup.css" rel="stylesheet"/>
+<style>
+  header .brand-lockup { --logo-w: 108px; text-decoration: none; }
+  header:has(.brand-lockup) { background-color: #FFFFFF; } /* logo is made for a white background */
+  /* the logo's speech bubbles reach the image top: give the header breathing room above the lockup */
+  header:has(.brand-lockup) { height: auto; min-height: 64px; padding-top: 14px; padding-bottom: 8px; }
+</style>
+</head>
+<body class="bg-background text-on-surface antialiased min-h-screen flex justify-center selection:bg-primary-container selection:text-primary">
+<!-- Mobile Viewport Container (390px bounded frame) -->
+<div class="w-full max-w-[390px] min-h-screen bg-background flex flex-col relative pb-36 shadow-lg shadow-outline-variant/30">
+<!-- Top App Bar & Brand Lockup -->
+<header class="sticky top-0 z-30 bg-surface border-b border-outline-variant shadow-sm transition-colors duration-150">
+<div class="h-14 px-margin flex items-center justify-between">
+<!-- Brand Identity: Twin(Purple) Vet(Blue) Care(Purple) -->
+<a class="brand-lockup" href="#" aria-label="TwinVet Care"><img src="../../../brand/twinvet-logo-original.png" alt="" width="683" height="283"/><span class="care" aria-hidden="true">Care</span></a>
+<!-- Trailing action -->
+<button aria-label="메뉴 더보기" class="w-11 h-11 flex items-center justify-center rounded-full text-on-surface-variant hover:bg-surface-container-low active:scale-95 transition-all" type="button">
+<span class="material-symbols-outlined text-[24px]" data-icon="more_vert">more_vert</span>
+</button>
+</div>
+<!-- Read-only Summary Chip Row -->
+<div class="px-margin pb-3 pt-1 flex items-center">
+<div class="inline-flex items-center gap-1.5 px-3 py-1 bg-surface-container-low border border-outline-variant rounded-full text-[13px] leading-[18px] font-medium text-on-surface-variant">
+<span class="material-symbols-outlined text-[16px] text-primary" data-icon="info">info</span>
+<span>말티즈 · 10세 3개월 · 3.2kg</span>
+</div>
+</div>
+</header>
+<!-- Main Consultation Chat Stream -->
+<main class="flex-1 px-margin pt-4 pb-4 flex flex-col gap-4">
+<!-- 1. Initial User Query -->
+<section class="flex flex-col items-end">
+<div class="max-w-[85%] bg-primary text-on-primary rounded-xl rounded-tr-none px-4 py-3 shadow-sm">
+<p class="text-body-md font-body-md text-[15px] leading-[22px] break-keep">
+            어제부터 하루에 두 번 토했어요. 밥은 조금 먹어요. 병원에 가야 할까요?
+          </p>
+</div>
+<span class="text-[11px] text-on-surface-variant mt-1 px-1">오전 10:24</span>
+</section>
+<!-- 2. First AI Answer Card -->
+<section class="flex flex-col items-start w-full">
+<article class="w-full bg-surface border border-outline-variant rounded-xl p-4 shadow-sm flex flex-col gap-3">
+<!-- Badge Header -->
+<div class="flex items-center justify-between">
+<span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-[#EFEBF9] text-[#402878] text-[12px] font-bold tracking-tight">
+<span class="material-symbols-outlined text-[14px]" data-icon="smart_toy" style="font-variation-settings: 'FILL' 1;">smart_toy</span>
+              AI 답변
+            </span>
+<span class="text-[11px] text-on-surface-variant">오전 10:25</span>
+</div>
+<!-- Answer Content Paragraphs & Bullet List -->
+<div class="text-body-md font-body-md text-[15px] leading-[23px] text-[#102858] flex flex-col gap-2.5 break-keep">
+<p>
+              반려견이 하루 두 차례 구토를 보인 후에도 약간의 식욕을 유지하고 있으나, 반복적인 구토는 소화기계의 급성 자극 또는 신체 내부 이상을 반영할 수 있어 면밀한 경과 관찰이 요구됩니다.
+            </p>
+<p>
+              입력하신 10세 말티즈 기준으로 신체 대사 조절 능력과 수분 보존력이 민감할 수 있으므로 아래와 같은 주요 징후의 동반 유무를 면밀히 확인해 주셔야 합니다:
+            </p>
+<ul class="space-y-1.5 pl-1 text-[14px] leading-[21px] text-[#102858]">
+<li class="flex items-start gap-1.5">
+<span class="text-primary font-bold">•</span>
+<span><strong>탈수 징후:</strong> 잇몸이 마르고 끈적거리거나 목덜미 피부를 살짝 당겼을 때 제자리로 즉각 돌아오지 않는 현상</span>
+</li>
+<li class="flex items-start gap-1.5">
+<span class="text-primary font-bold">•</span>
+<span><strong>기력 저하:</strong> 꼬리 흔들기나 보호자 반응이 현저히 줄고 지속적으로 엎드려만 있는 상태</span>
+</li>
+<li class="flex items-start gap-1.5">
+<span class="text-primary font-bold">•</span>
+<span><strong>토사물 변화:</strong> 짙은 갈색 또는 피가 섞인 혈토, 혹은 노란 담즙성 거품토가 짧은 주기로 재발하는 양상</span>
+</li>
+</ul>
+<p>
+              만약 구토 횟수가 늘어나거나 기력 소실이 관찰된다면 지체 없이 가까운 동물병원에 내원하여 복부 방사선 및 혈액 기본 검사를 받아보시는 것을 권장합니다.
+            </p>
+</div>
+<!-- Source Reference Chips -->
+<div class="pt-2 border-t border-outline-variant/60 flex flex-wrap gap-1.5 items-center">
+<span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-surface-container-low border border-outline-variant text-[12px] font-medium text-on-surface-variant">
+<span class="material-symbols-outlined text-[13px] text-primary" data-icon="menu_book">menu_book</span>
+              근거 1 · 상담 사례 · 내과
+            </span>
+<span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-surface-container-low border border-outline-variant text-[12px] font-medium text-on-surface-variant">
+<span class="material-symbols-outlined text-[13px] text-primary" data-icon="clinical_notes">clinical_notes</span>
+              근거 2 · 전문 자료 · 내과
+            </span>
+</div>
+<!-- Feedback Action Buttons -->
+<div class="pt-1 flex items-center gap-2">
+<button class="h-8 px-2.5 inline-flex items-center justify-center gap-1 rounded-lg border border-outline-variant bg-surface hover:bg-surface-container-low text-on-surface-variant text-[12px] font-medium active:scale-95 transition-all" type="button">
+<span class="material-symbols-outlined text-[14px]" data-icon="thumb_up">thumb_up</span>
+              도움 됐어요
+            </button>
+<button class="h-8 px-2.5 inline-flex items-center justify-center gap-1 rounded-lg border border-outline-variant bg-surface hover:bg-surface-container-low text-on-surface-variant text-[12px] font-medium active:scale-95 transition-all" type="button">
+<span class="material-symbols-outlined text-[14px]" data-icon="thumb_down">thumb_down</span>
+              아쉬워요
+            </button>
+<button class="h-8 px-2.5 inline-flex items-center justify-center gap-1 rounded-lg border border-outline-variant bg-surface hover:bg-surface-container-low text-on-surface-variant text-[12px] font-medium active:scale-95 transition-all" type="button">
+<span class="material-symbols-outlined text-[14px]" data-icon="chat_bubble_outline">chat_bubble_outline</span>
+              의견 남기기
+            </button>
+</div>
+</article>
+</section>
+<!-- 3. Second User Question Bubble -->
+<section class="flex flex-col items-end">
+<div class="max-w-[85%] bg-primary text-on-primary rounded-xl rounded-tr-none px-4 py-3 shadow-sm">
+<p class="text-body-md font-body-md text-[15px] leading-[22px] break-keep">
+            물은 평소처럼 마시는데 지금 당장 응급실에 가야 할 정도인가요?
+          </p>
+</div>
+<span class="text-[11px] text-on-surface-variant mt-1 px-1">오전 10:27</span>
+</section>
+<!-- 4. Processing AI Card -->
+<section class="flex flex-col items-start w-full">
+<article class="w-full bg-surface border border-outline-variant rounded-xl p-4 shadow-sm flex items-center justify-between">
+<div class="flex items-center gap-3">
+<div class="w-8 h-8 rounded-full bg-primary-container flex items-center justify-center text-primary">
+<span class="material-symbols-outlined animate-spin-slow text-[18px]" data-icon="progress_activity">progress_activity</span>
+</div>
+<div class="flex flex-col">
+<p class="text-[14px] font-semibold text-[#102858]">
+                답변을 준비하고 있어요
+              </p>
+<span class="text-[12px] text-on-surface-variant">의학 참고 자료를 확인하는 중입니다…</span>
+</div>
+</div>
+<!-- Shimmer Dots -->
+<div class="flex items-center gap-1 pr-1">
+<span class="w-1.5 h-1.5 rounded-full bg-primary animate-pulse-subtle"></span>
+<span class="w-1.5 h-1.5 rounded-full bg-primary animate-pulse-subtle" style="animation-delay: 0.2s;"></span>
+<span class="w-1.5 h-1.5 rounded-full bg-primary animate-pulse-subtle" style="animation-delay: 0.4s;"></span>
+</div>
+</article>
+</section>
+</main>
+<!-- Bottom Fixed Interaction Area -->
+<div class="fixed bottom-0 w-full max-w-[390px] bg-surface border-t border-outline-variant z-40">
+<!-- Static Emergency Notice Banner -->
+<div class="bg-[#FFF0EE] text-[#B42318] px-margin py-2 flex items-center justify-center gap-1.5 select-none">
+<span class="material-symbols-outlined text-[16px] text-error shrink-0" data-icon="warning">warning</span>
+<span class="text-[12px] font-semibold tracking-tight">⚠ 응급하면 바로 동물병원에 연락하세요</span>
+</div>
+<!-- Disabled Input Box & Submit Button -->
+<div class="p-3 bg-surface flex items-center gap-2">
+<div class="relative flex-1">
+<input class="w-full h-11 pl-3.5 pr-3 text-[14px] bg-surface-container-low border border-outline rounded-xl text-on-surface-variant placeholder:text-outline cursor-not-allowed focus:outline-none focus:ring-0 opacity-80" disabled="" placeholder="반려견에 대해 궁금한 점을 적어 주세요" type="text"/>
+</div>
+<!-- Send Button in disabled state -->
+<button aria-label="보내기" class="h-11 px-3.5 bg-primary text-on-primary rounded-xl font-label-md text-label-md flex items-center justify-center gap-1 opacity-50 cursor-not-allowed transition-opacity" disabled="" type="button">
+<span>보내기</span>
+<span class="material-symbols-outlined text-[18px]" data-icon="arrow_upward">arrow_upward</span>
+</button>
+</div>
+<!-- Safe area margin for iOS home indicator -->
+<div class="h-2 bg-surface"></div>
+</div>
+</div>
+</body></html>

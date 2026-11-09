@@ -1,0 +1,10 @@
+{
+  "key": "s02-intake-mobile",
+  "title": "S02 상담 첫 진입 · 모바일",
+  "device": "MOBILE",
+  "screen_id": "4156eef1e04342178a055972665fcee7",
+  "stitch_title": "TwinVet Care 질문 전 상담 화면 (Mobile 390px)",
+  "canvas_url": "https://stitch.google.com/projects/16090159501557346695?node-id=4156eef1e04342178a055972665fcee7",
+  "prompt_sha256": "3ccb163a9d66d779782b372f1ae30c26abc9388dc3827fd5094309c157374b01",
+  "generated_at": "2026-11-09T12:34:12+00:00"
+}

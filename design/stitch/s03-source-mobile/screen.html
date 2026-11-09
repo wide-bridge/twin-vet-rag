@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=390, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>TwinVet Care 근거 상세 모달</title>
+  <!-- Google Fonts: Noto Sans KR -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <!-- Google Material Symbols Outlined -->
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            primary: '#0060C0',
+            'primary-dark': '#004E9E',
+            'primary-container': '#E6F0FA',
+            secondary: '#402878',
+            'deep-navy': '#102858',
+            'muted-text': '#526078',
+            outline: '#7A879A',
+            'outline-variant': '#DCE3EE',
+            bg: '#F7F9FC',
+            surface: '#FFFFFF',
+            error: '#B42318',
+            'error-container': '#FFF0EE'
+          },
+          fontFamily: {
+            sans: ['Noto Sans KR', 'sans-serif']
+          },
+          borderRadius: {
+            'card': '12px'
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    body {
+      font-family: 'Noto Sans KR', -apple-system, BlinkMacSystemFont, sans-serif;
+      background-color: #F7F9FC;
+      color: #102858;
+      -webkit-font-smoothing: antialiased;
+    }
+    .material-symbols-outlined {
+      font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+      line-height: 1;
+    }
+  </style>
+<!-- TwinVet Care brand lockup (scripts/apply_brand_lockup.py) -->
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@700&amp;display=swap" rel="stylesheet"/>
+<link href="../../../brand/brand-tokens.css" rel="stylesheet"/>
+<link href="../../../brand/brand-lockup.css" rel="stylesheet"/>
+<style>
+  header .brand-lockup { --logo-w: 108px; text-decoration: none; }
+  header:has(.brand-lockup) { background-color: #FFFFFF; } /* logo is made for a white background */
+  /* the logo's speech bubbles reach the image top: give the header breathing room above the lockup */
+  header:has(.brand-lockup) { height: auto; min-height: 64px; padding-top: 14px; padding-bottom: 8px; }
+</style>
+</head>
+<body class="bg-[#F7F9FC] flex justify-center min-h-screen">
+  <!-- Mobile Container (390px fixed width for mobile preview simulation) -->
+  <div class="w-full max-w-[390px] min-h-screen bg-[#F7F9FC] flex flex-col relative shadow-sm border-x border-[#DCE3EE]">
+    
+    <!-- Top Service Header with Brand Text Lockup -->
+    <header class="w-full h-14 bg-white border-b border-[#DCE3EE] px-4 flex items-center justify-between shrink-0">
+      <a class="brand-lockup" href="#" aria-label="TwinVet Care"><img src="../../../brand/twinvet-logo-original.png" alt="" width="683" height="283"/><span class="care" aria-hidden="true">Care</span></a>
+      <div class="text-[12px] font-medium text-[#526078] bg-[#E6F0FA] text-[#0060C0] px-2.5 py-1 rounded-full">
+        반려견 건강 가이드
+      </div>
+    </header>
+
+    <!-- Full-screen Modal Surface Container -->
+    <main class="flex-1 flex flex-col bg-white">
+      
+      <!-- 1. Modal Top Bar: back/close button left, title '근거 상세' -->
+      <div class="h-14 border-b border-[#DCE3EE] px-4 flex items-center gap-3 shrink-0 bg-white">
+        <button type="button" aria-label="닫기" class="w-10 h-10 -ml-2 rounded-full flex items-center justify-center text-[#102858] hover:bg-[#F7F9FC] active:scale-95 transition-all">
+          <span class="material-symbols-outlined text-[24px]">arrow_back</span>
+        </button>
+        <h1 class="text-[18px] font-bold text-[#102858] tracking-tight">
+          근거 상세
+        </h1>
+      </div>
+
+      <!-- Scrollable Modal Content -->
+      <div class="p-4 flex-1 flex flex-col gap-4">
+        
+        <!-- 2. Content: Main Grounded Source Card with label-value list -->
+        <section class="bg-white rounded-[12px] border border-[#DCE3EE] p-4 shadow-[0_1px_3px_rgba(16,40,88,0.04)]">
+          <div class="flex items-center gap-2 pb-3 mb-3 border-b border-[#DCE3EE]/80">
+            <span class="material-symbols-outlined text-[#0060C0] text-[20px]">menu_book</span>
+            <span class="text-[14px] font-semibold text-[#0060C0]">참고 근거 정보</span>
+          </div>
+
+          <dl class="flex flex-col gap-3.5 text-[15px]">
+            <!-- 자료 유형 -->
+            <div class="flex flex-col gap-1">
+              <dt class="text-[13px] font-medium text-[#526078]">자료 유형</dt>
+              <dd class="text-[15px] font-semibold text-[#102858]">전문 자료</dd>
+            </div>
+
+            <div class="h-[1px] bg-[#F7F9FC]"></div>
+
+            <!-- 자료명 (Long title wraps onto multiple lines) -->
+            <div class="flex flex-col gap-1">
+              <dt class="text-[13px] font-medium text-[#526078]">자료명</dt>
+              <dd class="text-[15px] font-semibold text-[#102858] leading-relaxed break-keep">
+                임상가를 위한 소동물 내과질환의 진단과 치료지침
+              </dd>
+            </div>
+
+            <div class="h-[1px] bg-[#F7F9FC]"></div>
+
+            <!-- 출처 -->
+            <div class="flex flex-col gap-1">
+              <dt class="text-[13px] font-medium text-[#526078]">출처</dt>
+              <dd class="text-[15px] font-medium text-[#102858] leading-relaxed break-keep">
+                AI Hub 반려견 성장 및 질병 관련 말뭉치
+              </dd>
+            </div>
+
+            <div class="h-[1px] bg-[#F7F9FC]"></div>
+
+            <!-- 진료과 -->
+            <div class="flex flex-col gap-1">
+              <dt class="text-[13px] font-medium text-[#526078]">진료과</dt>
+              <dd>
+                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-[13px] font-medium bg-[#E6F0FA] text-[#0060C0] border border-[#0060C0]/20">
+                  내과
+                </span>
+              </dd>
+            </div>
+          </dl>
+        </section>
+
+        <!-- 3. Muted note box with info icon -->
+        <aside class="bg-[#F7F9FC] rounded-[12px] border border-[#DCE3EE] p-3.5 flex items-start gap-2.5">
+          <span class="material-symbols-outlined text-[#526078] text-[20px] shrink-0 mt-0.5">info</span>
+          <p class="text-[13px] font-normal text-[#526078] leading-relaxed">
+            원문 구절은 자료 이용 조건 확인 후 제공됩니다.
+          </p>
+        </aside>
+
+        <!-- 4. Second smaller example card showing unavailable state -->
+        <section class="mt-2 pt-4 border-t border-[#DCE3EE]">
+          <h2 class="text-[13px] font-semibold text-[#526078] mb-2 px-1">
+            미제공 상태 예시
+          </h2>
+          
+          <div class="bg-white rounded-[12px] border border-dashed border-[#7A879A]/40 p-4 flex items-center gap-3 bg-[#F7F9FC]/60">
+            <div class="w-9 h-9 rounded-full bg-[#DCE3EE]/60 flex items-center justify-center shrink-0 text-[#7A879A]">
+              <span class="material-symbols-outlined text-[20px]">inventory_2</span>
+            </div>
+            <div class="flex-1">
+              <p class="text-[14px] font-medium text-[#526078]">
+                현재 제공할 수 없는 자료예요.
+              </p>
+              <p class="text-[12px] text-[#7A879A] mt-0.5">
+                해당 항목의 상세 출처 정보를 불러올 수 없습니다.
+              </p>
+            </div>
+          </div>
+        </section>
+
+      </div>
+
+      <!-- Modal Bottom Actions (Touch target >= 44px) -->
+      <footer class="p-4 border-t border-[#DCE3EE] bg-white shrink-0">
+        <button type="button" class="w-full h-12 bg-[#0060C0] hover:bg-[#004E9E] active:scale-[0.99] text-white text-[15px] font-semibold rounded-[12px] flex items-center justify-center transition-all shadow-sm">
+          확인
+        </button>
+      </footer>
+    </main>
+
+    <!-- Legal disclaimer footer bar -->
+    <div class="py-3 px-4 bg-[#F7F9FC] border-t border-[#DCE3EE] text-center shrink-0">
+      <p class="text-[11px] text-[#526078] leading-tight">
+        TwinVet Care는 보호자의 이해를 돕기 위한 보조 수의 건강 정보 서비스이며 의학적 진단이나 처방을 대신할 수 없습니다.
+      </p>
+    </div>
+
+  </div>
+</body>
+</html>

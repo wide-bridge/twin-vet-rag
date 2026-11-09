@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+
+<html lang="ko"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>TwinVet Care</title>
+<!-- Google Fonts: Noto Sans KR -->
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<!-- Material Symbols Outlined -->
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<!-- Tailwind CSS CDN -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<!-- Tailwind Configuration verbatim as specified -->
+<script id="tailwind-config">
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          "colors": {
+            "warm-orange": "#FF7000",
+            "on-secondary-fixed": "#23015b",
+            "tertiary-container": "#b23532",
+            "on-tertiary-fixed-variant": "#8b181a",
+            "surface-dim": "#d8d9e2",
+            "on-error": "#ffffff",
+            "on-secondary-container": "#4e3686",
+            "on-tertiary": "#ffffff",
+            "on-secondary": "#ffffff",
+            "error": "#B42318",
+            "background": "#F7F9FC",
+            "primary-fixed-dim": "#aac7ff",
+            "primary-container": "#0060c0",
+            "tertiary": "#911c1d",
+            "surface-container-highest": "#e1e2eb",
+            "surface": "#FFFFFF",
+            "on-secondary-fixed-variant": "#4f3888",
+            "primary": "#004994",
+            "surface-container-low": "#f2f3fc",
+            "outline": "#7A879A",
+            "on-primary-container": "#d0deff",
+            "primary-fixed": "#d7e3ff",
+            "outline-variant": "#c2c6d4",
+            "secondary-fixed": "#e9ddff",
+            "inverse-on-surface": "#eff0f9",
+            "secondary-container": "#bea5fe",
+            "surface-tint": "#005cb9",
+            "on-tertiary-fixed": "#410003",
+            "on-primary-fixed": "#001b3e",
+            "surface-container-lowest": "#ffffff",
+            "on-tertiary-container": "#ffd5d1",
+            "on-surface": "#102858",
+            "on-primary": "#ffffff",
+            "tertiary-fixed-dim": "#ffb3ad",
+            "on-surface-variant": "#424752",
+            "on-background": "#191c22",
+            "on-error-container": "#93000a",
+            "on-primary-fixed-variant": "#00458e",
+            "surface-container-high": "#e7e8f0",
+            "leaf-green": "#58B828",
+            "surface-bright": "#f9f9ff",
+            "secondary": "#6750a1",
+            "tertiary-fixed": "#ffdad6",
+            "error-container": "#ffdad6",
+            "surface-variant": "#e1e2eb",
+            "secondary-fixed-dim": "#d0bcff",
+            "surface-container": "#ecedf6",
+            "inverse-surface": "#2e3037",
+            "inverse-primary": "#aac7ff"
+          },
+          "borderRadius": {
+            "DEFAULT": "0.125rem",
+            "lg": "0.25rem",
+            "xl": "0.5rem",
+            "full": "0.75rem"
+          },
+          "spacing": {
+            "gutter": "1rem",
+            "space-xl": "2rem",
+            "margin": "1rem",
+            "space-xs": "0.25rem",
+            "space-sm": "0.5rem",
+            "space-lg": "1.5rem",
+            "space-md": "1rem"
+          },
+          "fontFamily": {
+            "headline-lg": [
+              "Noto Sans KR", "Noto Sans", "sans-serif"
+            ],
+            "label-md": [
+              "Noto Sans KR", "Noto Sans", "sans-serif"
+            ],
+            "body-md": [
+              "Noto Sans KR", "Noto Sans", "sans-serif"
+            ],
+            "title-md": [
+              "Noto Sans KR", "Noto Sans", "sans-serif"
+            ],
+            "headline-sm": [
+              "Noto Sans KR", "Noto Sans", "sans-serif"
+            ]
+          },
+          "fontSize": {
+            "headline-lg": [
+              "28px",
+              {
+                "lineHeight": "38px",
+                "fontWeight": "700"
+              }
+            ],
+            "label-md": [
+              "14px",
+              {
+                "lineHeight": "20px",
+                "fontWeight": "600"
+              }
+            ],
+            "body-md": [
+              "16px",
+              {
+                "lineHeight": "26px",
+                "fontWeight": "400"
+              }
+            ],
+            "title-md": [
+              "18px",
+              {
+                "lineHeight": "26px",
+                "fontWeight": "600"
+              }
+            ],
+            "headline-sm": [
+              "20px",
+              {
+                "lineHeight": "28px",
+                "fontWeight": "700"
+              }
+            ]
+          }
+        },
+      },
+    }
+  </script>
+<style>
+    body {
+      font-family: 'Noto Sans KR', sans-serif;
+      -webkit-font-smoothing: antialiased;
+      background-color: #F7F9FC;
+    }
+    .material-symbols-outlined {
+      font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+    }
+  </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  <!-- TwinVet Care brand lockup (scripts/apply_brand_lockup.py) -->
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@700&amp;display=swap" rel="stylesheet"/>
+<link href="../../../brand/brand-tokens.css" rel="stylesheet"/>
+<link href="../../../brand/brand-lockup.css" rel="stylesheet"/>
+<style>
+  header .brand-lockup { --logo-w: 108px; text-decoration: none; }
+  header:has(.brand-lockup) { background-color: #FFFFFF; } /* logo is made for a white background */
+  /* the logo's speech bubbles reach the image top: give the header breathing room above the lockup */
+  header:has(.brand-lockup) { height: auto; min-height: 64px; padding-top: 14px; padding-bottom: 8px; }
+</style>
+</head>
+<body class="bg-background text-on-surface flex justify-center min-h-screen">
+<!-- Mobile Container (Max 390px, Single Column, 16px Side Margins) -->
+<main class="w-full max-w-[390px] min-h-screen flex flex-col justify-between bg-background px-margin pb-6">
+<div>
+<!-- 1. Header (Clean minimal top bar, brand lockup, Shared Component rules applied) -->
+<header class="w-full h-14 flex items-center justify-between border-b border-outline-variant/30">
+<a class="brand-lockup" href="#" aria-label="TwinVet Care"><img src="../../../brand/twinvet-logo-original.png" alt="" width="683" height="283"/><span class="care" aria-hidden="true">Care</span></a>
+<button aria-label="도움말" class="w-9 h-9 flex items-center justify-center rounded-full text-on-surface-variant hover:bg-surface-container-low transition-colors" type="button">
+<span class="material-symbols-outlined text-xl" data-icon="help_outline">help_outline</span>
+</button>
+</header>
+<!-- 2. Title Section -->
+<section class="pt-6 pb-5">
+<div class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-surface border border-outline-variant/40 mb-3 shadow-sm">
+<span class="material-symbols-outlined text-primary text-base" data-icon="pets">pets</span>
+<span class="text-label-md font-label-md text-primary">반려견 전용 건강 가이드</span>
+</div>
+<h1 class="font-headline-lg text-headline-lg text-on-surface tracking-tight break-keep">
+          반려견 건강 궁금증, 상담 자료로 함께 찾아봐요
+        </h1>
+</section>
+<!-- 3. Guidance Info Block (Flat card, #FFFFFF, 1px border #DCE3EE, 12px rounded radius) -->
+<section class="bg-surface rounded-full border border-[#DCE3EE] p-5 shadow-sm space-y-4 mb-4">
+<!-- Item (a) -->
+<div class="flex items-start gap-3">
+<div class="w-8 h-8 rounded-lg bg-surface-container-low flex items-center justify-center shrink-0 mt-0.5 text-primary">
+<span class="material-symbols-outlined text-lg" data-icon="clinical_notes">clinical_notes</span>
+</div>
+<p class="font-body-md text-body-md text-on-surface break-keep text-[15px] leading-[24px]">
+            반려견(강아지)의 일반 건강 질문을 도와드려요. 내과·외과·피부·눈·치아 관련 상담 자료를 바탕으로 답합니다.
+          </p>
+</div>
+<div class="h-[1px] w-full bg-surface-container-high"></div>
+<!-- Item (b) -->
+<div class="flex items-start gap-3">
+<div class="w-8 h-8 rounded-lg bg-surface-container-low flex items-center justify-center shrink-0 mt-0.5 text-primary">
+<span class="material-symbols-outlined text-lg" data-icon="stethoscope">stethoscope</span>
+</div>
+<p class="font-body-md text-body-md text-on-surface break-keep text-[15px] leading-[24px]">
+            AI가 상담 사례와 수의학 자료를 찾아 정리한 정보예요. 진단이나 처방이 아니며, 정확한 판단은 동물병원에서 받으세요.
+          </p>
+</div>
+<div class="h-[1px] w-full bg-surface-container-high"></div>
+<!-- Item (c) -->
+<div class="flex items-start gap-3">
+<div class="w-8 h-8 rounded-lg bg-surface-container-low flex items-center justify-center shrink-0 mt-0.5 text-primary">
+<span class="material-symbols-outlined text-lg" data-icon="lock_clock">lock_clock</span>
+</div>
+<p class="font-body-md text-body-md text-on-surface break-keep text-[15px] leading-[24px]">
+            질문과 입력한 반려견 정보는 답변을 위해 저장돼요. 이 브라우저에서 7일간 볼 수 있고 이후 자동 삭제되며, 언제든 직접 삭제할 수 있어요.
+          </p>
+</div>
+</section>
+<!-- 4. Emergency Box -->
+<section class="bg-[#FFF0EE] border border-[#F86860] rounded-full p-4 mb-6">
+<div class="flex items-start gap-2.5">
+<span class="material-symbols-outlined text-error text-xl shrink-0 mt-0.5" data-icon="warning">warning</span>
+<div class="space-y-1">
+<h2 class="text-error font-headline-sm text-[16px] leading-[22px] font-bold">
+              응급 상황이면 AI 답변을 기다리지 마세요.
+            </h2>
+<p class="text-error font-body-md text-[14px] leading-[22px] break-keep">
+              호흡 곤란, 의식 저하, 경련, 심한 출혈, 중독 의심 등은 바로 동물병원(야간에는 24시 동물병원)에 연락하세요.
+            </p>
+</div>
+</div>
+</section>
+</div>
+<!-- 5. Full-width Primary CTA Button -->
+<div class="w-full pt-2">
+<button class="w-full h-14 bg-primary-container hover:bg-[#004E9E] active:scale-[0.98] transition-all text-on-primary font-headline-sm text-body-md font-semibold rounded-full flex items-center justify-center shadow-sm select-none" type="button">
+<span>상담 시작</span>
+</button>
+</div>
+</main>
+</body></html>

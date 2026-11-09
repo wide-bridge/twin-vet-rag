@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TwinVet Care - 답변 상태</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;600;700&display=swap">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" />
+  <style>
+    body {
+      font-family: 'Noto Sans KR', sans-serif;
+      background-color: #F7F9FC;
+      color: #102858;
+    }
+    .material-symbols-outlined {
+      font-variation-settings: 'FILL' 0, 'wght' 500, 'GRAD' 0, 'opsz' 24;
+    }
+    .brand-purple { color: #402878; }
+    .brand-blue { color: #0060C0; }
+  </style>
+<!-- TwinVet Care brand lockup (scripts/apply_brand_lockup.py) -->
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@700&amp;display=swap" rel="stylesheet"/>
+<link href="../../../brand/brand-tokens.css" rel="stylesheet"/>
+<link href="../../../brand/brand-lockup.css" rel="stylesheet"/>
+<style>
+  header .brand-lockup { --logo-w: 108px; text-decoration: none; }
+  header:has(.brand-lockup) { background-color: #FFFFFF; } /* logo is made for a white background */
+  /* the logo's speech bubbles reach the image top: give the header breathing room above the lockup */
+  header:has(.brand-lockup) { height: auto; min-height: 64px; padding-top: 14px; padding-bottom: 8px; }
+</style>
+</head>
+<body class="min-h-screen bg-[#F7F9FC] text-[#102858] flex flex-col items-center">
+  <!-- Mobile Container (390px max) -->
+  <div class="w-full max-w-[390px] min-h-screen bg-[#F7F9FC] flex flex-col shadow-sm border-x border-[#DCE3EE]">
+    
+    <!-- Top Header -->
+    <header class="sticky top-0 z-30 bg-white border-b border-[#DCE3EE] px-4 h-14 flex items-center justify-between">
+      <a class="brand-lockup" href="#" aria-label="TwinVet Care"><img src="../../../brand/twinvet-logo-original.png" alt="" width="683" height="283"/><span class="care" aria-hidden="true">Care</span></a>
+      <button type="button" aria-label="도움말" class="w-9 h-9 rounded-full flex items-center justify-center text-[#526078] hover:bg-[#F2F3FC] active:scale-95 transition-all">
+        <span class="material-symbols-outlined text-[22px]">help_outline</span>
+      </button>
+    </header>
+
+    <!-- Page Title / Subheader -->
+    <div class="px-4 pt-5 pb-3">
+      <div class="flex items-center justify-between mb-1">
+        <h1 class="text-[20px] font-bold text-[#102858] tracking-tight">답변 상태</h1>
+        <span class="text-[12px] font-medium text-[#526078] bg-[#E6F0FA] text-[#0060C0] px-2.5 py-0.5 rounded-full">4가지 케이스</span>
+      </div>
+      <p class="text-[13px] text-[#526078] leading-relaxed">
+        상황별 AI 안내 카드 UI 시트 (질문 아이콘, 점선 보더, 중립 카드, 오류 및 재시도)
+      </p>
+    </div>
+
+    <!-- Main Content Area: Stacked Cards -->
+    <main class="px-4 pb-12 flex flex-col gap-5">
+
+      <!-- ==========================================
+           1. Clarification Card (추가 확인)
+           Question icon, title, body, AI 답변 tag
+           ========================================== -->
+      <section class="flex flex-col gap-2">
+        <div class="flex items-center justify-between">
+          <span class="text-[12px] font-semibold text-[#526078]">1. 추가 확인 (Clarification)</span>
+          <span class="text-[11px] text-[#526078]">실선 카드 · 질문 아이콘</span>
+        </div>
+
+        <div class="bg-white rounded-xl border-2 border-[#0060C0]/25 p-4 shadow-sm flex flex-col gap-3">
+          <!-- Card Header: AI 답변 Tag & Question Icon -->
+          <div class="flex items-center justify-between">
+            <span class="inline-flex items-center gap-1 bg-[#F2EDFD] text-[#402878] text-[12px] font-semibold px-2 py-0.5 rounded-full">
+              <span class="material-symbols-outlined text-[14px]">psychology</span>
+              AI 답변
+            </span>
+            <span class="material-symbols-outlined text-[#0060C0] text-[20px] bg-[#E6F0FA] p-1 rounded-full">help</span>
+          </div>
+
+          <!-- Title -->
+          <h2 class="text-[16px] font-bold text-[#102858] leading-snug">
+            정확히 안내하려면 조금 더 알려주세요
+          </h2>
+
+          <!-- Body -->
+          <p class="text-[14px] text-[#526078] leading-relaxed">
+            토한 내용물에 피나 이물질이 보였나요? 기운이나 식욕은 평소와 비교해 어떤가요?
+          </p>
+        </div>
+      </section>
+
+
+      <!-- ==========================================
+           2. Insufficient Evidence Card (근거 부족)
+           Muted dashed border, info icon, title, body, AI 답변 tag
+           ========================================== -->
+      <section class="flex flex-col gap-2">
+        <div class="flex items-center justify-between">
+          <span class="text-[12px] font-semibold text-[#526078]">2. 근거 부족 (Insufficient Evidence)</span>
+          <span class="text-[11px] text-[#526078]">점선 보더 · 정보 아이콘</span>
+        </div>
+
+        <div class="bg-[#F9FAFC] rounded-xl border-2 border-dashed border-[#7A879A]/50 p-4 flex flex-col gap-3">
+          <!-- Card Header: AI 답변 Tag & Info Icon -->
+          <div class="flex items-center justify-between">
+            <span class="inline-flex items-center gap-1 bg-[#F2EDFD] text-[#402878] text-[12px] font-semibold px-2 py-0.5 rounded-full">
+              <span class="material-symbols-outlined text-[14px]">psychology</span>
+              AI 답변
+            </span>
+            <span class="material-symbols-outlined text-[#526078] text-[20px]">info</span>
+          </div>
+
+          <!-- Title -->
+          <h2 class="text-[16px] font-bold text-[#102858] leading-snug">
+            확인할 수 있는 자료가 부족해요
+          </h2>
+
+          <!-- Body -->
+          <p class="text-[14px] text-[#526078] leading-relaxed">
+            증상·기간·상황을 더 구체적으로 적어 주시거나 동물병원에 문의해 주세요.
+          </p>
+        </div>
+      </section>
+
+
+      <!-- ==========================================
+           3. Out of Scope Card (범위 밖)
+           Neutral, info icon, title, body, AI 답변 tag
+           ========================================== -->
+      <section class="flex flex-col gap-2">
+        <div class="flex items-center justify-between">
+          <span class="text-[12px] font-semibold text-[#526078]">3. 범위 밖 (Out of Scope)</span>
+          <span class="text-[11px] text-[#526078]">중립 카드 · 회색 틴트</span>
+        </div>
+
+        <div class="bg-[#ECEEF2] rounded-xl border border-[#DCE3EE] p-4 flex flex-col gap-3">
+          <!-- Card Header: AI 답변 Tag & Info Icon -->
+          <div class="flex items-center justify-between">
+            <span class="inline-flex items-center gap-1 bg-white text-[#402878] text-[12px] font-semibold px-2 py-0.5 rounded-full border border-[#DCE3EE]">
+              <span class="material-symbols-outlined text-[14px]">psychology</span>
+              AI 답변
+            </span>
+            <span class="material-symbols-outlined text-[#526078] text-[20px]">help_center</span>
+          </div>
+
+          <!-- Title -->
+          <h2 class="text-[16px] font-bold text-[#102858] leading-snug">
+            반려견 건강 질문만 도와드릴 수 있어요
+          </h2>
+
+          <!-- Body -->
+          <p class="text-[14px] text-[#526078] leading-relaxed">
+            고양이나 다른 동물, 건강과 관계없는 질문에는 답하지 않아요.
+          </p>
+        </div>
+      </section>
+
+
+      <!-- ==========================================
+           4. Failure Card (답변 실패)
+           User question visible above, error icon, red text,
+           secondary button '다시 시도', NO AI 답변 tag
+           ========================================== -->
+      <section class="flex flex-col gap-2">
+        <div class="flex items-center justify-between">
+          <span class="text-[12px] font-semibold text-[#526078]">4. 답변 실패 (Failure)</span>
+          <span class="text-[11px] text-[#B42318]">사용자 질문 표시 · 오류 아이콘</span>
+        </div>
+
+        <div class="flex flex-col gap-2">
+          <!-- User's question above the failure card -->
+          <div class="flex justify-end">
+            <div class="bg-[#0060C0] text-white text-[14px] leading-relaxed rounded-2xl rounded-tr-sm px-3.5 py-2.5 max-w-[85%] shadow-sm">
+              어제부터 사료를 안 먹고 물만 조금 마셔요.
+            </div>
+          </div>
+
+          <!-- Failure Card: NO 'AI 답변' tag, error-container bg, red text, secondary retry button -->
+          <div class="bg-[#FFF0EE] rounded-xl border border-[#B42318]/30 p-4 flex flex-col gap-3">
+            <div class="flex items-start gap-2.5">
+              <span class="material-symbols-outlined text-[#B42318] text-[22px] flex-shrink-0 mt-0.5">error_outline</span>
+              <div class="flex flex-col flex-1">
+                <h2 class="text-[15px] font-bold text-[#B42318] leading-snug">
+                  답변을 가져오지 못했어요
+                </h2>
+                <p class="text-[13px] text-[#526078] mt-1 leading-relaxed">
+                  네트워크 연결 상태를 확인한 후 다시 시도해 주세요.
+                </p>
+              </div>
+            </div>
+
+            <!-- Secondary Retry Button -->
+            <div class="flex justify-end pt-1">
+              <button type="button" class="inline-flex items-center gap-1.5 px-3.5 py-2 bg-white text-[#102858] text-[13px] font-semibold rounded-lg border border-[#7A879A] hover:bg-[#F7F9FC] active:scale-95 transition-all">
+                <span class="material-symbols-outlined text-[16px] text-[#526078]">refresh</span>
+                다시 시도
+              </button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+    </main>
+
+    <!-- Bottom Notice / Service Disclaimer (TwinVet Care standard) -->
+    <footer class="mt-auto px-4 py-4 text-center border-t border-[#DCE3EE] bg-white">
+      <p class="text-[11px] text-[#526078] leading-normal">
+        TwinVet Care는 보호자의 이해를 돕기 위한 보조 수의 건강 정보 서비스이며, 의학적 진단이나 처방을 대신할 수 없습니다.
+      </p>
+    </footer>
+
+  </div>
+</body>
+</html>

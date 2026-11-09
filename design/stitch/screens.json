@@ -1,0 +1,62 @@
+{
+  "project_id": "16090159501557346695",
+  "design_system_id": "8420679661396950879",
+  "source": "docs/05_화면설계서.md §8-§9, brand/DESIGN.md",
+  "common_prefix": "TwinVet Care: Korean responsive web service for dog guardians. AI organizes health information from consultation cases and veterinary references; it is NOT diagnosis, prescription or a vet chat. Use the project design system for all colors, fonts and radii. All UI text in Korean, exactly as given below; do not invent features, promises or extra copy. Header left: a plain brand text 'TwinVet Care' with no icon next to it (it is replaced by the real logo image after export; keep it a single element, about 160px wide, header height 56px). Do NOT include: login, conversation history sidebar, animal-type selector, life-stage labels or age ranges, vet-verified badges, live vet chat, image/voice input, booking, star ratings, AI mascot or avatar, doctor imagery, triage/urgency badges, quoted source passages.",
+  "screens": [
+    {
+      "key": "s01-start-mobile",
+      "device": "MOBILE",
+      "title": "S01 시작 · 모바일",
+      "prompt": "Start screen, mobile 390px, single column, 16px side margins, vertical order:\n1. Header: brand text 'TwinVet Care'.\n2. Title (headline): '반려견 건강 궁금증, 상담 자료로 함께 찾아봐요'.\n3. Info block with small icons, three short paragraphs: (a) '반려견(강아지)의 일반 건강 질문을 도와드려요. 내과·외과·피부·눈·치아 관련 상담 자료를 바탕으로 답합니다.' (b) 'AI가 상담 사례와 수의학 자료를 찾아 정리한 정보예요. 진단이나 처방이 아니며, 정확한 판단은 동물병원에서 받으세요.' (c) '질문과 입력한 반려견 정보는 답변을 위해 저장돼요. 이 브라우저에서 7일간 볼 수 있고 이후 자동 삭제되며, 언제든 직접 삭제할 수 있어요.'\n4. Emergency box (light red background, red text, warning icon): title '응급 상황이면 AI 답변을 기다리지 마세요.' body '호흡 곤란, 의식 저하, 경련, 심한 출혈, 중독 의심 등은 바로 동물병원(야간에는 24시 동물병원)에 연락하세요.'\n5. Full-width primary button '상담 시작'.\nNo photos, no illustrations except one small optional dog line icon near the title."
+    },
+    {
+      "key": "s01-start-desktop",
+      "device": "DESKTOP",
+      "title": "S01 시작 · PC",
+      "prompt": "Same start screen as the mobile version for desktop 1280px: light page background, one centered column with max width 720px, same content and order: header brand text 'TwinVet Care'; title '반려견 건강 궁금증, 상담 자료로 함께 찾아봐요'; three info paragraphs ('반려견(강아지)의 일반 건강 질문을 도와드려요. 내과·외과·피부·눈·치아 관련 상담 자료를 바탕으로 답합니다.' / 'AI가 상담 사례와 수의학 자료를 찾아 정리한 정보예요. 진단이나 처방이 아니며, 정확한 판단은 동물병원에서 받으세요.' / '질문과 입력한 반려견 정보는 답변을 위해 저장돼요. 이 브라우저에서 7일간 볼 수 있고 이후 자동 삭제되며, 언제든 직접 삭제할 수 있어요.'); emergency box (light red, red text, warning icon) '응급 상황이면 AI 답변을 기다리지 마세요.' + '호흡 곤란, 의식 저하, 경련, 심한 출혈, 중독 의심 등은 바로 동물병원(야간에는 24시 동물병원)에 연락하세요.'; centered primary button '상담 시작' with fixed width."
+    },
+    {
+      "key": "s02-intake-mobile",
+      "device": "MOBILE",
+      "title": "S02 상담 첫 진입 · 모바일",
+      "prompt": "Consultation screen before the first question, mobile 390px:\n1. Header: brand text 'TwinVet Care' left, a menu icon button right (menu holds '새 상담', '대화 삭제').\n2. Card '우리 아이 정보' with fields stacked vertically: text input with autocomplete '품종 *' (placeholder '예: 말티즈, 믹스견, 모름'); age row '나이 *' with two small number inputs '년' and '개월' side by side and helper text '정확하지 않아도 괜찮아요'; a collapsed toggle row '건강상태 (선택) ▸'.\n3. Section '이런 질문을 할 수 있어요' with four tappable example chips: '하루에 두 번 토했는데 병원에 가야 할까요?', '귀를 자주 긁고 냄새가 나요', '슬개골 탈구는 집에서 어떻게 관리하나요?', '눈곱이 갑자기 많아졌어요'.\n4. Empty conversation area.\n5. Bottom area fixed to the bottom: one short line with a small warning icon '응급하면 바로 동물병원에 연락하세요' (single line, red text, compact), then a multiline text input '반려견에 대해 궁금한 점을 적어 주세요' with character count '0/1000' and a primary send button '보내기' (disabled look because 품종 and 나이 are empty), and tiny helper text 'AI가 정리한 정보이며 진단이 아닙니다'."
+    },
+    {
+      "key": "s02-intake-health-open-mobile",
+      "device": "MOBILE",
+      "title": "S02 건강상태 펼침·필수값 오류 · 모바일",
+      "prompt": "Same consultation screen, mobile 390px, focused on the dog info card in two states shown top to bottom:\n1. Card '우리 아이 정보' with 품종 field showing an inline error under it in red text with an icon '품종을 입력해 주세요' and 나이 fields showing '나이를 입력해 주세요'. 건강상태 section expanded: '체중' number input with suffix 'kg'; '중성화' segmented control with three options '예', '아니오', '모름'; '기존 질환·복용 약' textarea with counter '0/300'. All optional fields labeled '(선택)'.\n2. Bottom fixed bar: one-line emergency notice '응급하면 바로 동물병원에 연락하세요', text input, '보내기' button disabled, helper '품종과 나이를 입력하면 보낼 수 있어요'."
+    },
+    {
+      "key": "s02-answer-mobile",
+      "device": "MOBILE",
+      "title": "S02 근거 있는 답변 · 모바일",
+      "prompt": "Consultation screen after the first answer, mobile 390px:\n1. Header 'TwinVet Care' with menu icon.\n2. Read-only summary chip row: '말티즈 · 10세 3개월 · 3.2kg' (pill shape, no other labels).\n3. User message bubble aligned right: '어제부터 하루에 두 번 토했어요. 밥은 조금 먹어요. 병원에 가야 할까요?'\n4. AI answer card aligned left, labeled with a small tag 'AI 답변': three short paragraphs and a bullet list summarizing that repeated vomiting should be watched for dehydration, lethargy and blood, and a sentence '입력하신 10세 말티즈 기준으로…'. Below the text, source chips: '근거 1 · 상담 사례 · 내과', '근거 2 · 전문 자료 · 내과'. Below that, three small buttons: '도움 됐어요', '아쉬워요', '의견 남기기'.\n5. A second user question bubble and a processing AI card with a subtle loading indicator and text '답변을 준비하고 있어요'.\n6. Bottom fixed bar: one-line emergency notice, text input disabled while processing, '보내기' disabled."
+    },
+    {
+      "key": "s02-states-mobile",
+      "device": "MOBILE",
+      "title": "S02 답변 상태 4종 · 모바일",
+      "prompt": "Mobile 390px design sheet titled '답변 상태' showing four AI answer card variants stacked vertically, each clearly different through icon, title text and border style (not color alone), none with source chips:\n1. Clarification card, question icon, title '정확히 안내하려면 조금 더 알려주세요', body '토한 내용물에 피나 이물질이 보였나요? 기운이나 식욕은 평소와 비교해 어떤가요?'.\n2. Insufficient evidence card, muted dashed border, info icon, title '확인할 수 있는 자료가 부족해요', body '증상·기간·상황을 더 구체적으로 적어 주시거나 동물병원에 문의해 주세요.'.\n3. Out of scope card, neutral, info icon, title '반려견 건강 질문만 도와드릴 수 있어요', body '고양이나 다른 동물, 건강과 관계없는 질문에는 답하지 않아요.'.\n4. Failure card, error icon, red text '답변을 가져오지 못했어요', with a secondary button '다시 시도'; the user's question above it stays visible.\nEach card keeps the small 'AI 답변' tag except the failure card."
+    },
+    {
+      "key": "s02-desktop-panel",
+      "device": "DESKTOP",
+      "title": "S02 상담 + S03 근거 패널 · PC",
+      "prompt": "Desktop 1280px consultation screen with the source detail panel open:\n1. Header across the top: brand text 'TwinVet Care' left; two buttons right '새 상담' and '대화 삭제'.\n2. Main conversation column, max width 720px: summary chips row '말티즈 · 10세 3개월 · 3.2kg'; user message bubble '어제부터 하루에 두 번 토했어요. 밥은 조금 먹어요. 병원에 가야 할까요?'; AI answer card tagged 'AI 답변' with short paragraphs, source chips '근거 1 · 상담 사례 · 내과' (selected state) and '근거 2 · 전문 자료 · 내과', feedback buttons '도움 됐어요', '아쉬워요', '의견 남기기'.\n3. Right side panel about 360px wide, titled '근거 상세' with a close X button: fields '자료 유형: 상담 사례', '자료명: 내과 상담 사례', '출처: AI Hub 반려견 성장 및 질병 관련 말뭉치', '진료과: 내과', and a muted note box '원문 구절은 자료 이용 조건 확인 후 제공됩니다.'. No quoted passage text.\n4. Bottom input bar under the conversation column: one-line emergency notice '응급하면 바로 동물병원에 연락하세요', textarea, primary '보내기' button, helper 'Enter 전송 · Shift+Enter 줄바꿈'."
+    },
+    {
+      "key": "s03-source-mobile",
+      "device": "MOBILE",
+      "title": "S03 근거 상세 · 모바일 전체 화면 모달",
+      "prompt": "Mobile 390px full-screen modal for source details:\n1. Top bar: back/close button left, title '근거 상세'.\n2. Content: label-value list '자료 유형: 전문 자료', '자료명: 임상가를 위한 소동물 내과질환의 진단과 치료지침', '출처: AI Hub 반려견 성장 및 질병 관련 말뭉치', '진료과: 내과'. Long title wraps onto multiple lines.\n3. Muted note box with info icon: '원문 구절은 자료 이용 조건 확인 후 제공됩니다.'\n4. Below, a second smaller example card showing the unavailable state: grey icon and text '현재 제공할 수 없는 자료예요.'\nNo quoted passage text, no external links."
+    },
+    {
+      "key": "s02-dialogs-mobile",
+      "device": "MOBILE",
+      "title": "대화 삭제 확인·삭제 실패·세션 만료 · 모바일",
+      "prompt": "Mobile 390px sheet showing three overlay states stacked vertically as separate frames:\n1. Delete confirmation dialog over a dimmed consultation screen: title '이 대화를 삭제할까요?', body '질문·답변·입력한 반려견 정보가 모두 삭제되며 되돌릴 수 없어요.', two full-width stacked buttons: destructive '삭제' and secondary '취소'.\n2. Inline error banner at top of the consultation: '대화를 삭제하지 못했어요. 다시 시도해 주세요.' with button '다시 시도'; conversation remains visible.\n3. Session expired full screen: icon, title '상담 시간이 만료되어 이전 대화는 볼 수 없어요.', primary button '새 상담 시작'."
+    }
+  ]
+}

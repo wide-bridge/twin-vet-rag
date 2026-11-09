@@ -1,0 +1,10 @@
+{
+  "key": "s01-start-mobile",
+  "title": "S01 시작 · 모바일",
+  "device": "MOBILE",
+  "screen_id": "c942777130864dd996bf5306dc8c632b",
+  "stitch_title": "TwinVet Care 시작 화면 (Mobile)",
+  "canvas_url": "https://stitch.google.com/projects/16090159501557346695?node-id=c942777130864dd996bf5306dc8c632b",
+  "prompt_sha256": "c7e22d7610356a6eb3a2c06ca5f0c6c6ec8db1d3dcf4495dbf0b7275778f0f60",
+  "generated_at": "2026-11-09T12:32:26+00:00"
+}

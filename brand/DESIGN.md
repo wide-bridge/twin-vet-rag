@@ -36,7 +36,7 @@ Source of truth: brand/BRAND.md (tokens), docs/05_화면설계서.md §8–9 (sc
 ## Brand & Style
 TwinVet Care is a Korean responsive web service where dog guardians get AI-organized health information drawn from consultation cases and veterinary references. It is NOT diagnosis, prescription, or a vet consultation.
 Tone: calm, trustworthy, warm. Avoid both cold hospital-chart aesthetics and cute cartoon-app playfulness.
-Header brand: the TwinVet logo image (speech-bubble mark + "TwinVet" wordmark, purple "Twin", blue "Vet") followed by the word "Care" in TwinVet Purple at the same cap height. In mockups, render it as the text lockup "TwinVet Care" with "Twin"/"Care" in purple #402878 and "Vet" in blue #0060C0. Never redraw or recolor the logo.
+Header brand: the TwinVet logo image (speech-bubble mark + "TwinVet" wordmark, purple "Twin", blue "Vet") followed by the word "Care" in TwinVet Purple at the same cap height. In mockups, put only the plain text "TwinVet Care" there as a placeholder, with no icon (no paw, chat or other symbol) next to it; it is swapped for the real logo image after export. Never redraw, recolor or imitate the logo or its speech-bubble mark.
 
 ## Colors
 - Primary action / TwinVet Blue `#0060C0` (hover/pressed `#004E9E`): primary buttons (상담 시작, 보내기), links, selected state, focus ring.

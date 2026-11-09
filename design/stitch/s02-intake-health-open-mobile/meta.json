@@ -1,0 +1,10 @@
+{
+  "key": "s02-intake-health-open-mobile",
+  "title": "S02 건강상태 펼침·필수값 오류 · 모바일",
+  "device": "MOBILE",
+  "screen_id": "795cb65283ad47e78bada328c54d1470",
+  "stitch_title": "TwinVet Care 질문 전 상담 화면 (모바일 390px 에러 및 건강상태 확장)",
+  "canvas_url": "https://stitch.google.com/projects/16090159501557346695?node-id=795cb65283ad47e78bada328c54d1470",
+  "prompt_sha256": "6d37ebbb46721f1221e3a43e7443e44cfc614f330b8a84cb9a95bb96a88c3686",
+  "generated_at": "2026-11-09T12:34:57+00:00"
+}

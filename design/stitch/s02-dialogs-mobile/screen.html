@@ -1,0 +1,399 @@
+<!DOCTYPE html>
+
+<html lang="ko"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>TwinVet Care - States &amp; Overlays Sheet</title>
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;600;700;800&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          "colors": {
+            "on-secondary": "#ffffff",
+            "surface-bright": "#f9f9ff",
+            "surface-container-low": "#f2f3fc",
+            "tertiary-fixed": "#ffdad6",
+            "on-tertiary-fixed": "#410003",
+            "secondary-container": "#bea5fe",
+            "outline-variant": "#DCE3EE",
+            "warm-orange": "#FF7000",
+            "on-surface": "#102858",
+            "surface-container-high": "#e7e8f0",
+            "on-primary-fixed": "#001b3e",
+            "primary-fixed-dim": "#aac7ff",
+            "on-primary": "#ffffff",
+            "tertiary-fixed-dim": "#ffb3ad",
+            "primary-container": "#E6F0FA",
+            "leaf-green": "#58B828",
+            "on-tertiary": "#ffffff",
+            "surface-container-highest": "#e1e2eb",
+            "primary": "#004994",
+            "on-surface-variant": "#424752",
+            "secondary-fixed": "#e9ddff",
+            "secondary": "#6750a1",
+            "on-error": "#ffffff",
+            "on-primary-fixed-variant": "#00458e",
+            "on-primary-container": "#d0deff",
+            "error-container": "#FFF0EE",
+            "surface-dim": "#d8d9e2",
+            "on-tertiary-container": "#ffd5d1",
+            "on-error-container": "#93000a",
+            "surface-container": "#ecedf6",
+            "surface-container-lowest": "#ffffff",
+            "tertiary-container": "#b23532",
+            "on-tertiary-fixed-variant": "#8b181a",
+            "on-secondary-fixed-variant": "#4f3888",
+            "surface": "#FFFFFF",
+            "primary-fixed": "#d7e3ff",
+            "inverse-primary": "#aac7ff",
+            "background": "#F7F9FC",
+            "inverse-on-surface": "#eff0f9",
+            "on-secondary-fixed": "#23015b",
+            "surface-tint": "#005cb9",
+            "error": "#B42318",
+            "tertiary": "#911c1d",
+            "secondary-fixed-dim": "#d0bcff",
+            "inverse-surface": "#2e3037",
+            "surface-variant": "#e1e2eb",
+            "on-background": "#191c22",
+            "outline": "#7A879A",
+            "on-secondary-container": "#4e3686"
+          },
+          "borderRadius": {
+            "DEFAULT": "0.125rem",
+            "lg": "0.25rem",
+            "xl": "0.75rem",
+            "full": "0.75rem"
+          },
+          "spacing": {
+            "gutter": "1rem",
+            "space-lg": "1.5rem",
+            "space-sm": "0.5rem",
+            "space-xl": "2rem",
+            "space-md": "1rem",
+            "space-xs": "0.25rem",
+            "margin": "1rem"
+          },
+          "fontFamily": {
+            "headline-lg": ["Noto Sans", "sans-serif"],
+            "headline-sm": ["Noto Sans", "sans-serif"],
+            "body-md": ["Noto Sans", "sans-serif"],
+            "title-md": ["Noto Sans", "sans-serif"],
+            "label-md": ["Noto Sans", "sans-serif"]
+          },
+          "fontSize": {
+            "headline-lg": ["28px", { "lineHeight": "38px", "fontWeight": "700" }],
+            "headline-sm": ["20px", { "lineHeight": "28px", "fontWeight": "700" }],
+            "body-md": ["16px", { "lineHeight": "26px", "fontWeight": "400" }],
+            "title-md": ["18px", { "lineHeight": "26px", "fontWeight": "600" }],
+            "label-md": ["14px", { "lineHeight": "20px", "fontWeight": "600" }]
+          }
+        }
+      }
+    }
+  </script>
+<style>
+    .material-symbols-outlined {
+      font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+      display: inline-block;
+      vertical-align: middle;
+      line-height: 1;
+    }
+  </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  <!-- TwinVet Care brand lockup (scripts/apply_brand_lockup.py) -->
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@700&amp;display=swap" rel="stylesheet"/>
+<link href="../../../brand/brand-tokens.css" rel="stylesheet"/>
+<link href="../../../brand/brand-lockup.css" rel="stylesheet"/>
+<style>
+  header .brand-lockup { --logo-w: 108px; text-decoration: none; }
+  header:has(.brand-lockup) { background-color: #FFFFFF; } /* logo is made for a white background */
+  /* the logo's speech bubbles reach the image top: give the header breathing room above the lockup */
+  header:has(.brand-lockup) { height: auto; min-height: 64px; padding-top: 14px; padding-bottom: 8px; }
+</style>
+</head>
+<body class="bg-[#F0F3F8] text-on-surface antialiased py-10 px-4">
+<!-- Overview Header -->
+<div class="max-w-[1240px] mx-auto mb-8 text-center md:text-left">
+<div class="inline-flex items-center gap-2 px-3 py-1 bg-surface rounded-full border border-outline-variant shadow-sm mb-3">
+<span class="material-symbols-outlined text-primary text-[18px]" data-icon="pets">pets</span>
+<span class="font-label-md text-label-md text-primary font-bold">TwinVet Care UI System</span>
+</div>
+<h1 class="font-headline-lg text-headline-lg text-on-surface font-extrabold tracking-tight">Mobile 390px State Sheets</h1>
+<p class="font-body-md text-body-md text-on-surface-variant max-w-2xl mt-1">
+      상담 플로우 내 세 가지 핵심 인터럽션 상태 (삭제 모달 대화상자, 상단 인라인 에러 배너, 세션 만료 전체 화면)의 모바일 390px 기준 화면 렌더링 시트입니다.
+    </p>
+</div>
+<!-- Responsive Sheet Container: 3 Stacked Mobile Frames -->
+<div class="max-w-[1240px] mx-auto grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 items-start justify-center">
+<!-- ========================================== -->
+<!-- FRAME 1: 삭제 확인 대화상자 (Modal Overlay) -->
+<!-- ========================================== -->
+<div class="flex flex-col items-center">
+<div class="mb-3 flex items-center gap-2 self-start pl-1">
+<span class="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center text-xs font-bold">1</span>
+<span class="font-title-md text-title-md text-on-surface font-bold">삭제 확인 대화상자</span>
+</div>
+<!-- Device Container: 390px Width -->
+<div class="w-[390px] h-[780px] bg-background rounded-[32px] shadow-2xl border-[6px] border-[#1E293B] relative overflow-hidden flex flex-col">
+<!-- Native Status Bar -->
+<div class="h-10 px-6 flex items-center justify-between text-xs font-bold text-on-surface select-none z-10 bg-surface">
+<span>09:41</span>
+<div class="flex items-center gap-1.5">
+<span class="material-symbols-outlined text-[15px]" data-icon="signal_cellular_alt">signal_cellular_alt</span>
+<span class="material-symbols-outlined text-[15px]" data-icon="wifi">wifi</span>
+<span class="material-symbols-outlined text-[16px]" data-icon="battery_full">battery_full</span>
+</div>
+</div>
+<!-- Shared Component: TopAppBar -->
+<header class="bg-surface border-b border-outline-variant shadow-sm z-10">
+<div class="w-full px-margin flex items-center justify-between h-14">
+<a class="brand-lockup" href="#" aria-label="TwinVet Care"><img src="../../../brand/twinvet-logo-original.png" alt="" width="683" height="283"/><span class="care" aria-hidden="true">Care</span></a>
+<button aria-label="도움말" class="w-10 h-10 flex items-center justify-center rounded-xl hover:bg-surface-container-low transition-colors duration-150" type="button">
+<span class="material-symbols-outlined text-on-surface-variant" data-icon="help_outline">help_outline</span>
+</button>
+</div>
+</header>
+<!-- Base Background Screen (Consultation View) -->
+<main class="flex-1 p-4 flex flex-col gap-4 overflow-hidden relative">
+<!-- Pet Info Chip Bar -->
+<div class="flex items-center gap-2">
+<div class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-surface rounded-xl border border-outline-variant shadow-sm text-on-surface-variant font-label-md text-label-md">
+<span class="material-symbols-outlined text-[18px] text-primary" data-icon="pets">pets</span>
+<span>말티즈 · 10세 3개월 · 3.2kg</span>
+</div>
+</div>
+<!-- User Message Bubble -->
+<div class="flex justify-end">
+<div class="max-w-[85%] bg-primary text-white p-3.5 rounded-xl rounded-tr-none shadow-sm font-body-md text-body-md leading-relaxed">
+              어제부터 사료를 먹고 난 뒤 2번 정도 노란색 거품토를 했어요. 물은 마시는데 활동성이 조금 떨어졌습니다.
+            </div>
+</div>
+<!-- AI Answer Card -->
+<div class="bg-surface rounded-xl border border-outline-variant p-4 shadow-sm flex flex-col gap-2.5">
+<div class="flex items-center gap-2 pb-2 border-b border-outline-variant">
+<div class="w-6 h-6 rounded-lg bg-primary-container flex items-center justify-center">
+<span class="material-symbols-outlined text-primary text-[16px]" data-icon="auto_awesome">auto_awesome</span>
+</div>
+<span class="font-title-md text-title-md text-primary font-bold">AI 답변</span>
+</div>
+<p class="font-body-md text-body-md text-on-surface leading-relaxed">
+              공복 상태이거나 가벼운 위염 증상일 가능성이 있습니다. 지속적인 구토나 무기력증이 동반되면 병원 진료가 필요합니다.
+            </p>
+<div class="pt-2">
+<span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-surface-container-low text-on-surface-variant font-label-md text-label-md">
+<span class="material-symbols-outlined text-[15px]" data-icon="menu_book">menu_book</span>
+                근거 1 · 상담 사례 · 내과
+              </span>
+</div>
+</div>
+<!-- Dimmed Modal Backdrop Overlay -->
+<div class="absolute inset-0 bg-[#102858]/55 backdrop-blur-[2px] z-20 flex items-center justify-center p-4">
+<!-- Modal Card -->
+<div class="w-full bg-surface rounded-xl p-5 shadow-2xl border border-outline-variant flex flex-col gap-4 animate-in fade-in zoom-in-95 duration-150">
+<div class="flex flex-col gap-1.5">
+<h2 class="font-headline-sm text-headline-sm text-on-surface font-bold tracking-tight">이 대화를 삭제할까요?</h2>
+<p class="font-body-md text-body-md text-[#526078] leading-relaxed">
+                  질문·답변·입력한 반려견 정보가 모두 삭제되며 되돌릴 수 없어요.
+                </p>
+</div>
+<!-- Full-width Stacked Action Buttons -->
+<div class="flex flex-col gap-2.5 pt-1">
+<button class="w-full bg-[#B42318] hover:bg-[#911c1d] active:scale-[0.98] transition-all text-white font-label-md text-label-md py-3 rounded-xl font-semibold shadow-sm flex items-center justify-center gap-1.5" type="button">
+<span class="material-symbols-outlined text-[18px]" data-icon="delete">delete</span>
+<span>삭제</span>
+</button>
+<button class="w-full bg-white hover:bg-surface-container-low border border-outline-variant active:scale-[0.98] transition-all text-[#526078] font-label-md text-label-md py-3 rounded-xl font-semibold text-center" type="button">
+                  취소
+                </button>
+</div>
+</div>
+</div>
+</main>
+</div>
+<span class="text-xs text-on-surface-variant mt-2 font-medium">영구 삭제 위험 경고 오버레이 모달</span>
+</div>
+<!-- ========================================== -->
+<!-- FRAME 2: 인라인 에러 배너 (Inline Error)   -->
+<!-- ========================================== -->
+<div class="flex flex-col items-center">
+<div class="mb-3 flex items-center gap-2 self-start pl-1">
+<span class="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center text-xs font-bold">2</span>
+<span class="font-title-md text-title-md text-on-surface font-bold">인라인 에러 배너</span>
+</div>
+<!-- Device Container: 390px Width -->
+<div class="w-[390px] h-[780px] bg-background rounded-[32px] shadow-2xl border-[6px] border-[#1E293B] relative overflow-hidden flex flex-col">
+<!-- Native Status Bar -->
+<div class="h-10 px-6 flex items-center justify-between text-xs font-bold text-on-surface select-none bg-surface">
+<span>09:41</span>
+<div class="flex items-center gap-1.5">
+<span class="material-symbols-outlined text-[15px]" data-icon="signal_cellular_alt">signal_cellular_alt</span>
+<span class="material-symbols-outlined text-[15px]" data-icon="wifi">wifi</span>
+<span class="material-symbols-outlined text-[16px]" data-icon="battery_full">battery_full</span>
+</div>
+</div>
+<!-- Shared Component: TopAppBar -->
+<header class="bg-surface border-b border-outline-variant shadow-sm">
+<div class="w-full px-margin flex items-center justify-between h-14">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-primary" data-icon="pets">pets</span>
+<span class="font-headline-sm text-headline-sm font-bold tracking-tight">
+<span class="text-[#402878]">Twin</span><span class="text-[#0060C0]">Vet</span> <span class="text-[#402878]">Care</span>
+</span>
+</div>
+<button aria-label="도움말" class="w-10 h-10 flex items-center justify-center rounded-xl hover:bg-surface-container-low transition-colors duration-150" type="button">
+<span class="material-symbols-outlined text-on-surface-variant" data-icon="help_outline">help_outline</span>
+</button>
+</div>
+</header>
+<!-- Inline Error Banner (Positioned Directly Below Header) -->
+<div class="p-3 bg-surface border-b border-outline-variant">
+<div class="bg-[#FFF0EE] border border-[#B42318]/30 rounded-xl p-3 flex items-center justify-between gap-2 shadow-sm">
+<div class="flex items-center gap-2 min-w-0">
+<span class="material-symbols-outlined text-[#B42318] text-[20px] shrink-0" data-icon="error_outline">error_outline</span>
+<p class="font-label-md text-label-md text-[#B42318] truncate font-medium">
+                대화를 삭제하지 못했어요. 다시 시도해 주세요.
+              </p>
+</div>
+<button class="shrink-0 text-xs bg-[#B42318] hover:bg-[#911c1d] active:scale-95 text-white px-3 py-1.5 rounded-lg font-semibold transition-all" type="button">
+              다시 시도
+            </button>
+</div>
+</div>
+<!-- Consultation Content Retained Intact -->
+<main class="flex-1 p-4 flex flex-col gap-4 overflow-y-auto">
+<!-- Pet Info Chip -->
+<div class="flex items-center">
+<div class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-surface rounded-xl border border-outline-variant shadow-sm text-on-surface-variant font-label-md text-label-md">
+<span class="material-symbols-outlined text-[18px] text-primary" data-icon="pets">pets</span>
+<span>말티즈 · 10세 3개월 · 3.2kg</span>
+</div>
+</div>
+<!-- User Bubble -->
+<div class="flex justify-end">
+<div class="max-w-[85%] bg-primary text-white p-3.5 rounded-xl rounded-tr-none shadow-sm font-body-md text-body-md leading-relaxed">
+              어제부터 하루에 두 번 토했어요. 간식은 거부하고 물만 조금씩 핥아먹고 있습니다.
+            </div>
+</div>
+<!-- Grounded AI Answer Card with Source Chips -->
+<div class="bg-surface rounded-xl border border-outline-variant p-4 shadow-sm flex flex-col gap-3">
+<div class="flex items-center justify-between pb-2.5 border-b border-outline-variant">
+<div class="flex items-center gap-2">
+<div class="w-6 h-6 rounded-lg bg-primary-container flex items-center justify-center">
+<span class="material-symbols-outlined text-primary text-[16px]" data-icon="auto_awesome">auto_awesome</span>
+</div>
+<span class="font-title-md text-title-md text-primary font-bold">AI 답변</span>
+</div>
+<span class="font-label-md text-label-md text-on-surface-variant">소화기 증상 안내</span>
+</div>
+<p class="font-body-md text-body-md text-on-surface leading-relaxed">
+              반복되는 구토와 식욕 부진은 소화기 질환이나 이물 섭취 가능성을 나타낼 수 있습니다. 24시간 이상 금식 상태가 지속되거나 탈수 증세가 보일 경우 즉시 인근 동물병원 내원이 권장됩니다.
+            </p>
+<div class="flex flex-wrap gap-1.5 pt-1">
+<span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-surface-container-low text-on-surface-variant font-label-md text-label-md border border-outline-variant">
+<span class="material-symbols-outlined text-[15px]" data-icon="description">description</span>
+                근거 1 · 상담 사례 · 내과
+              </span>
+<span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-surface-container-low text-on-surface-variant font-label-md text-label-md border border-outline-variant">
+<span class="material-symbols-outlined text-[15px]" data-icon="menu_book">menu_book</span>
+                근거 2 · 임상 가이드라인
+              </span>
+</div>
+</div>
+</main>
+<!-- Bottom Input Area (Preserved layout, inactive) -->
+<div class="p-3 bg-surface border-t border-outline-variant flex items-center gap-2">
+<input class="flex-1 bg-surface-container-low border border-outline-variant rounded-xl px-3.5 py-2.5 text-sm text-on-surface-variant cursor-not-allowed" disabled="" placeholder="증상을 추가로 질문해보세요..." type="text"/>
+<button class="w-10 h-10 rounded-xl bg-surface-container-high text-on-surface-variant flex items-center justify-center cursor-not-allowed" disabled="" type="button">
+<span class="material-symbols-outlined text-[20px]" data-icon="arrow_upward">arrow_upward</span>
+</button>
+</div>
+</div>
+<span class="text-xs text-on-surface-variant mt-2 font-medium">실패 피드백 및 재시도 액션 배너</span>
+</div>
+<!-- ========================================== -->
+<!-- FRAME 3: 세션 만료 전체 화면 (Session Expired) -->
+<!-- ========================================== -->
+<div class="flex flex-col items-center">
+<div class="mb-3 flex items-center gap-2 self-start pl-1">
+<span class="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center text-xs font-bold">3</span>
+<span class="font-title-md text-title-md text-on-surface font-bold">세션 만료 전체 화면</span>
+</div>
+<!-- Device Container: 390px Width -->
+<div class="w-[390px] h-[780px] bg-background rounded-[32px] shadow-2xl border-[6px] border-[#1E293B] relative overflow-hidden flex flex-col">
+<!-- Native Status Bar -->
+<div class="h-10 px-6 flex items-center justify-between text-xs font-bold text-on-surface select-none bg-surface">
+<span>09:41</span>
+<div class="flex items-center gap-1.5">
+<span class="material-symbols-outlined text-[15px]" data-icon="signal_cellular_alt">signal_cellular_alt</span>
+<span class="material-symbols-outlined text-[15px]" data-icon="wifi">wifi</span>
+<span class="material-symbols-outlined text-[16px]" data-icon="battery_full">battery_full</span>
+</div>
+</div>
+<!-- Shared Component: TopAppBar -->
+<header class="bg-surface border-b border-outline-variant shadow-sm">
+<div class="w-full px-margin flex items-center justify-between h-14">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-primary" data-icon="pets">pets</span>
+<span class="font-headline-sm text-headline-sm font-bold tracking-tight">
+<span class="text-[#402878]">Twin</span><span class="text-[#0060C0]">Vet</span> <span class="text-[#402878]">Care</span>
+</span>
+</div>
+<button aria-label="도움말" class="w-10 h-10 flex items-center justify-center rounded-xl hover:bg-surface-container-low transition-colors duration-150" type="button">
+<span class="material-symbols-outlined text-on-surface-variant" data-icon="help_outline">help_outline</span>
+</button>
+</div>
+</header>
+<!-- Full-Screen Session Expired Canvas -->
+<main class="flex-1 p-6 flex flex-col justify-between items-center bg-background">
+<!-- Top Spacing balance -->
+<div class="h-4"></div>
+<!-- Centered Expired Information Card -->
+<div class="w-full bg-surface rounded-xl border border-outline-variant p-6 shadow-sm flex flex-col items-center text-center">
+<!-- Icon Badge with Soft Background -->
+<div class="w-16 h-16 rounded-full bg-primary-container flex items-center justify-center mb-5 text-[#0060C0] shadow-sm">
+<span class="material-symbols-outlined text-[36px]" data-icon="history_toggle_off">history_toggle_off</span>
+</div>
+<!-- Title -->
+<h2 class="font-title-md text-title-md font-bold text-[#102858] mb-2.5 leading-snug">
+              상담 시간이 만료되어<br/>이전 대화는 볼 수 없어요.
+            </h2>
+<!-- Description -->
+<p class="font-body-md text-body-md text-[#526078] leading-relaxed mb-4">
+              안전한 건강 정보 관리 및 개인정보 보호를 위해 비활성 세션이 자동으로 종료되었습니다. 새로 상담을 진행하시면 최신 상태를 정확히 확인할 수 있습니다.
+            </p>
+<!-- Guide Point Box -->
+<div class="w-full bg-surface-container-low rounded-xl p-3 text-left border border-outline-variant flex items-start gap-2.5">
+<span class="material-symbols-outlined text-primary text-[18px] shrink-0 mt-0.5" data-icon="shield">shield</span>
+<p class="font-label-md text-label-md text-on-surface-variant leading-relaxed">
+                반려견의 새로운 증상이나 변화된 건강 상태를 다시 입력해 주세요.
+              </p>
+</div>
+</div>
+<!-- Bottom Action Area -->
+<div class="w-full pt-4 pb-2">
+<button class="w-full bg-[#0060C0] hover:bg-[#004E9E] active:scale-[0.98] transition-all text-white font-title-md text-title-md font-semibold py-3.5 rounded-xl shadow-md flex items-center justify-center gap-2" type="button">
+<span class="material-symbols-outlined text-[20px]" data-icon="add_comment">add_comment</span>
+<span>새 상담 시작</span>
+</button>
+<p class="text-center font-label-md text-label-md text-on-surface-variant/70 mt-3">
+              TwinVet Care AI 건강 어시스턴트
+            </p>
+</div>
+</main>
+</div>
+<span class="text-xs text-on-surface-variant mt-2 font-medium">세션 만료 처리 및 신규 세션 진입 뷰</span>
+</div>
+</div>
+</body></html>

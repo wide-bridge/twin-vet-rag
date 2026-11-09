@@ -1,0 +1,10 @@
+{
+  "key": "s02-answer-mobile",
+  "title": "S02 근거 있는 답변 · 모바일",
+  "device": "MOBILE",
+  "screen_id": "be7945332c9642b38e92b46eba919239",
+  "stitch_title": "TwinVet Care 질문 답변 상담 화면 (Mobile 390px)",
+  "canvas_url": "https://stitch.google.com/projects/16090159501557346695?node-id=be7945332c9642b38e92b46eba919239",
+  "prompt_sha256": "18a89b02207e848f3d9e4ab0b330983b5ea45a5ca7e9ebbe6d45c0a7f9b96021",
+  "generated_at": "2026-11-09T12:35:57+00:00"
+}

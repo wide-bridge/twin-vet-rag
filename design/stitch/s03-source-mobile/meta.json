@@ -1,0 +1,10 @@
+{
+  "key": "s03-source-mobile",
+  "title": "S03 근거 상세 · 모바일 전체 화면 모달",
+  "device": "MOBILE",
+  "screen_id": "3755b4bbf9084965a112ca5b123454f6",
+  "stitch_title": "TwinVet Care 모바일 근거 상세 모달 (390px)",
+  "canvas_url": "https://stitch.google.com/projects/16090159501557346695?node-id=3755b4bbf9084965a112ca5b123454f6",
+  "prompt_sha256": "0d4bb12f387c8d1caa0fae8927f912ec1ac98ce42aa8f6ff3a23347020c24626",
+  "generated_at": "2026-11-09T12:38:38+00:00"
+}

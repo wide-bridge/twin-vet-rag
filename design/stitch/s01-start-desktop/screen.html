@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+
+<html lang="ko"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>TwinVet Care</title>
+<!-- Google Fonts: Noto Sans KR -->
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700;800&amp;family=Noto+Sans+KR:wght@400;500;600;700;800&amp;display=swap" rel="stylesheet"/>
+<!-- Material Symbols Outlined -->
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<!-- Tailwind CSS CDN -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<!-- Tailwind Configuration -->
+<script id="tailwind-config">
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          "colors": {
+            "surface-container-lowest": "#ffffff",
+            "surface-container": "#ecedf6",
+            "on-tertiary-fixed": "#410003",
+            "tertiary": "#911c1d",
+            "tertiary-container": "#b23532",
+            "inverse-primary": "#aac7ff",
+            "on-secondary": "#ffffff",
+            "on-surface": "#102858",
+            "on-surface-variant": "#424752",
+            "primary-container": "#E6F0FA",
+            "outline-variant": "#c2c6d4",
+            "surface-bright": "#f9f9ff",
+            "primary": "#004994",
+            "on-tertiary-fixed-variant": "#8b181a",
+            "secondary-fixed": "#e9ddff",
+            "on-tertiary-container": "#ffd5d1",
+            "on-primary-container": "#d0deff",
+            "on-tertiary": "#ffffff",
+            "outline": "#7A879A",
+            "surface-dim": "#d8d9e2",
+            "leaf-green": "#58B828",
+            "inverse-surface": "#2e3037",
+            "surface-tint": "#005cb9",
+            "primary-fixed-dim": "#aac7ff",
+            "on-primary-fixed": "#001b3e",
+            "on-primary-fixed-variant": "#00458e",
+            "on-error-container": "#93000a",
+            "error-container": "#FFF0EE",
+            "inverse-on-surface": "#eff0f9",
+            "surface-container-high": "#e7e8f0",
+            "on-secondary-fixed": "#23015b",
+            "on-secondary-container": "#4e3686",
+            "error": "#B42318",
+            "secondary-fixed-dim": "#d0bcff",
+            "secondary-container": "#bea5fe",
+            "surface": "#FFFFFF",
+            "on-secondary-fixed-variant": "#4f3888",
+            "on-error": "#ffffff",
+            "surface-variant": "#e1e2eb",
+            "secondary": "#6750a1",
+            "on-primary": "#ffffff",
+            "warm-orange": "#FF7000",
+            "background": "#F7F9FC",
+            "tertiary-fixed-dim": "#ffb3ad",
+            "on-background": "#191c22",
+            "surface-container-highest": "#e1e2eb",
+            "tertiary-fixed": "#ffdad6",
+            "surface-container-low": "#f2f3fc",
+            "primary-fixed": "#d7e3ff"
+          },
+          "borderRadius": {
+            "DEFAULT": "0.125rem",
+            "lg": "0.25rem",
+            "xl": "0.5rem",
+            "full": "0.75rem"
+          },
+          "spacing": {
+            "space-xl": "2rem",
+            "space-sm": "0.5rem",
+            "gutter": "1rem",
+            "margin": "1rem",
+            "space-lg": "1.5rem",
+            "space-xs": "0.25rem",
+            "space-md": "1rem"
+          },
+          "fontFamily": {
+            "label-md": [
+              "Noto Sans", "Noto Sans KR", "sans-serif"
+            ],
+            "headline-sm": [
+              "Noto Sans", "Noto Sans KR", "sans-serif"
+            ],
+            "headline-lg": [
+              "Noto Sans", "Noto Sans KR", "sans-serif"
+            ],
+            "title-md": [
+              "Noto Sans", "Noto Sans KR", "sans-serif"
+            ],
+            "body-md": [
+              "Noto Sans", "Noto Sans KR", "sans-serif"
+            ]
+          },
+          "fontSize": {
+            "label-md": [
+              "14px",
+              {
+                "lineHeight": "20px",
+                "fontWeight": "600"
+              }
+            ],
+            "headline-sm": [
+              "20px",
+              {
+                "lineHeight": "28px",
+                "fontWeight": "700"
+              }
+            ],
+            "headline-lg": [
+              "28px",
+              {
+                "lineHeight": "38px",
+                "fontWeight": "700"
+              }
+            ],
+            "title-md": [
+              "18px",
+              {
+                "lineHeight": "26px",
+                "fontWeight": "600"
+              }
+            ],
+            "body-md": [
+              "16px",
+              {
+                "lineHeight": "26px",
+                "fontWeight": "400"
+              }
+            ]
+          }
+        },
+      },
+    }
+  </script>
+<style>
+    body {
+      font-family: 'Noto Sans KR', 'Noto Sans', sans-serif;
+    }
+    .material-symbols-outlined {
+      font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+      display: inline-block;
+      vertical-align: middle;
+      line-height: 1;
+    }
+    .brand-purple {
+      color: #402878;
+    }
+    .brand-blue {
+      color: #0060C0;
+    }
+    .btn-twinvet {
+      background-color: #0060C0;
+    }
+    .btn-twinvet:hover {
+      background-color: #004E9E;
+    }
+    .border-soft-card {
+      border: 1px solid #DCE3EE;
+    }
+    .border-warning-card {
+      border: 1px solid #F86860;
+    }
+  </style>
+<!-- TwinVet Care brand lockup (scripts/apply_brand_lockup.py) -->
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@700&amp;display=swap" rel="stylesheet"/>
+<link href="../../../brand/brand-tokens.css" rel="stylesheet"/>
+<link href="../../../brand/brand-lockup.css" rel="stylesheet"/>
+<style>
+  header .brand-lockup { --logo-w: 124px; text-decoration: none; }
+  header:has(.brand-lockup) { background-color: #FFFFFF; } /* logo is made for a white background */
+  /* the logo's speech bubbles reach the image top: give the header breathing room above the lockup */
+  header:has(.brand-lockup) { height: auto; min-height: 64px; padding-top: 14px; padding-bottom: 8px; }
+</style>
+</head>
+<body class="bg-background text-on-surface antialiased min-h-screen flex flex-col justify-between selection:bg-primary-container selection:text-primary">
+<!-- Top Navigation Header (Shared Component Anchored: small_center_aligned / 720px max-width) -->
+<header class="w-full bg-surface shadow-sm sticky top-0 z-50">
+<div class="w-full max-w-[720px] mx-auto px-margin flex items-center justify-between h-14">
+<!-- Leading Icon / Brand Icon -->
+<a class="brand-lockup" href="#" aria-label="TwinVet Care"><img src="../../../brand/twinvet-logo-original.png" alt="" width="683" height="283"/><span class="care" aria-hidden="true">Care</span></a>
+<!-- Trailing Action: Help Icon Button -->
+<button aria-label="도움말" class="w-10 h-10 flex items-center justify-center rounded-full text-on-surface-variant hover:bg-surface-container-low transition-colors duration-150 active:scale-95" type="button">
+<span class="material-symbols-outlined text-[22px]" data-icon="help_outline">help_outline</span>
+</button>
+</div>
+</header>
+<!-- Main Content Container (Desktop Centered Single Column Max 720px) -->
+<main class="w-full max-w-[720px] mx-auto px-margin pt-8 pb-16 flex-1 flex flex-col justify-center">
+<!-- Upper Hero Section: Badge & Main Title -->
+<div class="flex flex-col items-center text-center space-y-4 mb-7">
+<!-- Top Pill Badge -->
+<div class="inline-flex items-center gap-1.5 px-3 py-1 bg-primary-container text-primary rounded-full text-label-md font-label-md">
+<span>🐾 반려견 전용 건강 가이드</span>
+</div>
+<!-- Main Headline -->
+<h1 class="text-headline-lg font-headline-lg text-on-surface tracking-tight max-w-[620px]">
+        반려견 건강 궁금증, 상담 자료로 함께 찾아봐요
+      </h1>
+</div>
+<!-- Structured Content Area: Vertical Flow -->
+<div class="w-full space-y-4">
+<!-- Main Info Box Card -->
+<section class="bg-surface rounded-[12px] border-soft-card p-6 shadow-sm">
+<div class="divide-y divide-[#EDF1F7]">
+<!-- Row 1: Document/Notes -->
+<div class="flex items-start gap-4 pb-4">
+<div class="w-10 h-10 rounded-full bg-primary-container/60 flex items-center justify-center flex-shrink-0 mt-0.5 text-primary">
+<span class="material-symbols-outlined text-[20px]" data-icon="description">description</span>
+</div>
+<p class="text-body-md font-body-md text-on-surface leading-relaxed pt-1.5">
+              반려견(강아지)의 일반 건강 질문을 도와드려요. 내과·외과·피부·눈·치아 관련 상담 자료를 바탕으로 답합니다.
+            </p>
+</div>
+<!-- Row 2: Medical/Stethoscope -->
+<div class="flex items-start gap-4 py-4">
+<div class="w-10 h-10 rounded-full bg-primary-container/60 flex items-center justify-center flex-shrink-0 mt-0.5 text-primary">
+<span class="material-symbols-outlined text-[20px]" data-icon="stethoscope">stethoscope</span>
+</div>
+<p class="text-body-md font-body-md text-on-surface leading-relaxed pt-1.5">
+              AI가 상담 사례와 수의학 자료를 찾아 정리한 정보예요. 진단이나 처방이 아니며, 정확한 판단은 동물병원에서 받으세요.
+            </p>
+</div>
+<!-- Row 3: Security & Privacy / Clock & Lock -->
+<div class="flex items-start gap-4 pt-4">
+<div class="w-10 h-10 rounded-full bg-primary-container/60 flex items-center justify-center flex-shrink-0 mt-0.5 text-primary">
+<span class="material-symbols-outlined text-[20px]" data-icon="lock_clock">lock_clock</span>
+</div>
+<p class="text-body-md font-body-md text-on-surface leading-relaxed pt-1.5">
+              질문과 입력한 반려견 정보는 답변을 위해 저장돼요. 이 브라우저에서 7일간 볼 수 있고 이후 자동 삭제되며, 언제든 직접 삭제할 수 있어요.
+            </p>
+</div>
+</div>
+</section>
+<!-- Emergency Warning Box -->
+<aside class="bg-error-container border-warning-card rounded-[12px] p-5 shadow-sm" role="alert">
+<div class="flex items-start gap-3.5">
+<span class="material-symbols-outlined text-error text-[24px] flex-shrink-0 mt-0.5" data-icon="error_outline">error_outline</span>
+<div class="space-y-1">
+<h2 class="text-title-md font-title-md text-error tracking-tight">
+              응급 상황이면 AI 답변을 기다리지 마세요.
+            </h2>
+<p class="text-body-md font-body-md text-error leading-relaxed">
+              호흡 곤란, 의식 저하, 경련, 심한 출혈, 중독 의심 등은 바로 동물병원(야간에는 24시 동물병원)에 연락하세요.
+            </p>
+</div>
+</div>
+</aside>
+<!-- Primary Action CTA Button -->
+<div class="pt-3 flex justify-center">
+<button class="w-full max-w-[360px] h-12 btn-twinvet text-on-primary font-headline-sm text-[17px] rounded-[12px] shadow-sm flex items-center justify-center transition-all duration-150 active:scale-[0.98]" type="button">
+          상담 시작
+        </button>
+</div>
+</div>
+</main>
+<!-- Clean Subtle Desktop Footer -->
+<footer class="w-full py-6 text-center text-on-surface-variant/70 text-label-md font-label-md">
+<div class="w-full max-w-[720px] mx-auto px-margin">
+<p class="text-[13px] text-on-surface-variant font-normal">
+        TwinVet Care는 보호자의 이해를 돕기 위한 보조 수의 건강 정보 서비스입니다.
+      </p>
+</div>
+</footer>
+</body></html>

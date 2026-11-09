@@ -1,0 +1,10 @@
+{
+  "key": "s01-start-desktop",
+  "title": "S01 시작 · PC",
+  "device": "DESKTOP",
+  "screen_id": "e32f24cae56f47d09fcb2a745ac1eefe",
+  "stitch_title": "TwinVet Care 시작 화면 (Desktop)",
+  "canvas_url": "https://stitch.google.com/projects/16090159501557346695?node-id=e32f24cae56f47d09fcb2a745ac1eefe",
+  "prompt_sha256": "41caea63eca785827e3eb58700ebbcf945a2537d38223aa6951cd2032d80790b",
+  "generated_at": "2026-11-09T12:33:28+00:00"
+}

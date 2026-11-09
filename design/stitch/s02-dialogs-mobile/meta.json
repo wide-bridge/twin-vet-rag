@@ -1,0 +1,10 @@
+{
+  "key": "s02-dialogs-mobile",
+  "title": "대화 삭제 확인·삭제 실패·세션 만료 · 모바일",
+  "device": "MOBILE",
+  "screen_id": "4ee77ca8c0c944098a680698ca29aefb",
+  "stitch_title": "TwinVet Care 대화 삭제 및 세션 상태 시트 (Mobile 390px)",
+  "canvas_url": "https://stitch.google.com/projects/16090159501557346695?node-id=4ee77ca8c0c944098a680698ca29aefb",
+  "prompt_sha256": "cb33ff0c27207e689e74aa96237221285e07dab28177f91ccb1f935c4e1bc992",
+  "generated_at": "2026-11-09T12:40:10+00:00"
+}

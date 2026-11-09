@@ -1,0 +1,10 @@
+{
+  "key": "s02-desktop-panel",
+  "title": "S02 상담 + S03 근거 패널 · PC",
+  "device": "DESKTOP",
+  "screen_id": "084b4bd03fb546f09b43c593ab459e5d",
+  "stitch_title": "TwinVet Care 상담 및 근거 상세 (Desktop 1280px)",
+  "canvas_url": "https://stitch.google.com/projects/16090159501557346695?node-id=084b4bd03fb546f09b43c593ab459e5d",
+  "prompt_sha256": "8dad0c4ee62911f46dbc2993f5f93bff353c2c4aeb6ce33e67aa8e1cf0e5d422",
+  "generated_at": "2026-11-09T12:37:51+00:00"
+}
