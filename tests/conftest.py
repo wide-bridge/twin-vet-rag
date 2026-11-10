@@ -24,6 +24,12 @@ def test_db_url():
     import psycopg
     from backend.app.config import get_settings
 
+    from sqlalchemy.engine import make_url
+
+    target = make_url(get_settings().database_url)
+    # This fixture drops/recreates a DB. Never run it against Neon or another remote host.
+    if target.host not in {"localhost", "127.0.0.1", "::1"}:
+        pytest.fail("DB tests require a local PostgreSQL URL; remote databases are prohibited.")
     admin = get_settings().database_url.replace("postgresql+psycopg://", "postgresql://", 1)
     with psycopg.connect(admin, autocommit=True) as conn:
         conn.execute("DROP DATABASE IF EXISTS twinvet_test WITH (FORCE)")

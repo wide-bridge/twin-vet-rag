@@ -75,7 +75,7 @@ python tests/e2e/ui_smoke.py --widths 320,390,768,1280   # 실행 중인 서버 
 python -m scripts.cleanup_sessions      # 만료 24시간 지난 세션과 상담 데이터 영구 삭제. 하루 1회 예약 실행
 ```
 
-## 배포 (방향: 단일 컨테이너 + 관리형 PostgreSQL)
+## 배포 (DB 확정: Neon PostgreSQL / 앱 호스팅은 무료 서비스 검토)
 ```powershell
 docker compose --profile app up -d --build    # 이미지 = React 빌드 + FastAPI, 시작 시 alembic upgrade head
 ```
@@ -83,4 +83,39 @@ docker compose --profile app up -d --build    # 이미지 = React 빌드 + FastA
 - 환경변수: `DATABASE_URL`, `OPENAI_API_KEY`(플랫폼 비밀값으로 주입, 이미지·저장소에 넣지 않음), `ALLOWED_ORIGINS`(서비스 주소), `COOKIE_SECURE=true`.
 - DB: pgvector가 되는 PostgreSQL 16. 지식 색인은 로컬에서 만든 DB를 `pg_dump`로 옮기거나 서버에서 `load_knowledge`를 실행한다(원천 데이터는 로컬 D 드라이브에만 있음).
 - 답변 워커가 API 프로세스 안에 있으므로 **API 프로세스는 1개**로 운영한다(재시작 시 진행 중 실행은 실패 처리 → 사용자가 재시도).
-- 배포 대상·도메인·백업 정책은 미확정(docs/04 6절). 공개 전 원문 이용 조건 확인 필요.
+- DB는 Neon 무료 플랜의 전용 프로젝트 twin-vet-care로 확정(2026-11-10 사용자 결정). 기존 테이블명 유지. 앱 호스팅·주소·백업 운영 정책은 미확정. 원문 이용 조건 검토는 사용자 요청으로 후속 작업으로 둔다.
+
+### Neon 연결 및 이전 순서
+
+1. Neon에서 전용 프로젝트 twin-vet-care와 PostgreSQL 16 DB를 만든다. 다른 앱의 DB와 합치지 않으며 테이블 접두사는 추가하지 않는다.
+2. Connect에서 실제 연결 문자열을 가져온다. 앱 DATABASE_URL은 pooled 연결, ALEMBIC_DATABASE_URL은 direct 연결을 사용한다. 둘 다 같은 프로젝트·브랜치·DB를 가리켜야 한다.
+3. Python/Alembic에는 postgresql+psycopg:// 형식으로 넣고 sslmode=require 등 원래 쿼리 옵션은 유지한다. pg_dump/pg_restore에는 일반 postgresql:// 형식을 사용한다. 비밀번호의 특수문자는 URL 인코딩한다. 비밀값은 플랫폼 secret 또는 git에서 제외된 .env에만 저장한다.
+4. 이전 전 로컬 DB 크기를 확인한다: SELECT pg_size_pretty(pg_database_size(current_database())); 테이블·벡터·색인 전체와 향후 상담 데이터가 무료 용량에 들어가야 한다. 현재 플랜 한도는 https://neon.com/pricing 에서 재확인한다.
+5. 기존 임베딩을 재사용한다. 쓰기를 중단한 로컬 DB에서 pg_dump -Fc --no-owner --no-acl --file=<안전한_백업경로> <로컬_direct_URL> 로 전체 덤프를 만들고, 비어 있는 Neon DB에 pg_restore --no-owner --no-acl --exit-on-error --dbname=<Neon_direct_URL> <덤프경로> 로 복원한다. 명령의 URL은 비밀값을 기록하지 않도록 환경변수/비밀번호 파일로 전달한다. PostgreSQL 16 클라이언트를 사용한다.
+6. 전체 복원에는 alembic_version·스키마·벡터가 포함된다. 복원 전에 alembic upgrade head로 테이블을 먼저 만들지 않는다. 복원 실패 시 앱을 시작하지 말고 오류를 해결한다. 기존 데이터가 있는 DB에 --clean을 사용하지 않는다.
+7. 복원 후 alembic upgrade head를 실행하고, 로컬/Neon의 주요 테이블(document, document_version, chunk) 행 수와 pgvector 확장·벡터 색인·실제 검색 결과를 비교한다. 덤프에는 로컬 테스트 상담도 포함되므로 이전 대상 데이터는 전송 전에 검토한다.
+8. 로컬 Docker에서 Neon을 연결할 때는 docker compose -f docker-compose.neon.yml up -d --build 를 사용한다. 이 파일은 단독 사용하며 로컬 db 컨테이너를 띄우지 않는다. 기존 docker-compose.yml은 로컬 개발 전용으로 유지한다.
+9. 호스팅 플랫폼에서는 Dockerfile과 위 환경변수를 설정하고 HTTPS 주소를 ALLOWED_ORIGINS에 넣는다. 현재 이미지 포트는 8000, API 프로세스는 1개다. /api/v1/health와 질문·근거·피드백·삭제 흐름을 확인한다. 이 확인은 실제 모델 비용이 발생한다.
+10. 무료 DB의 복구 기능을 7일 백업으로 간주하지 않는다. 배포 전 덤프를 안전하게 보관하고 별도 빈 DB에서 복구 검증한다. 정기 백업과 cleanup_sessions 하루 1회 실행은 아직 예약되지 않았다.
+
+### 무료 운영에서 남은 검증
+
+- 워커는 대기 중에도 0.5초마다 작업을 조회하고 약 10초마다 시간 초과 작업을 확인한다. 앱이 계속 켜져 있으면 Neon 절전을 방해할 수 있다. 무료 compute 사용량을 관찰하고 필요하면 요청 시 워커를 깨우는 방식으로 변경한다. WORKER_THREADS=0은 질문 처리를 멈추므로 절약 설정으로 쓰지 않는다.
+- /api/v1/health도 DB에 접속한다. 외부의 반복 health 호출이 앱/DB 절전에 미치는 영향을 점검한다.
+- DB/API 자동 테스트는 로컬 DB만 사용한다. Neon DATABASE_URL을 둔 채 TWINVET_DB_TESTS=1을 실행하지 않는다. fixture에 원격 호스트 차단을 추가했다.
+- 실제 Neon 계정 연결, 용량 측정, 이전, 클라우드 통합 검증은 아직 수행하지 않았다.
+
+### 기존 개발 작업 검토 (2026-11-10)
+
+현재 feat/poc-rag-api-ui의 커밋과 코드에서 확인:
+- 3e47479: PostgreSQL/pgvector 스키마, 마이그레이션, 재개 가능한 적재·검색 기반.
+- a91aa97: 정제본 띄어쓰기 복원과 임베딩 머리말.
+- b42d0e9: 분류→검색→생성→근거 검증, DB answer_run 작업 큐, API 및 가짜 모델 기반 API 테스트.
+- 7805324: React S01~S03와 Chrome 브라우저 점검 스크립트.
+- 12afd2a: 평가 스크립트, 만료 세션 정리, 단일 Docker 이미지, 실행 문서.
+
+배포는 로컬 Compose DB를 기준으로 준비됐고 Neon 전용 연결 설정은 없었다. 테스트 fixture는 설정된 DB 서버에서 twinvet_test를 삭제·재생성하므로 원격 DB 차단이 필요했다. 기존 73개 통과·실제 모델 평가 결과는 개발자 보고이며 이번 검토의 재실행 결과와 구분한다.
+
+검증 결과(이번 Neon 설정 반영): 무료 단위/회귀 테스트 72 passed, 28 skipped. DB/API 통합 테스트는 로컬 DB 연결을 켜지 않아 제외했다. URL 인코딩 비밀번호의 Alembic SQL 생성과 원격 테스트 DB 접속 차단 회귀 테스트 2개 포함. Neon Compose 설정은 가짜 환경변수로 docker compose config --quiet 통과, git diff --check 통과. 실제 클라우드 연결/배포 성공을 뜻하지 않는다.
+
+검토 시 별도 미커밋 변경도 확인했다: pipeline/prompts의 불필요한 되묻기 억제·나이 충돌 판단, eval_answers의 질문 속 나이를 평가 입력에 반영, 관련 API/clarification 테스트. 이 파일들은 이번 Neon 작업에서 수정하지 않았다. 작성 주체는 Git 미커밋 상태만으로 확정할 수 없다.

@@ -1,0 +1,18 @@
+# Standalone configuration: do not combine with docker-compose.yml.
+# Set secrets in the shell or an untracked .env file.
+name: twinvet-care-neon
+services:
+  app:
+    build: .
+    environment:
+      DATABASE_URL: ${DATABASE_URL:?set Neon SQLAlchemy URL with sslmode=require}
+      ALEMBIC_DATABASE_URL: ${ALEMBIC_DATABASE_URL:?set Neon direct SQLAlchemy URL with sslmode=require}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:?set OPENAI_API_KEY}
+      ENV_FILE: ""
+      COOKIE_SECURE: "true"
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:?set the public HTTPS origin}
+      WORKER_THREADS: ${WORKER_THREADS:-2}
+      ENABLE_SOURCE_EXCERPTS: "false"
+    ports:
+      - "127.0.0.1:${TWINVET_APP_PORT:-8000}:8000"
+    restart: unless-stopped
