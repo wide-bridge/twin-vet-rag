@@ -2,7 +2,7 @@
 // from GET /consultations/{id}/messages and keeps polling any queued/running run.
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api, newRequestId, type ApiError, type CitationRef, type Run, type Thread } from "../api";
-import { formatAge } from "../lib/age";
+import { describeAge } from "../lib/age";
 import { emptyDogForm, formFromDog, validateDog, type DogForm } from "../lib/dogForm";
 import { store } from "../lib/store";
 import { AnswerCard, FailedCard, ProcessingCard, time } from "./AnswerCard";
@@ -25,8 +25,8 @@ export function ConsultScreen({ maxChars, onExpired }: { maxChars: number; onExp
   const [thread, setThread] = useState<Thread | null>(null);
   const [loading, setLoading] = useState(Boolean(cid));
   const [form, setForm] = useState<DogForm>(() => {
-    const d = store.lastDog();
-    return d ? formFromDog(d) : emptyDogForm();
+    const saved = store.lastDog();
+    return saved ? formFromDog(saved.dog, saved.savedAt) : emptyDogForm();
   });
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
@@ -118,7 +118,7 @@ export function ConsultScreen({ maxChars, onExpired }: { maxChars: number; onExp
         const created = await api.createConsultation(validation.dog);
         id = created.consultation_id;
         store.setConsultationId(id);
-        store.setLastDog(validation.dog);
+        store.setLastDog(created.dog);
         setCid(id);
       }
       await api.ask(id, text, newRequestId());
@@ -147,8 +147,8 @@ export function ConsultScreen({ maxChars, onExpired }: { maxChars: number; onExp
 
   const newConsultation = () => {
     store.setConsultationId(null);
-    const d = thread?.dog ?? store.lastDog();
-    setForm(d ? formFromDog(d) : emptyDogForm());
+    const saved = thread ? { dog: thread.dog, savedAt: thread.created_at } : store.lastDog();
+    setForm(saved ? formFromDog(saved.dog, saved.savedAt) : emptyDogForm());
     setCid(null);
     setThread(null);
     setDraft("");
@@ -175,7 +175,7 @@ export function ConsultScreen({ maxChars, onExpired }: { maxChars: number; onExp
   };
 
   const dog = thread?.dog;
-  const summary = dog ? [dog.breed, formatAge(dog.age_months), dog.weight_kg != null ? `${dog.weight_kg}kg` : null].filter(Boolean).join(" · ") : null;
+  const summary = dog ? [dog.breed, describeAge(dog), dog.weight_kg != null ? `${dog.weight_kg}kg` : null].filter(Boolean).join(" · ") : null;
   const runsByQuestion = new Map((thread?.runs ?? []).map((r) => [r.question_message_id, r]));
   const showExamples = !thread || thread.messages.length === 0;
   const dogErrors = needDog && draft.trim() ? validation.errors : {};

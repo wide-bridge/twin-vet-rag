@@ -92,6 +92,22 @@ def test_consultation_validation_and_life_stage(env):
     assert r["life_stage"] == "senior" and r["dog"]["weight_kg"] == 3.2
 
 
+def test_consultation_with_birth_date(env):
+    env.client.post("/api/v1/sessions", headers=H)
+    r = env.client.post("/api/v1/consultations", headers=H,
+                        json={"dog": {"breed": "푸들", "birth_year": 2020, "birth_month": 5, "birth_day": 20}})
+    assert r.status_code == 201, r.text
+    dog = r.json()["dog"]
+    assert (dog["birth_year"], dog["birth_month"], dog["birth_day"], dog["age_basis"]) == (2020, 5, 20, "day")
+    assert dog["age_months"] >= 77
+    r = env.client.post("/api/v1/consultations", headers=H, json={"dog": {"breed": "푸들", "birth_year": 2020}})
+    assert r.json()["dog"]["birth_month"] is None and r.json()["dog"]["age_basis"] == "year"
+    future = env.client.post("/api/v1/consultations", headers=H, json={"dog": {"breed": "푸들", "birth_year": 2099}})
+    assert future.status_code == 422 and future.json()["error"]["code"] == "invalid_birth_date"
+    both = env.client.post("/api/v1/consultations", headers=H, json={"dog": {"breed": "푸들", "birth_year": 2020, "age_months": 3}})
+    assert both.status_code == 422
+
+
 def test_auth_and_csrf_guards(env):
     assert env.client.post("/api/v1/consultations", json={"dog": DOG}, headers=H).status_code == 401
     assert env.client.post("/api/v1/sessions").status_code == 403  # no client header

@@ -33,3 +33,53 @@ def test_profile_required_and_trimmed():
 def test_profile_rejects_invalid(payload):
     with pytest.raises(ValidationError):
         DogProfileIn(**payload)
+
+
+# ------------------------------------------------------------------ birth date (as far as known) or estimate
+from datetime import date  # noqa: E402
+
+from backend.app.domain.dog import AgeBasis, age_from_birth  # noqa: E402
+
+TODAY = date(2026, 11, 11)
+
+
+@pytest.mark.parametrize("payload, basis, months", [
+    ({"birth_year": 2021, "birth_month": 3, "birth_day": 15}, AgeBasis.day, 67),     # 5y 7m
+    ({"birth_year": 2021, "birth_month": 11, "birth_day": 12}, AgeBasis.day, 59),    # birthday tomorrow: not yet 5y
+    ({"birth_year": 2021, "birth_month": 11, "birth_day": 11}, AgeBasis.day, 60),    # birthday today: 5y
+    ({"birth_year": 2021, "birth_month": 3}, AgeBasis.month, 68),
+    ({"birth_year": 2021}, AgeBasis.year, 64),                                       # assumes July 1
+    ({"birth_year": 2026}, AgeBasis.year, 4),
+    ({"birth_year": 2026, "birth_month": 11}, AgeBasis.month, 0),
+    ({"age_months": 54}, AgeBasis.estimate, 54),
+])
+def test_age_from_birth_or_estimate(payload, basis, months):
+    p = DogProfileIn(breed="푸들", **payload)
+    assert p.age_basis is basis and p.age_on(TODAY) == months
+    assert (p.birth_date() is None) == (basis is AgeBasis.estimate)
+
+
+@pytest.mark.parametrize("payload", [
+    {},                                                         # neither birth date nor estimate
+    {"birth_year": 2021, "age_months": 10},                     # both
+    {"birth_month": 3, "age_months": 10},                       # month without year
+    {"birth_year": 2021, "birth_day": 3},                       # day without month
+    {"birth_year": 2023, "birth_month": 2, "birth_day": 29},    # no such date
+    {"birth_year": 2021, "birth_month": 13},
+])
+def test_birth_input_rejected(payload):
+    with pytest.raises(ValidationError):
+        DogProfileIn(breed="푸들", **payload)
+
+
+@pytest.mark.parametrize("payload", [
+    {"birth_year": 2027}, {"birth_year": 2026, "birth_month": 12}, {"birth_year": 2026, "birth_month": 11, "birth_day": 12},
+    {"birth_year": 1995, "birth_month": 1},                     # over 30y 11m
+])
+def test_future_or_too_old_birth_rejected(payload):
+    with pytest.raises(ValueError):
+        DogProfileIn(breed="푸들", **payload).age_on(TODAY)
+
+
+def test_age_from_birth_never_negative():
+    assert age_from_birth(2026, None, None, date(2026, 2, 1)) == 0

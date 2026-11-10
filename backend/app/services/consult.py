@@ -7,7 +7,7 @@ import secrets
 import time
 import uuid
 from collections import defaultdict, deque
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 from threading import Lock
 
 from sqlalchemy import delete, func, select, text
@@ -19,6 +19,8 @@ from ..config import Settings
 from ..db.models import AnswerRun, Chunk, Citation, Consultation, Document, DocumentVersion, Feedback, Message
 from ..db.models import Session as SessionRow
 from ..domain.dog import DogProfileIn, derive_life_stage
+
+KST = timezone(timedelta(hours=9))
 
 RUN_ERRORS = {
     "model_error": "답변을 가져오지 못했어요. 잠시 후 다시 시도해 주세요.",
@@ -55,11 +57,21 @@ def resolve_session(db: DB, token: str | None) -> SessionRow | None:
 
 
 # ------------------------------------------------------------------ consultations
+def today_kst() -> date:
+    """The service runs for Korean guardians: ages and birthdays follow the Korean calendar day."""
+    return datetime.now(KST).date()
+
+
 def create_consultation(db: DB, settings: Settings, session: SessionRow, dog: DogProfileIn) -> Consultation:
+    try:
+        age = dog.age_on(today_kst())
+    except ValueError:
+        raise ApiError(422, "invalid_birth_date", extra={"fields": ["dog.birth_year"]})
     c = Consultation(
-        session_id=session.id, dog_breed=dog.breed, dog_age_months=dog.age_months, dog_weight_kg=dog.weight_kg,
+        session_id=session.id, dog_breed=dog.breed, dog_age_months=age, dog_birth_date=dog.birth_date(),
+        dog_age_basis=dog.age_basis.value, dog_weight_kg=dog.weight_kg,
         dog_neutered=dog.neutered.value if dog.neutered else None, dog_health_notes=dog.health_notes or None,
-        life_stage=derive_life_stage(dog.age_months, settings.life_stage_puppy_max_months,
+        life_stage=derive_life_stage(age, settings.life_stage_puppy_max_months,
                                      settings.life_stage_senior_min_months).value,
     )
     db.add(c)
@@ -190,7 +202,13 @@ def get_run(db: DB, session: SessionRow, run_id: uuid.UUID) -> dict:
 
 
 def dog_view(c: Consultation) -> dict:
-    return {"breed": c.dog_breed, "age_months": c.dog_age_months,
+    """Birth parts are returned as far as they were entered (the form can be prefilled with the day);
+    screens show only year and month."""
+    b, basis = c.dog_birth_date, c.dog_age_basis
+    birth = {"birth_year": b.year if b else None,
+             "birth_month": b.month if b and basis in ("day", "month") else None,
+             "birth_day": b.day if b and basis == "day" else None}
+    return {"breed": c.dog_breed, "age_months": c.dog_age_months, "age_basis": basis, **birth,
             "weight_kg": float(c.dog_weight_kg) if c.dog_weight_kg is not None else None,
             "neutered": c.dog_neutered, "health_notes": c.dog_health_notes}
 

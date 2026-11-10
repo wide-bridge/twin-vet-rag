@@ -1,8 +1,17 @@
 // 우리 아이 정보 (docs/05 §3): breed + age required, health status optional and collapsed.
+// Age: birth date as far as known (year required; month and day may be left as "모름") or an estimate.
 import { useId, useState } from "react";
-import { BREEDS, type DogErrors, type DogForm } from "../lib/dogForm";
+import { BREEDS, formAgeMonths, type DogErrors, type DogForm } from "../lib/dogForm";
+import { daysInMonth, formatAge } from "../lib/age";
 import type { Neutered } from "../api";
 import { IconChevron, IconError, IconInfo, IconPaw } from "./Icons";
+
+const range = (a: number, b: number) => Array.from({ length: b - a + 1 }, (_, i) => a + i);
+const THIS_YEAR = new Date().getFullYear();
+const YEARS = range(THIS_YEAR - 30, THIS_YEAR).reverse();
+// keep a chosen day valid when the year/month changes (e.g. 31 -> 30, Feb 29 in a non-leap year)
+const clampDay = (y: string, m: string, d: string) =>
+  d && y && m ? String(Math.min(Number(d), daysInMonth(Number(y), Number(m)))) : d;
 
 const NEUTERED: [Neutered, string][] = [["yes", "예"], ["no", "아니오"], ["unknown", "모름"]];
 
@@ -15,6 +24,7 @@ export function DogCard({ form, errors, onChange }: { form: DogForm; errors: Dog
   const [open, setOpen] = useState(Boolean(form.weight || form.neutered || form.notes));
   const set = <K extends keyof DogForm>(k: K, v: DogForm[K]) => onChange({ ...form, [k]: v });
   const numeric = (v: string) => v.replace(/[^\d]/g, "").slice(0, 2);
+  const preview = formAgeMonths(form);
 
   return (
     <section className="card dog-card" aria-labelledby={id + "h"}>
@@ -33,19 +43,52 @@ export function DogCard({ form, errors, onChange }: { form: DogForm; errors: Dog
         </div>
         <div className="field" role="group" aria-labelledby={id + "al"}>
           <span id={id + "al"} className="label">나이 <span className="req" aria-hidden="true">*</span></span>
-          <div className="row-2">
-            <div className="input-suffix">
-              <input className="input" inputMode="numeric" placeholder="0" aria-label="나이 년" value={form.years}
-                onChange={(e) => set("years", numeric(e.target.value))} aria-invalid={Boolean(errors.age)} aria-describedby={id + "ah"} />
-              <span>년</span>
-            </div>
-            <div className="input-suffix">
-              <input className="input" inputMode="numeric" placeholder="0" aria-label="나이 개월" value={form.months}
-                onChange={(e) => set("months", numeric(e.target.value))} aria-invalid={Boolean(errors.age)} aria-describedby={id + "ah"} />
-              <span>개월</span>
-            </div>
+          <div className="segmented">
+            <button type="button" aria-pressed={form.ageMode === "birth"} onClick={() => set("ageMode", "birth")}>생일을 알아요</button>
+            <button type="button" aria-pressed={form.ageMode === "estimate"} onClick={() => set("ageMode", "estimate")}>정확히 몰라요</button>
           </div>
-          {errors.age ? <Err id={id + "ah"} text={errors.age} /> : <p id={id + "ah"} className="help"><IconInfo small /> 정확하지 않아도 괜찮아요</p>}
+          {form.ageMode === "birth" ? (
+            <div className="row-3">
+              <select className="input" aria-label="태어난 해" value={form.birthYear} aria-invalid={Boolean(errors.age)} aria-describedby={id + "ah"}
+                onChange={(e) => onChange({ ...form, birthYear: e.target.value, birthDay: clampDay(e.target.value, form.birthMonth, form.birthDay) })}>
+                <option value="">년도</option>
+                {YEARS.map((y) => <option key={y} value={y}>{y}년</option>)}
+              </select>
+              <select className="input" aria-label="태어난 달 (모르면 비워 두세요)" value={form.birthMonth} disabled={!form.birthYear}
+                aria-describedby={id + "ah"}
+                onChange={(e) => onChange({ ...form, birthMonth: e.target.value, birthDay: e.target.value ? clampDay(form.birthYear, e.target.value, form.birthDay) : "" })}>
+                <option value="">월 모름</option>
+                {range(1, 12).map((m) => <option key={m} value={m}>{m}월</option>)}
+              </select>
+              <select className="input" aria-label="태어난 날 (모르면 비워 두세요)" value={form.birthDay} disabled={!form.birthMonth}
+                aria-describedby={id + "ah"} onChange={(e) => set("birthDay", e.target.value)}>
+                <option value="">일 모름</option>
+                {range(1, form.birthYear && form.birthMonth ? daysInMonth(Number(form.birthYear), Number(form.birthMonth)) : 31)
+                  .map((d) => <option key={d} value={d}>{d}일</option>)}
+              </select>
+            </div>
+          ) : (
+            <div className="row-2">
+              <div className="input-suffix">
+                <input className="input" inputMode="numeric" placeholder="0" aria-label="대략적인 나이 년" value={form.years}
+                  onChange={(e) => set("years", numeric(e.target.value))} aria-invalid={Boolean(errors.age)} aria-describedby={id + "ah"} />
+                <span>년</span>
+              </div>
+              <div className="input-suffix">
+                <input className="input" inputMode="numeric" placeholder="0" aria-label="대략적인 나이 개월" value={form.months}
+                  onChange={(e) => set("months", numeric(e.target.value))} aria-invalid={Boolean(errors.age)} aria-describedby={id + "ah"} />
+                <span>개월</span>
+              </div>
+            </div>
+          )}
+          {errors.age ? <Err id={id + "ah"} text={errors.age} /> : (
+            <p id={id + "ah"} className="help" aria-live="polite">
+              <IconInfo small />
+              {preview !== null
+                ? `현재 ${form.ageMode === "estimate" ? "약 " : ""}${formatAge(preview)}`
+                : form.ageMode === "birth" ? "아는 데까지만 입력해 주세요. 월·일은 몰라도 돼요" : "대략적인 나이를 입력해 주세요"}
+            </p>
+          )}
         </div>
         <div className="span-2">
           <button type="button" className="toggle" aria-expanded={open} aria-controls={id + "hs"} onClick={() => setOpen(!open)}>

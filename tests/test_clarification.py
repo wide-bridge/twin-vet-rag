@@ -3,7 +3,7 @@ import pytest
 
 from backend.app.config import Settings
 from backend.app.domain.dog import LifeStage
-from backend.app.rag.pipeline import UNCLEAR_MAX_CHARS, clarification, parse_age_months, stated_age_months
+from backend.app.rag.pipeline import UNCLEAR_MAX_CHARS, clarification, parse_age_months, resolve_age, stated_age_months
 from backend.app.rag.prompts import TEXT_UNCLEAR, DogInfo
 
 S = Settings(_env_file=None)
@@ -62,3 +62,13 @@ def test_unclear_flag_ignored_for_long_question():
 def test_unclear_flag_ignored_with_history_and_fallback_text():
     assert decide(48, LifeStage.adult, {"question_unclear": True, "clarification_question": "무엇이요?"}, history=True) is None
     assert decide(48, LifeStage.adult, {"question_unclear": True, "clarification_question": " "}) == TEXT_UNCLEAR
+
+
+@pytest.mark.parametrize("basis, asks, search_stage", [
+    ("day", True, LifeStage.adult), ("month", True, LifeStage.adult),          # birth date: trust it, ask
+    ("year", False, LifeStage.senior), ("estimate", False, LifeStage.senior),  # approximate: follow the question
+])
+def test_conflict_depends_on_age_basis(basis, asks, search_stage):
+    dog = DogInfo("모름", 48, age_basis=basis)
+    text, stage = resolve_age({**BASE, "question_age_text": "10살"}, dog, LifeStage.adult, S, "10살 된 말티즈가 기침해요")
+    assert bool(text) is asks and stage is search_stage

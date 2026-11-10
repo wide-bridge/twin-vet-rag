@@ -79,22 +79,41 @@ def first_age_months(text: str) -> int | None:
     return parse_age_months(m.group(1)) if m else None
 
 
-def clarification(data: dict, dog: DogInfo, life_stage: LifeStage, settings: Settings, *,
-                  has_history: bool, question: str) -> str | None:
-    """Server-side clarification decision (docs/04 §4 (2)); returns the text to ask, or None to answer.
-    (a) input/question age conflict: the age phrase must literally occur in the question; its age falls in
-        another life stage and differs from the input by more than 2 years (ages are approximate)
-    (b) the question says nothing answerable — trusted only for a short question without prior turns"""
+def question_age(data: dict, question: str) -> int | None:
+    """The dog's current age stated in the question: the model's verbatim phrase if it really occurs in
+    the question, else the pattern fallback. None when absent or out of range."""
     phrase = (data.get("question_age_text") or "").strip()
     if not phrase or phrase not in question:
         m = _STATED_AGE.search(question)
         phrase = m.group(1) if m else ""
     q_age = parse_age_months(phrase) if phrase else None
-    if q_age is not None and q_age <= 371:
-        q_stage = derive_life_stage(q_age, settings.life_stage_puppy_max_months, settings.life_stage_senior_min_months)
-        if q_stage != life_stage and abs(q_age - dog.age_months) > AGE_CONFLICT_MIN_MONTHS:
-            return age_conflict_text(dog.age_text(), age_text(q_age))
-    return unclear_text(data, has_history=has_history, question=question)
+    return q_age if q_age is not None and q_age <= 371 else None
+
+
+def resolve_age(data: dict, dog: DogInfo, life_stage: LifeStage, settings: Settings,
+                question: str) -> tuple[str | None, LifeStage]:
+    """(clarification text or None, life stage to search with).
+    A question age that falls in another life stage and differs by more than 2 years:
+      - input from a birth date (day/month): ask which is right (docs/04 §4 (2))
+      - input year-only or estimated: follow the question and search its life stage"""
+    q_age = question_age(data, question)
+    if q_age is None:
+        return None, life_stage
+    q_stage = derive_life_stage(q_age, settings.life_stage_puppy_max_months, settings.life_stage_senior_min_months)
+    if q_stage == life_stage or abs(q_age - dog.age_months) <= AGE_CONFLICT_MIN_MONTHS:
+        return None, life_stage
+    if dog.age_reliable:
+        return age_conflict_text(dog.age_text(), age_text(q_age)), life_stage
+    return None, q_stage
+
+
+def clarification(data: dict, dog: DogInfo, life_stage: LifeStage, settings: Settings, *,
+                  has_history: bool, question: str) -> str | None:
+    """Server-side clarification decision (docs/04 §4 (2)); returns the text to ask, or None to answer.
+    (a) age conflict with a birth-date input (resolve_age)
+    (b) the question says nothing answerable — trusted only for a short question without prior turns"""
+    conflict, _ = resolve_age(data, dog, life_stage, settings, question)
+    return conflict or unclear_text(data, has_history=has_history, question=question)
 
 
 def unclear_text(data: dict, *, has_history: bool, question: str) -> str | None:
@@ -114,7 +133,8 @@ def run_pipeline(db: Session, *, settings: Settings, llm: LLM, embedder: Embedde
 
     # (1)(2) scope + clarification + search query
     c = llm.complete_json(model=settings.llm_classifier_model, system=CLASSIFY_SYSTEM,
-                          user=classify_user(dog, history, question), schema=CLASSIFY_SCHEMA, name="classify")
+                          user=classify_user(dog, history, question), schema=CLASSIFY_SCHEMA, name="classify",
+                          reasoning="low")  # minimal confused other animals with the dog (2026-11-11 probe)
     _add_usage(usage, "classify", c)
     if c.data.get("scope") not in ("in_scope", "out_of_scope"):
         raise LLMError("invalid_classification")
@@ -127,6 +147,7 @@ def run_pipeline(db: Session, *, settings: Settings, llm: LLM, embedder: Embedde
     clarify = clarification(c.data, dog, life_stage, settings, has_history=bool(history), question=question)
     if clarify:
         return PipelineResult("clarification", clarify, "clarify", token_usage=usage, models=models)
+    _, life_stage = resolve_age(c.data, dog, life_stage, settings, question)  # approximate input yields
 
     # (3) retrieval: rewritten query (guardian-style, with dog info) — fall back to the raw question
     query = (c.data.get("search_query") or "").strip() or question

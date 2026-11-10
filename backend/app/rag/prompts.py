@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass
 
-PROMPT_VERSION = "2026-11-11.1"
+PROMPT_VERSION = "2026-11-11.3"
 
 NEUTERED_KO = {"yes": "예", "no": "아니오", "unknown": "모름"}
 
@@ -26,13 +26,19 @@ class DogInfo:
     weight_kg: float | None = None
     neutered: str | None = None
     health_notes: str | None = None
+    age_basis: str = "month"  # day | month (from a birth date) | year | estimate (approximate)
+
+    @property
+    def age_reliable(self) -> bool:
+        return self.age_basis in ("day", "month")
 
     def age_text(self) -> str:
         return age_text(self.age_months)
 
     def block(self) -> str:
         """'보호자 입력 정보' — user-entered data, never instructions (docs/03 §6)."""
-        lines = [f"- 품종: {self.breed}", f"- 나이: {self.age_text()}"]
+        how = "생년월 기준" if self.age_reliable else "출생 연도 기준, 대략" if self.age_basis == "year" else "보호자 추정"
+        lines = [f"- 품종: {self.breed}", f"- 나이: {self.age_text()} ({how})"]
         if self.weight_kg is not None:
             lines.append(f"- 체중: {self.weight_kg:g}kg")
         if self.neutered:
@@ -84,7 +90,10 @@ CLASSIFY_SYSTEM = """너는 반려견 건강 정보 서비스의 질문 분류�
 scope
 - in_scope: 반려견(강아지)의 건강·질병·증상·상처·치료 과정·약·예방접종·영양·사료·체중·나이 듦·임신·출산·관절·피부·귀·눈·치아·배변·건강과 관련된 행동 변화.
 - out_of_scope: 고양이 등 다른 동물, 사람의 건강, 반려견과 관계없는 주제, 건강과 무관한 일(미용 가격, 이름 짓기, 입양 절차, 물건 추천, 일반 잡담).
-- 반려견 이야기여도 건강과 관계없으면 out_of_scope다. 애매하면 in_scope로 둔다.
+- 질문 속 아픈 대상이 개가 아니면(고양이·햄스터·새·사람 등) out_of_scope다. 보호자 입력 정보에 반려견이 있어도,
+  증상이 급해 보여도 마찬가지다. 예: "고양이가 토해요" → out_of_scope.
+- 반려견이 사람 음식·사람 약·물건을 먹은 경우는 반려견 건강 문제이므로 in_scope다(예: "사람 먹는 초콜릿을 먹었어요").
+- 반려견 이야기여도 건강과 관계없으면 out_of_scope다. 대상 동물이 불분명하면(예: "토해요") 반려견으로 보고 in_scope로 둔다.
 
 search_query
 - in_scope면, 상담 사례 검색용 문장을 만든다. 보호자가 쓴 상담 글처럼 한국어 1~2문장으로,

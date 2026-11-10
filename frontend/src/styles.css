@@ -157,6 +157,13 @@ button.chip:hover { border-color: var(--color-primary); }
 .dog-card h2 { margin: 0; font-size: 18px; display: flex; align-items: center; gap: 8px; justify-content: space-between; }
 .dog-card h2 small { font-size: 13px; color: var(--color-text-muted); font-weight: 500; }
 .row-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.row-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
+select.input {
+  min-width: 0; padding: 10px 22px 10px 10px; appearance: none; -webkit-appearance: none; text-overflow: ellipsis;
+  background: var(--color-surface) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%236b7280' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E") no-repeat right 8px center;
+}
+@media (max-width: 419px) { .row-3 { grid-template-columns: 1fr 1fr; } .row-3 > :first-child { grid-column: 1 / -1; } }
+select.input:disabled { color: var(--color-text-muted); background-color: var(--color-divider); }
 .dog-grid { display: grid; gap: 16px; }
 .toggle { display: flex; align-items: center; justify-content: space-between; width: 100%; min-height: 44px; border: 0; border-top: 1px solid var(--color-divider); background: none; padding: 12px 0 0; font-weight: 600; color: var(--color-text-muted); }
 @media (min-width: 1024px) {

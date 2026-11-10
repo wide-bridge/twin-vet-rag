@@ -64,7 +64,7 @@ def process_run(Session: sessionmaker, settings: Settings, llm: LLM, embedder: E
         c = db.get(Consultation, run.consultation_id)
         question = db.get(Message, run.question_message_id).content
         dog = DogInfo(c.dog_breed, c.dog_age_months, float(c.dog_weight_kg) if c.dog_weight_kg is not None else None,
-                      c.dog_neutered, c.dog_health_notes)
+                      c.dog_neutered, c.dog_health_notes, c.dog_age_basis)
         history = _history(db, run, settings.history_turns)
         db.commit()  # end the read transaction; the search below runs in its own short one
         try:

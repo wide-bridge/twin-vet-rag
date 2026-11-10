@@ -24,15 +24,24 @@ function set(key: string, value: string | null): void {
 export const store = {
   consultationId: () => get(K_CONSULTATION),
   setConsultationId: (id: string | null) => set(K_CONSULTATION, id),
-  lastDog: (): Dog | null => {
+  /** The last dog and when it was saved (a prefilled estimate is advanced by the time since). */
+  lastDog: (): { dog: Dog; savedAt: string | null } | null => {
     const raw = get(K_DOG);
     if (!raw) return null;
     try {
-      const d = JSON.parse(raw) as Dog;
-      return typeof d.breed === "string" && Number.isInteger(d.age_months) ? d : null;
+      const v = JSON.parse(raw);
+      const wrapped = Boolean(v && typeof v === "object" && v.dog);
+      const d = (wrapped ? v.dog : v) as Partial<Dog>; // entries before birth dates stored the dog itself
+      if (typeof d.breed !== "string" || !Number.isInteger(d.age_months)) return null;
+      const dog: Dog = {
+        breed: d.breed, age_months: d.age_months as number, age_basis: d.age_basis ?? "estimate",
+        birth_year: d.birth_year ?? null, birth_month: d.birth_month ?? null, birth_day: d.birth_day ?? null,
+        weight_kg: d.weight_kg ?? null, neutered: d.neutered ?? null, health_notes: d.health_notes ?? null,
+      };
+      return { dog, savedAt: wrapped ? v.savedAt ?? null : null };
     } catch {
       return null;
     }
   },
-  setLastDog: (d: Dog | null) => set(K_DOG, d ? JSON.stringify(d) : null),
+  setLastDog: (d: Dog | null) => set(K_DOG, d ? JSON.stringify({ dog: d, savedAt: new Date().toISOString() }) : null),
 };

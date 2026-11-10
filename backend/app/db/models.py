@@ -2,12 +2,13 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime
+from datetime import date, datetime
 
 from pgvector.sqlalchemy import Vector
 from sqlalchemy import (
     Boolean,
     CheckConstraint,
+    Date,
     DateTime,
     ForeignKey,
     Index,
@@ -50,7 +51,9 @@ class Consultation(Base):
     id: Mapped[uuid.UUID] = _pk()
     session_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("session.id", ondelete="CASCADE"), nullable=False, index=True)
     dog_breed: Mapped[str] = mapped_column(String(40), nullable=False)
-    dog_age_months: Mapped[int] = mapped_column(Integer, nullable=False)
+    dog_age_months: Mapped[int] = mapped_column(Integer, nullable=False)  # at creation (computed or estimated)
+    dog_birth_date: Mapped[date | None] = mapped_column(Date)  # unknown parts stored as 1; see dog_age_basis
+    dog_age_basis: Mapped[str] = mapped_column(String(8), nullable=False, server_default="estimate")
     dog_weight_kg: Mapped[float | None] = mapped_column(Numeric(4, 1))
     dog_neutered: Mapped[str | None] = mapped_column(String(8))
     dog_health_notes: Mapped[str | None] = mapped_column(String(300))
@@ -60,6 +63,8 @@ class Consultation(Base):
     __table_args__ = (
         CheckConstraint("dog_age_months BETWEEN 0 AND 371", name="ck_consultation_age"),
         CheckConstraint("dog_neutered IN ('yes','no','unknown')", name="ck_consultation_neutered"),
+        CheckConstraint("dog_age_basis IN ('day','month','year','estimate')", name="ck_consultation_age_basis"),
+        CheckConstraint("(dog_age_basis = 'estimate') = (dog_birth_date IS NULL)", name="ck_consultation_birth_date"),
         CheckConstraint("life_stage IN ('puppy','adult','senior')", name="ck_consultation_life_stage"),
         CheckConstraint("status IN ('active')", name="ck_consultation_status"),
     )

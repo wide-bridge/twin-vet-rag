@@ -11,6 +11,7 @@ MESSAGES = {
     "empty_question": "질문을 입력해 주세요.",
     "question_too_long": "질문이 너무 길어요.",
     "invalid_input": "입력값을 확인해 주세요.",
+    "invalid_birth_date": "생년월일을 확인해 주세요. 오늘 이후 날짜나 30년 11개월을 넘는 나이는 입력할 수 없어요.",
     "session_expired": "상담 시간이 만료되어 이전 대화는 볼 수 없어요.",
     "forbidden_origin": "허용되지 않은 요청이에요.",
     "not_found": "찾을 수 없어요.",

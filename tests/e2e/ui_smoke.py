@@ -11,12 +11,24 @@ from __future__ import annotations
 
 import argparse
 import sys
+from datetime import date
 from pathlib import Path
 
 from playwright.sync_api import Page, expect, sync_playwright
 
 ROOT = Path(__file__).resolve().parents[2]
 WIDTHS = [(320, 640), (390, 844), (768, 1024), (1280, 800)]
+
+
+def _birth_and_age() -> tuple[tuple[int, int], str]:
+    """A birth year/month about 10 years 3 months ago and the age text the screen should show."""
+    t = date.today()
+    total = t.year * 12 + (t.month - 1) - 123
+    y, m = divmod(total, 12)
+    return (y, m + 1), "10세 3개월"
+
+
+BIRTH, AGE_TEXT = _birth_and_age()
 
 
 def no_hscroll(page: Page, label: str) -> None:
@@ -38,8 +50,17 @@ def flow(page: Page, base: str, out: Path, tag: str, w: int) -> None:
     no_hscroll(page, f"{tag} S02 intake")
     page.screenshot(path=out / f"{tag}-s02-intake-errors.png", full_page=False)
     page.get_by_placeholder("예: 말티즈, 믹스견, 모름").fill("말티즈")
-    page.get_by_label("나이 년").fill("10")
-    page.get_by_label("나이 개월").fill("3")
+    # age: estimate mode first, then the birth date (year + month, day left as 모름)
+    page.get_by_role("button", name="정확히 몰라요").click()
+    page.get_by_label("대략적인 나이 년").fill("3")
+    expect(page.get_by_text("현재 약 3세")).to_be_visible()
+    page.get_by_role("button", name="생일을 알아요").click()
+    expect(page.get_by_label("태어난 날 (모르면 비워 두세요)")).to_be_disabled()
+    page.get_by_label("태어난 해").select_option(str(BIRTH[0]))
+    page.get_by_label("태어난 달 (모르면 비워 두세요)").select_option(str(BIRTH[1]))
+    expect(page.get_by_label("태어난 날 (모르면 비워 두세요)")).to_be_enabled()
+    expect(page.get_by_text(f"현재 {AGE_TEXT}")).to_be_visible()
+    no_hscroll(page, f"{tag} S02 birth date")
     page.get_by_role("button", name="건강상태 (선택)").click()
     page.get_by_placeholder("예: 3.2").fill("3.2")
     page.screenshot(path=out / f"{tag}-s02-intake-filled.png", full_page=False)
@@ -47,7 +68,7 @@ def flow(page: Page, base: str, out: Path, tag: str, w: int) -> None:
 
     expect(page.get_by_text("답변을 준비하고 있어요")).to_be_visible(timeout=10_000)
     page.screenshot(path=out / f"{tag}-s02-processing.png", full_page=False)
-    expect(page.get_by_text("말티즈 · 10세 3개월 · 3.2kg")).to_be_visible()
+    expect(page.get_by_text(f"말티즈 · {BIRTH[0]}년 {BIRTH[1]}월생 · {AGE_TEXT} · 3.2kg")).to_be_visible()
     expect(page.get_by_role("article", name="AI 답변")).to_be_visible(timeout=90_000)
     no_hscroll(page, f"{tag} S02 answer")
     page.screenshot(path=out / f"{tag}-s02-answer.png", full_page=False)
