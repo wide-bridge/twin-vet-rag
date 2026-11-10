@@ -98,6 +98,16 @@ docker compose --profile app up -d --build    # 이미지 = React 빌드 + FastA
 9. 호스팅 플랫폼에서는 Dockerfile과 위 환경변수를 설정하고 HTTPS 주소를 ALLOWED_ORIGINS에 넣는다. 현재 이미지 포트는 8000, API 프로세스는 1개다. /api/v1/health와 질문·근거·피드백·삭제 흐름을 확인한다. 이 확인은 실제 모델 비용이 발생한다.
 10. 무료 DB의 복구 기능을 7일 백업으로 간주하지 않는다. 배포 전 덤프를 안전하게 보관하고 별도 빈 DB에서 복구 검증한다. 정기 백업과 cleanup_sessions 하루 1회 실행은 아직 예약되지 않았다.
 
+### Render 배포 (무료 웹 서비스, 2026-11-11 준비)
+
+Neon 이전 완료(scripts/neon_restore.py, 검증 PASS). 앱은 render.yaml(Blueprint)로 배포한다.
+1. Render → New → Blueprint → GitHub `wide-bridge/twin-vet-rag` 선택(브랜치 feat/poc-rag-api-ui).
+2. 비밀값 4개를 Render 화면에 입력(저장소에 두지 않음): `DATABASE_URL`=Neon pooled URL, `ALEMBIC_DATABASE_URL`=Neon direct URL(둘 다 `postgresql://`→`postgresql+psycopg://`), `OPENAI_API_KEY`, `ALLOWED_ORIGINS`=`https://<서비스>.onrender.com`.
+3. 헬스 체크는 `/api/v1/live`(DB 미접속). 인스턴스 1개 유지(워커가 API 프로세스 안).
+4. 도메인: Render Settings → Custom Domains에 `twinvet.pawcheck.ai` 추가 → DNS에 `CNAME twinvet → <서비스>.onrender.com` → 인증서 발급 후 `ALLOWED_ORIGINS`에 `https://twinvet.pawcheck.ai` 추가.
+- 로컬 리허설: 같은 이미지를 `PORT=10000` + Neon 연결로 실행해 health OK, 브라우저 흐름 통과, 메모리 약 104 MB(무료 512 MB).
+- 무료 플랜은 15분 무접속 시 잠들고 첫 요청에 30~60초 걸린다. cleanup_sessions 예약 실행(Render cron은 유료)은 미정.
+
 ### 무료 운영 점검 결과 (2026-11-11)
 
 - **용량:** Neon 무료 한도는 프로젝트당 1 GB(2026-10 기준, https://neon.com/pricing 재확인). 로컬 DB는 1,043 MB로 보이지만 대부분 임베딩 갱신 때 생긴 빈 공간이다. pg_dump → 빈 DB pg_restore로 측정한 실제 이전 크기는 **512 MB**(chunk 표 259 MB + 벡터 색인 215 MB, 나머지 약 40 MB). 상담 데이터는 수백 KB 수준이다.

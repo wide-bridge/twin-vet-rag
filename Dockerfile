@@ -24,4 +24,4 @@ RUN useradd --create-home --uid 10001 app
 USER app
 EXPOSE 8000
 # migrations run on start; one API process (the answer worker runs inside it, docs/04 §3)
-CMD ["sh", "-c", "alembic upgrade head && uvicorn backend.app.main:app --host 0.0.0.0 --port 8000 --proxy-headers --forwarded-allow-ips='*'"]
+CMD ["sh", "-c", "alembic upgrade head && uvicorn backend.app.main:app --host 0.0.0.0 --port ${PORT:-8000} --proxy-headers --forwarded-allow-ips='*'"]

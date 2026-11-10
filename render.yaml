@@ -1,0 +1,37 @@
+# Render Blueprint: one Docker web service (FastAPI API + built React SPA), DB on Neon (docs/04 §9).
+# Secrets are marked sync: false — Render asks for them in the dashboard; they are never stored here.
+#   DATABASE_URL          Neon *pooled* URL with the scheme changed to postgresql+psycopg://
+#   ALEMBIC_DATABASE_URL  Neon *direct* URL (no -pooler), same scheme change; migrations run on start
+#   OPENAI_API_KEY        OpenAI key
+#   ALLOWED_ORIGINS       public HTTPS origin(s), comma separated, e.g.
+#                         https://twin-vet-care.onrender.com,https://twinvet.pawcheck.ai
+services:
+  - type: web
+    name: twin-vet-care
+    runtime: docker
+    plan: free
+    region: singapore            # same region as the Neon project
+    branch: feat/poc-rag-api-ui  # change to main after merging
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /api/v1/live   # DB-free, so health checks do not keep Neon awake
+    autoDeploy: true
+    numInstances: 1              # the answer worker runs inside the API process: keep one instance
+    envVars:
+      - key: DATABASE_URL
+        sync: false
+      - key: ALEMBIC_DATABASE_URL
+        sync: false
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: ALLOWED_ORIGINS
+        sync: false
+      - key: ENV_FILE
+        value: ""
+      - key: COOKIE_SECURE
+        value: "true"
+      - key: ENABLE_SOURCE_EXCERPTS
+        value: "false"
+      - key: WORKER_THREADS
+        value: "2"
+      - key: WORKER_IDLE_POLL_SECONDS
+        value: "0"
