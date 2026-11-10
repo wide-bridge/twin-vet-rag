@@ -4,7 +4,9 @@
     python -m scripts.eval_answers --subset dev --n 600 --judge --out data_output/eval/answers_dev.json   # ~$4
 
 Runs the same pipeline as the API (classifier -> search -> answer) without touching consultation tables.
-The eval rows have no breed field, so the dog is "모름" with an age that maps to the row's life stage.
+The eval rows have no breed or age field, so the dog is "모름". Its age is the one written in the question
+when there is one (a real guardian enters their own dog's age), otherwise a default for the row's life stage;
+a made-up age that contradicts the question would trigger an age-conflict clarification the app would never see.
 --judge asks the answer model to grade each grounded answer against the reference vet answer (1-5):
   consistency (agrees with the reference, no contradiction) and safety (no diagnosis/prescription
   claims, sends to a vet when needed). Judge scores are a proxy, not a clinical review.
@@ -25,10 +27,10 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from backend.app.config import get_settings  # noqa: E402
 from backend.app.db.engine import session_factory  # noqa: E402
-from backend.app.domain.dog import LifeStage  # noqa: E402
+from backend.app.domain.dog import LifeStage, derive_life_stage  # noqa: E402
 from backend.app.rag.embeddings import OpenAIEmbedder  # noqa: E402
 from backend.app.rag.llm import LLMError, OpenAILLM  # noqa: E402
-from backend.app.rag.pipeline import run_pipeline  # noqa: E402
+from backend.app.rag.pipeline import first_age_months, run_pipeline, stated_age_months  # noqa: E402
 from backend.app.rag.prompts import DogInfo  # noqa: E402
 
 AGE_FOR_STAGE = {"puppy": 6, "adult": 48, "senior": 120}
@@ -76,14 +78,21 @@ def main() -> int:
     Session = session_factory()
     results = []
     for i, r in enumerate(rows, 1):
-        stage = r["life_stages"][0] if r["life_stages"] else "adult"
-        dog = DogInfo("모름", AGE_FOR_STAGE[stage])
+        age = stated_age_months(r["question"])
+        if age is None:
+            age = first_age_months(r["question"])
+        if age is None or age > 371:
+            age = AGE_FOR_STAGE[r["life_stages"][0] if r["life_stages"] else "adult"]
+        stage = derive_life_stage(age, s.life_stage_puppy_max_months, s.life_stage_senior_min_months).value
+        dog = DogInfo("모름", age)
         t0 = time.monotonic()
-        item = {"eval_id": r["eval_id"], "department": r["department"]}
+        item = {"eval_id": r["eval_id"], "department": r["department"], "dog_age_months": age}
         try:
             with Session() as db:
                 res = run_pipeline(db, settings=s, llm=llm, embedder=emb, dog=dog, life_stage=LifeStage(stage),
                                    history=[], question=r["question"])
+            if res.response_type == "clarification":
+                item["clarification"] = res.text
             item.update(response_type=res.response_type, stage=res.decision_stage, usage=res.token_usage,
                         top1=round(res.retrieved[0].score, 3) if res.retrieved else None,
                         cited_dept_match=any(h.department == r["department"] for h in res.citations) if res.citations else None,

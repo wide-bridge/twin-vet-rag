@@ -18,7 +18,8 @@ from backend.app.services import consult, worker
 
 H = {"X-TwinVet-Client": "web"}
 DOG = {"breed": "말티즈", "age_months": 123, "weight_kg": 3.2}
-IN_SCOPE = {"scope": "in_scope", "needs_clarification": False, "clarification_question": "", "search_query": "말티즈 구토"}
+IN_SCOPE = {"scope": "in_scope", "search_query": "말티즈 구토", "question_age_text": "", "question_unclear": False,
+            "clarification_question": ""}
 
 
 def _knowledge(db):
@@ -123,7 +124,7 @@ def test_grounded_answer_with_server_checked_citations(env):
 
 @pytest.mark.parametrize("classify, answer, min_score, expected, stage", [
     ({**IN_SCOPE, "scope": "out_of_scope", "search_query": ""}, None, -1.0, "out_of_scope", "scope"),
-    ({**IN_SCOPE, "needs_clarification": True, "clarification_question": "토한 내용물에 피가 보였나요?"}, None, -1.0, "clarification", "clarify"),
+    ({**IN_SCOPE, "question_unclear": True, "clarification_question": "토한 내용물에 피가 보였나요?"}, None, -1.0, "clarification", "clarify"),
     (IN_SCOPE, None, 1.0, "insufficient_evidence", "retrieval"),
     (IN_SCOPE, {"response_type": "grounded", "answer": "근거 없는 답", "used_sources": [42]}, -1.0, "insufficient_evidence", "answer"),
     (IN_SCOPE, {"response_type": "insufficient_evidence", "answer": "", "used_sources": []}, -1.0, "insufficient_evidence", "answer"),
