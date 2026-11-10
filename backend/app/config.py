@@ -56,6 +56,11 @@ class Settings(BaseSettings):
     run_timeout_seconds: int = Field(default=120, ge=10)
     worker_threads: int = Field(default=2, ge=0)  # 0 = no background worker (tests drive runs directly)
     worker_idle_poll_seconds: int = Field(default=0, ge=0)  # 0 = no DB queries while idle (woken on submit)
+    # worker: in-process worker threads answer queued runs (Docker / local).
+    # request: no background threads (serverless, e.g. Vercel); the browser calls POST /runs/{id}/execute
+    #          and that request runs the pipeline. Defaults to request when VERCEL is set.
+    run_mode: str = Field(default_factory=lambda: "request" if os.environ.get("VERCEL") else "worker",
+                          pattern="^(worker|request)$")
 
     life_stage_puppy_max_months: int = Field(default=12, ge=1)
     life_stage_senior_min_months: int = Field(default=84, ge=1)
@@ -68,7 +73,12 @@ class Settings(BaseSettings):
 
     @property
     def origins(self) -> set[str]:
-        return {o.strip().rstrip("/") for o in self.allowed_origins.split(",") if o.strip()}
+        out = {o.strip().rstrip("/") for o in self.allowed_origins.split(",") if o.strip()}
+        # on Vercel, the deployment's own *.vercel.app hosts are always same-origin for this app
+        for var in ("VERCEL_URL", "VERCEL_BRANCH_URL", "VERCEL_PROJECT_PRODUCTION_URL"):
+            if os.environ.get(var):
+                out.add("https://" + os.environ[var].strip().rstrip("/"))
+        return out
 
 
 @lru_cache

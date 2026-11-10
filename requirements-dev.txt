@@ -1,3 +1,5 @@
-# Dev/test-only tools (not in the runtime image)
+# Dev/test/data-preparation tools (not in the runtime image or on Vercel)
 -r requirements.txt
+pytest==9.2.0
+kiwipiepy==0.24.1  # scripts/prepare_data.py spacing repair
 playwright==1.64.1  # tests/e2e/ui_smoke.py, drives the installed Chrome

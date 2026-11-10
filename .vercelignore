@@ -1,0 +1,12 @@
+# not needed to build or run on Vercel (the build regenerates frontend/dist)
+data_output/
+design/
+docs/
+tests/
+brand/references/
+migrations/__pycache__/
+frontend/node_modules/
+frontend/dist/
+.env
+.env.*
+*.dump

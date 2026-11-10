@@ -5,9 +5,8 @@ import logging
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI, Request
-from fastapi.responses import FileResponse, JSONResponse
-from fastapi.staticfiles import StaticFiles
+from fastapi import FastAPI
+from fastapi.responses import JSONResponse
 from sqlalchemy import text
 
 from .api import errors
@@ -36,7 +35,7 @@ def create_app(settings: Settings | None = None, *, llm=None, embedder=None, sta
     @asynccontextmanager
     async def lifespan(app: FastAPI):
         worker = None
-        if start_worker and settings.worker_threads > 0:
+        if start_worker and settings.run_mode == "worker" and settings.worker_threads > 0:
             if app.state.llm is None:
                 log.error("OPENAI_API_KEY missing: questions will stay queued")
             else:
@@ -83,16 +82,8 @@ def create_app(settings: Settings | None = None, *, llm=None, embedder=None, sta
         return JSONResponse({"status": "ok" if ok else "degraded", "checks": checks}, status_code=200 if ok else 503)
 
     if (DIST / "index.html").is_file():
-        app.mount("/assets", StaticFiles(directory=DIST / "assets"), name="assets")
-
-        @app.get("/{path:path}", include_in_schema=False)
-        def spa(path: str, request: Request):
-            if path.startswith("api/"):
-                return JSONResponse({"error": {"code": "not_found", "message": "찾을 수 없어요."}}, status_code=404)
-            f = (DIST / path).resolve()
-            if path and f.is_file() and DIST.resolve() in f.parents:
-                return FileResponse(f)
-            return FileResponse(DIST / "index.html")
+        # low-priority static routes (API routes always win); on Vercel these files are promoted to the CDN
+        app.frontend("/", directory=DIST, fallback="index.html")
 
     return app
 

@@ -38,6 +38,16 @@ def claim_next(db: DB) -> uuid.UUID | None:
     return rid
 
 
+def claim_run(db: DB, run_id: uuid.UUID) -> bool:
+    """Request mode: claim this specific run if it is still queued (another request may have taken it)."""
+    rid = db.execute(text(
+        "UPDATE answer_run SET status = 'running', started_at = now() WHERE id = ("
+        "  SELECT id FROM answer_run WHERE id = :id AND status = 'queued' FOR UPDATE SKIP LOCKED"
+        ") RETURNING id"), {"id": run_id}).scalar()
+    db.commit()
+    return rid is not None
+
+
 def _history(db: DB, run: AnswerRun, limit: int) -> list[Turn]:
     if limit <= 0:
         return []

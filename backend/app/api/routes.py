@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session as DB
 from ..config import Settings
 from ..db.models import Session as SessionRow
 from ..domain.dog import DogProfileIn
-from ..services import consult
+from ..services import consult, worker
 from .errors import ApiError
 
 COOKIE = "tvc_session"
@@ -120,7 +120,26 @@ def post_question(consultation_id: uuid.UUID, body: QuestionIn, request: Request
 
 
 @router.get("/runs/{run_id}")
-def get_run(run_id: uuid.UUID, session: SessionDep, db: DBDep):
+def get_run(run_id: uuid.UUID, session: SessionDep, db: DBDep, settings: SettingsDep):
+    if settings.run_mode == "request":  # no background sweeper: expire stuck runs while someone polls
+        worker.sweep_timeouts(db, settings.run_timeout_seconds)
+    return consult.get_run(db, session, run_id)
+
+
+@router.post("/runs/{run_id}/execute", dependencies=Guard)
+def execute_run(run_id: uuid.UUID, request: Request, session: SessionDep, db: DBDep, settings: SettingsDep):
+    """Request mode (serverless): run a queued answer inside this request and return the finished run.
+    Safe to call more than once or from several tabs — only the request that claims the run processes it;
+    the others get the current state. In worker mode it only returns the current state."""
+    view = consult.get_run(db, session, run_id)  # ownership check (404 for other sessions)
+    if settings.run_mode != "request" or view["status"] != "queued":
+        return view
+    app = request.app
+    if app.state.llm is None:
+        raise ApiError(503, "internal_error")
+    worker.sweep_timeouts(db, settings.run_timeout_seconds)
+    if worker.claim_run(db, run_id):
+        worker.process_run(app.state.Session, settings, app.state.llm, app.state.embedder, run_id)
     return consult.get_run(db, session, run_id)
 
 

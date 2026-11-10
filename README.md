@@ -98,15 +98,14 @@ docker compose --profile app up -d --build    # 이미지 = React 빌드 + FastA
 9. 호스팅 플랫폼에서는 Dockerfile과 위 환경변수를 설정하고 HTTPS 주소를 ALLOWED_ORIGINS에 넣는다. 현재 이미지 포트는 8000, API 프로세스는 1개다. /api/v1/health와 질문·근거·피드백·삭제 흐름을 확인한다. 이 확인은 실제 모델 비용이 발생한다.
 10. 무료 DB의 복구 기능을 7일 백업으로 간주하지 않는다. 배포 전 덤프를 안전하게 보관하고 별도 빈 DB에서 복구 검증한다. 정기 백업과 cleanup_sessions 하루 1회 실행은 아직 예약되지 않았다.
 
-### Render 배포 (무료 웹 서비스, 2026-11-11 준비)
+### Vercel 배포 (2026-11-11 결정: 앱 Vercel + DB Neon)
 
-Neon 이전 완료(scripts/neon_restore.py, 검증 PASS). 앱은 render.yaml(Blueprint)로 배포한다.
-1. Render → New → Blueprint → GitHub `wide-bridge/twin-vet-rag` 선택(브랜치 feat/poc-rag-api-ui).
-2. 비밀값 4개를 Render 화면에 입력(저장소에 두지 않음): `DATABASE_URL`=Neon pooled URL, `ALEMBIC_DATABASE_URL`=Neon direct URL(둘 다 `postgresql://`→`postgresql+psycopg://`), `OPENAI_API_KEY`, `ALLOWED_ORIGINS`=`https://<서비스>.onrender.com`.
-3. 헬스 체크는 `/api/v1/live`(DB 미접속). 인스턴스 1개 유지(워커가 API 프로세스 안).
-4. 도메인: Render Settings → Custom Domains에 `twinvet.pawcheck.ai` 추가 → DNS에 `CNAME twinvet → <서비스>.onrender.com` → 인증서 발급 후 `ALLOWED_ORIGINS`에 `https://twinvet.pawcheck.ai` 추가.
-- 로컬 리허설: 같은 이미지를 `PORT=10000` + Neon 연결로 실행해 health OK, 브라우저 흐름 통과, 메모리 약 104 MB(무료 512 MB).
-- 무료 플랜은 15분 무접속 시 잠들고 첫 요청에 30~60초 걸린다. cleanup_sessions 예약 실행(Render cron은 유료)은 미정.
+- 구성: 루트 `index.py`가 FastAPI `app`을 내보내고(Vercel 진입점), `vercel.json`이 React 빌드(`cd frontend && npm ci && npm run build`), 지역 `sin1`(Neon 싱가포르와 같은 지역), 함수 최대 300초(Hobby 한도)를 정한다. 빌드된 화면은 `app.frontend()`로 CDN에 올라간다.
+- 답변 처리: Vercel에는 상시 실행 워커가 없다. `VERCEL` 환경에서는 `RUN_MODE=request`가 기본이 되어 워커 스레드를 띄우지 않고, 브라우저가 질문 접수 직후 `POST /api/v1/runs/{id}/execute`를 호출해 그 요청 안에서 답변을 만든다(약 10~20초). 여러 번 호출해도 한 번만 처리하고, 새로고침 뒤 대기 중인 작업은 화면이 다시 실행을 요청한다. 시간 초과 정리는 조회 시 수행한다. Docker·로컬은 기존 워커 방식(`RUN_MODE=worker`).
+- Vercel 환경변수(Production·Preview): `DATABASE_URL`=Neon **pooled** URL(`postgresql://`→`postgresql+psycopg://`), `OPENAI_API_KEY`, `ALLOWED_ORIGINS`=연결한 도메인(예: `https://twinvet.pawcheck.ai`). `*.vercel.app` 배포 주소는 자동 허용.
+- 마이그레이션은 Vercel에서 실행하지 않는다. 스키마 변경 시 로컬에서 `ALEMBIC_DATABASE_URL`=Neon direct URL로 `alembic upgrade head`.
+- 런타임 의존성은 `requirements.txt`(테스트·데이터 준비 도구는 `requirements-dev.txt`). 업로드 제외는 `.vercelignore`.
+- 요청 횟수 제한은 함수 인스턴스별 메모리 값이라 인스턴스가 여러 개면 느슨해진다(PoC 허용). 만료 세션 정리는 Vercel Cron으로 옮길 수 있다(미적용).
 
 ### 무료 운영 점검 결과 (2026-11-11)
 

@@ -101,6 +101,8 @@ export const api = {
   ask: (cid: string, text: string, clientRequestId: string) =>
     request<{ run_id: string; status: RunStatus }>("POST", `/consultations/${cid}/questions`, { text, client_request_id: clientRequestId }),
   run: (id: string) => request<Run>("GET", `/runs/${id}`),
+  // Serverless hosting: this request runs the queued answer and returns when it is done. Elsewhere a no-op.
+  execute: (id: string) => request<Run>("POST", `/runs/${id}/execute`),
   citation: (id: string) => request<CitationDetail>("GET", `/citations/${id}`),
   feedback: (messageId: string, helpful: boolean, comment: string | null) =>
     request<{ feedback_id: string }>("PUT", `/messages/${messageId}/feedback`, { helpful, comment }),

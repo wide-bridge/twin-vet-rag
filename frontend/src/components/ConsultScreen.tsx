@@ -82,6 +82,22 @@ export function ConsultScreen({ maxChars, onExpired }: { maxChars: number; onExp
     };
   }, [activeRun, cid, reload, onExpired]);
 
+  // Serverless hosting has no background worker: ask the server to run each queued answer. Called right after
+  // sending/retrying, and once for a queued run found on load (e.g. the tab was closed before it started).
+  const kicked = useRef(new Set<string>());
+  const kick = useCallback((runId: string, consultationId: string) => {
+    kicked.current.add(runId);
+    api.execute(runId)
+      .then(() => reload(consultationId))
+      .catch((e) => {
+        if ((e as ApiError).status === 401) onExpired();
+        // otherwise the poller keeps checking; a stuck run times out and can be retried
+      });
+  }, [reload, onExpired]);
+  useEffect(() => {
+    if (cid && activeRun && activeRun.status === "queued" && !kicked.current.has(activeRun.id)) kick(activeRun.id, cid);
+  }, [activeRun, cid, kick]);
+
   // keep the newest message in view
   const count = (thread?.messages.length ?? 0) + (activeRun ? 1 : 0);
   useEffect(() => {
@@ -121,9 +137,11 @@ export function ConsultScreen({ maxChars, onExpired }: { maxChars: number; onExp
         store.setLastDog(created.dog);
         setCid(id);
       }
-      await api.ask(id, text, newRequestId());
+      const { run_id } = await api.ask(id, text, newRequestId());
+      kicked.current.add(run_id); // the effect below must not start it a second time
       setDraft("");
       await reload(id);
+      kick(run_id, id);
     } catch (e) {
       handleError(e);
     } finally {
@@ -138,6 +156,7 @@ export function ConsultScreen({ maxChars, onExpired }: { maxChars: number; onExp
     try {
       await api.ask(cid, question, run.client_request_id);
       await reload(cid);
+      kick(run.id, cid);
     } catch (e) {
       handleError(e);
     } finally {

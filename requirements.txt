@@ -1,5 +1,6 @@
 # Verified in conda env `smart_tour` (Python 3.12.15) on 2026-11-09.
 # Only project dependencies are listed; do not freeze the whole env.
+# Runtime only (Docker image, Vercel). Tests and data preparation: requirements-dev.txt
 fastapi==0.162.2
 uvicorn==0.54.0
 SQLAlchemy==2.1.4
@@ -12,5 +13,3 @@ openai==3.26.1
 tiktoken==0.14.0
 numpy==2.5.3
 httpx==0.28.1
-pytest==9.2.0
-kiwipiepy==0.24.1

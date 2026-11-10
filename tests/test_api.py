@@ -280,3 +280,39 @@ def test_expired_session_and_purge(env):
     with env.app.state.Session() as s:
         assert consult.purge_expired_sessions(s) == 1
         assert s.execute(text("SELECT count(*) FROM consultation")).scalar() == 0
+
+
+# ------------------------------------------------------------------ request mode (serverless, e.g. Vercel)
+def test_execute_runs_answer_in_request_mode(env):
+    env.settings.run_mode = "request"
+    cid = start(env.client)
+    run_id = ask(env.client, cid).json()["run_id"]
+    assert env.client.get(f"/api/v1/runs/{run_id}").json()["status"] == "queued"
+    r = env.client.post(f"/api/v1/runs/{run_id}/execute", headers=H)
+    assert r.status_code == 200 and r.json()["status"] == "completed" and r.json()["response_type"] == "grounded"
+    calls = len(env.llm.calls)
+    again = env.client.post(f"/api/v1/runs/{run_id}/execute", headers=H).json()  # second tab / retry of the call
+    assert again["status"] == "completed" and len(env.llm.calls) == calls        # not processed twice
+    assert env.client.post(f"/api/v1/runs/{run_id}/execute").status_code == 403  # CSRF guard applies
+
+
+def test_execute_is_a_no_op_in_worker_mode_and_owned(env):
+    cid = start(env.client)
+    run_id = ask(env.client, cid).json()["run_id"]
+    assert env.client.post(f"/api/v1/runs/{run_id}/execute", headers=H).json()["status"] == "queued"
+    assert env.llm.calls == []
+    other = TestClient(env.app, base_url="http://localhost:8000")
+    other.post("/api/v1/sessions", headers=H)
+    assert other.post(f"/api/v1/runs/{run_id}/execute", headers=H).status_code == 404
+
+
+def test_request_mode_failed_run_can_be_retried(env):
+    env.settings.run_mode = "request"
+    env.llm.responses["classify"] = LLMError("boom")
+    cid = start(env.client)
+    crid = uuid.uuid4().hex
+    run_id = ask(env.client, cid, crid=crid).json()["run_id"]
+    assert env.client.post(f"/api/v1/runs/{run_id}/execute", headers=H).json()["status"] == "failed"
+    env.llm.responses["classify"] = IN_SCOPE
+    assert ask(env.client, cid, crid=crid).json()["run_id"] == run_id               # same run back to queued
+    assert env.client.post(f"/api/v1/runs/{run_id}/execute", headers=H).json()["status"] == "completed"
