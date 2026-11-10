@@ -114,6 +114,8 @@ def post_question(consultation_id: uuid.UUID, body: QuestionIn, request: Request
                   settings: SettingsDep):
     run = consult.submit_question(db, settings, request.app.state.limiter, session, consultation_id, body.text,
                                   body.client_request_id)
+    if run.status == "queued" and getattr(request.app.state, "worker", None):
+        request.app.state.worker.notify()  # committed above; wake the idle worker
     return {"run_id": str(run.id), "status": run.status}
 
 

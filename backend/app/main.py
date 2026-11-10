@@ -44,6 +44,7 @@ def create_app(settings: Settings | None = None, *, llm=None, embedder=None, sta
 
                 worker = Worker(app.state.Session, settings, app.state.llm, app.state.embedder)
                 worker.start()
+        app.state.worker = worker
         yield
         if worker:
             worker.stop()
@@ -58,6 +59,12 @@ def create_app(settings: Settings | None = None, *, llm=None, embedder=None, sta
     app.state.limiter = RateLimiter()
     errors.install(app)
     app.include_router(router)
+
+    @app.get("/api/v1/live")
+    def live() -> dict:
+        """Process liveness without touching the DB: point platform health checks here so they do not
+        keep a serverless DB awake. /api/v1/health checks the DB and is for manual checks."""
+        return {"status": "ok"}
 
     @app.get("/api/v1/health")
     def health() -> JSONResponse:

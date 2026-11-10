@@ -55,6 +55,7 @@ class Settings(BaseSettings):
     questions_per_minute: int = Field(default=6, ge=1)
     run_timeout_seconds: int = Field(default=120, ge=10)
     worker_threads: int = Field(default=2, ge=0)  # 0 = no background worker (tests drive runs directly)
+    worker_idle_poll_seconds: int = Field(default=0, ge=0)  # 0 = no DB queries while idle (woken on submit)
 
     life_stage_puppy_max_months: int = Field(default=12, ge=1)
     life_stage_senior_min_months: int = Field(default=84, ge=1)

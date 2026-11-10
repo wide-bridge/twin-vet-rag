@@ -98,12 +98,17 @@ docker compose --profile app up -d --build    # 이미지 = React 빌드 + FastA
 9. 호스팅 플랫폼에서는 Dockerfile과 위 환경변수를 설정하고 HTTPS 주소를 ALLOWED_ORIGINS에 넣는다. 현재 이미지 포트는 8000, API 프로세스는 1개다. /api/v1/health와 질문·근거·피드백·삭제 흐름을 확인한다. 이 확인은 실제 모델 비용이 발생한다.
 10. 무료 DB의 복구 기능을 7일 백업으로 간주하지 않는다. 배포 전 덤프를 안전하게 보관하고 별도 빈 DB에서 복구 검증한다. 정기 백업과 cleanup_sessions 하루 1회 실행은 아직 예약되지 않았다.
 
-### 무료 운영에서 남은 검증
+### 무료 운영 점검 결과 (2026-11-11)
 
-- 워커는 대기 중에도 0.5초마다 작업을 조회하고 약 10초마다 시간 초과 작업을 확인한다. 앱이 계속 켜져 있으면 Neon 절전을 방해할 수 있다. 무료 compute 사용량을 관찰하고 필요하면 요청 시 워커를 깨우는 방식으로 변경한다. WORKER_THREADS=0은 질문 처리를 멈추므로 절약 설정으로 쓰지 않는다.
-- /api/v1/health도 DB에 접속한다. 외부의 반복 health 호출이 앱/DB 절전에 미치는 영향을 점검한다.
-- DB/API 자동 테스트는 로컬 DB만 사용한다. Neon DATABASE_URL을 둔 채 TWINVET_DB_TESTS=1을 실행하지 않는다. fixture에 원격 호스트 차단을 추가했다.
-- 실제 Neon 계정 연결, 용량 측정, 이전, 클라우드 통합 검증은 아직 수행하지 않았다.
+- **용량:** Neon 무료 한도는 프로젝트당 1 GB(2026-10 기준, https://neon.com/pricing 재확인). 로컬 DB는 1,043 MB로 보이지만 대부분 임베딩 갱신 때 생긴 빈 공간이다. pg_dump → 빈 DB pg_restore로 측정한 실제 이전 크기는 **512 MB**(chunk 표 259 MB + 벡터 색인 215 MB, 나머지 약 40 MB). 상담 데이터는 수백 KB 수준이다.
+  - 여유를 더 원하면 벡터를 halfvec(반정밀도)로 바꾸면 **293 MB**(재임베딩 없이 형 변환, 색인 108 MB). 검색 품질 비교 후 결정한다(미적용).
+  - 색인을 다시 만들거나 재적재하면 일시적으로 공간이 더 필요하므로, 재적재는 로컬에서 하고 덤프로 옮긴다.
+- **워커:** 대기 중에는 DB를 조회하지 않는다. 질문이 접수되면 API가 워커를 깨우고(notify), 처리 중일 때만 10초마다 시간 초과를 정리한다. 시작 시 남은 queued 작업은 한 번 확인한다. `WORKER_IDLE_POLL_SECONDS`(기본 0=조회 안 함)로 대기 중 안전 조회를 켤 수 있으나, 5분 이하로 두면 Neon 절전을 막는다.
+- **헬스 체크:** 호스팅 플랫폼의 헬스 체크 경로는 DB에 접속하지 않는 `/api/v1/live`로 설정한다. `/api/v1/health`는 DB·pgvector·활성 문서 수를 확인하는 수동 점검용이다. 외부 업타임 감시로 주기 호출하지 않는다.
+- **연결 풀:** SQLAlchemy `pool_pre_ping=True`로 DB 절전 뒤 끊긴 연결을 자동으로 다시 연다. 트랜잭션을 열어 둔 채 대기하지 않는다(답변 생성 중에는 트랜잭션을 닫음).
+- DB/API 자동 테스트는 로컬 DB만 사용한다. Neon DATABASE_URL을 둔 채 TWINVET_DB_TESTS=1을 실행하지 않는다(fixture가 원격 호스트를 차단).
+- **이전 전 정리:** 로컬 덤프에는 개발 중 만든 테스트 상담(session·consultation·message 등)이 들어 있다. 이전 전에 상담 관련 표를 비우거나, 지식 표만 덤프한다.
+- 실제 Neon 계정 연결, 이전, 클라우드 통합 검증은 아직 수행하지 않았다(계정·연결 문자열 필요).
 
 ### 기존 개발 작업 검토 (2026-11-10)
 
@@ -117,5 +122,3 @@ docker compose --profile app up -d --build    # 이미지 = React 빌드 + FastA
 배포는 로컬 Compose DB를 기준으로 준비됐고 Neon 전용 연결 설정은 없었다. 테스트 fixture는 설정된 DB 서버에서 twinvet_test를 삭제·재생성하므로 원격 DB 차단이 필요했다. 기존 73개 통과·실제 모델 평가 결과는 개발자 보고이며 이번 검토의 재실행 결과와 구분한다.
 
 검증 결과(이번 Neon 설정 반영): 무료 단위/회귀 테스트 72 passed, 28 skipped. DB/API 통합 테스트는 로컬 DB 연결을 켜지 않아 제외했다. URL 인코딩 비밀번호의 Alembic SQL 생성과 원격 테스트 DB 접속 차단 회귀 테스트 2개 포함. Neon Compose 설정은 가짜 환경변수로 docker compose config --quiet 통과, git diff --check 통과. 실제 클라우드 연결/배포 성공을 뜻하지 않는다.
-
-검토 시 별도 미커밋 변경도 확인했다: pipeline/prompts의 불필요한 되묻기 억제·나이 충돌 판단, eval_answers의 질문 속 나이를 평가 입력에 반영, 관련 API/clarification 테스트. 이 파일들은 이번 Neon 작업에서 수정하지 않았다. 작성 주체는 Git 미커밋 상태만으로 확정할 수 없다.

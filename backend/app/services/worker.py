@@ -140,9 +140,20 @@ def fail_interrupted(db: DB) -> int:
 
 
 class Worker:
+    """In-process answer workers. Woken by notify() when a question is queued, so an idle app sends no
+    queries and a serverless DB (Neon) can suspend. Timeouts are swept only while something is running.
+    worker_idle_poll_seconds > 0 adds a safety poll while idle (keep it above Neon's 5-minute suspend
+    window, or it keeps the DB awake)."""
+
+    SWEEP_SECONDS = 10
+
     def __init__(self, Session: sessionmaker, settings: Settings, llm: LLM, embedder: Embedder):
         self.Session, self.settings, self.llm, self.embedder = Session, settings, llm, embedder
         self._stop = threading.Event()
+        self._wake = threading.Event()
+        self._lock = threading.Lock()
+        self._busy = 0
+        self._last_sweep = 0.0
         self._threads: list[threading.Thread] = []
 
     def start(self) -> None:
@@ -155,26 +166,50 @@ class Worker:
             t.start()
             self._threads.append(t)
 
+    def notify(self) -> None:
+        """A run was queued (new question or retry): wake an idle worker."""
+        self._wake.set()
+
     def stop(self) -> None:
         self._stop.set()
+        self._wake.set()
         for t in self._threads:
             t.join(timeout=5)
 
+    def _sweep_if_due(self) -> None:
+        with self._lock:
+            due = time.monotonic() - self._last_sweep > self.SWEEP_SECONDS
+            if due:
+                self._last_sweep = time.monotonic()
+        if due:
+            with self.Session() as db:
+                sweep_timeouts(db, self.settings.run_timeout_seconds)
+
     def _loop(self) -> None:
-        last_sweep = 0.0
         while not self._stop.is_set():
             try:
-                if time.monotonic() - last_sweep > 10:
-                    with self.Session() as db:
-                        sweep_timeouts(db, self.settings.run_timeout_seconds)
-                    last_sweep = time.monotonic()
+                self._wake.clear()  # clear before claiming: a notify after this point is never lost
                 with self.Session() as db:
                     rid = claim_next(db)
                 if rid is None:
-                    self._stop.wait(0.5)
+                    with self._lock:
+                        busy = self._busy
+                    if busy:  # another thread is mid-run: keep sweeping for timeouts
+                        self._sweep_if_due()
+                        self._wake.wait(self.SWEEP_SECONDS)
+                    else:
+                        idle = self.settings.worker_idle_poll_seconds
+                        self._wake.wait(idle if idle > 0 else None)
                     continue
-                status = process_run(self.Session, self.settings, self.llm, self.embedder, rid)
-                log.info("run %s %s", rid, status)
+                with self._lock:
+                    self._busy += 1
+                try:
+                    self._sweep_if_due()
+                    status = process_run(self.Session, self.settings, self.llm, self.embedder, rid)
+                    log.info("run %s %s", rid, status)
+                finally:
+                    with self._lock:
+                        self._busy -= 1
             except Exception:
                 log.exception("worker loop error")
                 self._stop.wait(2)
