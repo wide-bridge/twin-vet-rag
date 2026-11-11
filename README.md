@@ -123,7 +123,7 @@ docker compose --profile app up -d --build    # 이미지 = React 빌드 + FastA
 - DB/API 자동 테스트는 로컬 DB만 사용한다. Neon DATABASE_URL을 둔 채 TWINVET_DB_TESTS=1을 실행하지 않는다(fixture가 원격 호스트를 차단).
 - **이전 전 정리:** 테스트 상담을 제외한 덤프로 이전했고, 복원 후 상담 관련 표가 비어 있음을 확인했다.
 - **Neon 연결 확인(로컬 → Neon):** 로컬 서버를 Neon pooled URL로 띄워 브라우저 점검(4개 폭)과 실제 질문·답변을 확인했고, 점검 상담은 삭제해 상담 표가 비어 있음을 재확인했다(2026-11-11 `--verify` PASS).
-- **Vercel 배포 (2026-11-11 확인):** 프로젝트 twin-vet-rag(FastAPI 단일 프로젝트), 주소 https://twin-vet-rag.vercel.app , 배포 보호(Vercel Authentication) 해제. `/api/v1/health` → db up, pgvector available, 활성 문서 19,417. 배포 주소 대상 브라우저 점검(320·390·768·1280px: 입력 오류 → 질문 → 근거 답변 → 출처 → 범위 밖 → 삭제) 통과. 점검 상담은 화면의 삭제 기능으로 지워 상담 표가 비어 있다(익명 세션 4건은 만료 후 정리 대상). 사용자 도메인 twinvet.pawcheck.ai는 DNS 미연결.
+- **Vercel 배포 (2026-11-11 확인):** 프로젝트 twin-vet-rag(FastAPI 단일 프로젝트), 주소 https://twin-vet-rag.vercel.app , 배포 보호(Vercel Authentication) 해제. `/api/v1/health` → db up, pgvector available, 활성 문서 19,417. 배포 주소 대상 브라우저 점검(320·390·768·1280px: 입력 오류 → 질문 → 근거 답변 → 출처 → 범위 밖 → 삭제) 통과. 점검 상담은 화면의 삭제 기능으로 지워 상담 표가 비어 있다(익명 세션 4건은 만료 후 정리 대상). 사용자 도메인 https://twinvet.pawcheck.ai 연결(whois CNAME → Vercel, Let's Encrypt 인증서 자동 발급, http→https 308), 같은 점검(390·1280px) 통과.
 
 ### 기존 개발 작업 검토 (2026-11-10)
 
