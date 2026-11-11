@@ -3,6 +3,8 @@
 
 설계 문서: [docs/](docs/) (서비스기획서·사용자흐름·데이터모델·개발명세·화면설계 5종)
 
+**서비스 주소:** https://twinvet.pawcheck.ai (Vercel + Neon, 2026-11-11 배포·점검 완료. 예비 주소 https://twin-vet-rag.vercel.app). 자세한 내용은 아래 '배포' 절.
+
 ## 환경
 - Python: 기존 conda 환경 `smart_tour` (Python 3.12). 새 가상환경을 만들지 않는다.
 - Node 20.10.0 + Vite 6.4.5 (Vite 7은 Node 20.19+ 필요 — docs/04 §8)
@@ -126,6 +128,8 @@ docker compose --profile app up -d --build    # 이미지 = React 빌드 + FastA
 - **Vercel 배포 (2026-11-11 확인):** 프로젝트 twin-vet-rag(FastAPI 단일 프로젝트), 주소 https://twin-vet-rag.vercel.app , 배포 보호(Vercel Authentication) 해제. `/api/v1/health` → db up, pgvector available, 활성 문서 19,417. 배포 주소 대상 브라우저 점검(320·390·768·1280px: 입력 오류 → 질문 → 근거 답변 → 출처 → 범위 밖 → 삭제) 통과. 점검 상담은 화면의 삭제 기능으로 지워 상담 표가 비어 있다(익명 세션 4건은 만료 후 정리 대상). 사용자 도메인 https://twinvet.pawcheck.ai 연결(whois CNAME → Vercel, Let's Encrypt 인증서 자동 발급, http→https 308), 같은 점검(390·1280px) 통과.
 
 ### 기존 개발 작업 검토 (2026-11-10)
+
+> 2026-11-10 시점의 검토 기록이다. 이후 되묻기 개선·생년월일 입력·Neon 이전·Vercel 배포가 반영됐고, 2026-11-11 기준 자동 테스트는 130개 통과(로컬 DB 포함)다.
 
 현재 feat/poc-rag-api-ui의 커밋과 코드에서 확인:
 - 3e47479: PostgreSQL/pgvector 스키마, 마이그레이션, 재개 가능한 적재·검색 기반.
