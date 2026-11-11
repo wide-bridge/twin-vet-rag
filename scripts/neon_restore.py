@@ -30,7 +30,7 @@ ROOT = Path(__file__).resolve().parents[1]
 ENV_FILE = ROOT / ".env.neon"
 DUMP_DIR = ROOT / "data_output" / "neon"
 CONTAINER = "twinvet-care-db-1"
-HEAD = "7c2a9e1f4b10"
+HEAD = "9d4e2b7a1c35"  # current alembic head; after restoring an older dump run `alembic upgrade head`
 
 
 def load_env() -> dict[str, str]:

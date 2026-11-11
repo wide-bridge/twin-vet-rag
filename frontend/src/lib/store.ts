@@ -34,7 +34,7 @@ export const store = {
       const d = (wrapped ? v.dog : v) as Partial<Dog>; // entries before birth dates stored the dog itself
       if (typeof d.breed !== "string" || !Number.isInteger(d.age_months)) return null;
       const dog: Dog = {
-        breed: d.breed, age_months: d.age_months as number, age_basis: d.age_basis ?? "estimate",
+        name: typeof d.name === "string" ? d.name : null, breed: d.breed, age_months: d.age_months as number, age_basis: d.age_basis ?? "estimate",
         birth_year: d.birth_year ?? null, birth_month: d.birth_month ?? null, birth_day: d.birth_day ?? null,
         weight_kg: d.weight_kg ?? null, neutered: d.neutered ?? null, health_notes: d.health_notes ?? null,
       };

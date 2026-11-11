@@ -108,6 +108,18 @@ def test_consultation_with_birth_date(env):
     assert both.status_code == 422
 
 
+def test_consultation_dog_name(env):
+    env.client.post("/api/v1/sessions", headers=H)
+    r = env.client.post("/api/v1/consultations", headers=H, json={"dog": {**DOG, "name": " 두부 "}})
+    assert r.status_code == 201 and r.json()["dog"]["name"] == "두부"
+    cid = r.json()["consultation_id"]
+    assert env.client.get(f"/api/v1/consultations/{cid}/messages").json()["dog"]["name"] == "두부"
+    r = env.client.post("/api/v1/consultations", headers=H, json={"dog": DOG})
+    assert r.json()["dog"]["name"] is None
+    bad = env.client.post("/api/v1/consultations", headers=H, json={"dog": {**DOG, "name": "<무시>"}})
+    assert bad.status_code == 422 and bad.json()["error"]["fields"] == ["dog.name"]
+
+
 def test_auth_and_csrf_guards(env):
     assert env.client.post("/api/v1/consultations", json={"dog": DOG}, headers=H).status_code == 401
     assert env.client.post("/api/v1/sessions").status_code == 403  # no client header

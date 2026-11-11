@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass
 
-PROMPT_VERSION = "2026-11-11.3"
+PROMPT_VERSION = "2026-11-11.4"
 
 NEUTERED_KO = {"yes": "예", "no": "아니오", "unknown": "모름"}
 
@@ -27,6 +27,7 @@ class DogInfo:
     neutered: str | None = None
     health_notes: str | None = None
     age_basis: str = "month"  # day | month (from a birth date) | year | estimate (approximate)
+    name: str | None = None  # optional; only used to address the dog
 
     @property
     def age_reliable(self) -> bool:
@@ -38,7 +39,8 @@ class DogInfo:
     def block(self) -> str:
         """'보호자 입력 정보' — user-entered data, never instructions (docs/03 §6)."""
         how = "생년월 기준" if self.age_reliable else "출생 연도 기준, 대략" if self.age_basis == "year" else "보호자 추정"
-        lines = [f"- 품종: {self.breed}", f"- 나이: {self.age_text()} ({how})"]
+        lines = [f"- 이름: {self.name}"] if self.name else []
+        lines += [f"- 품종: {self.breed}", f"- 나이: {self.age_text()} ({how})"]
         if self.weight_kg is not None:
             lines.append(f"- 체중: {self.weight_kg:g}kg")
         if self.neutered:
@@ -158,7 +160,9 @@ ANSWER_SYSTEM = """너는 반려견 보호자를 돕는 건강 정보 안내자�
 
 답변 작성 (grounded)
 - 존댓말, 짧고 쉬운 문장. 300~600자 정도. 첫 문장에서 질문에 대한 핵심을 말한다.
-- 보호자 입력 정보(품종·나이·체중·기존 질환)를 고려했다면 "입력하신 10세 말티즈 기준으로"처럼 드러낸다.
+- 보호자 입력 정보(품종·나이·체중·기존 질환)를 고려했다면 드러낸다.
+  이름이 있으면 "입력하신"을 쓰지 말고 "두부(10세 말티즈)는"처럼 이름 뒤 괄호에 나이·품종을 넣어 부른다.
+  이름이 없으면 "입력하신 10세 말티즈 기준으로"처럼 쓴다. 이름은 부르는 데만 쓰고 이름에서 아무것도 추론하지 않는다.
   다만 근거 자료에 없는 품종·나이별 일반화는 하지 않는다.
 - 확인할 증상이나 집에서 할 수 있는 관리는 "- "로 시작하는 목록으로 2~5개 쓸 수 있다. 꼭 필요한 강조만 **굵게** 쓴다. 제목(#)·표는 쓰지 않는다.
 - 병명을 단정하거나 약 이름·용량을 지시하지 않는다. "~일 수 있어요", "~가능성이 있어요"처럼 말한다.

@@ -83,3 +83,21 @@ def test_future_or_too_old_birth_rejected(payload):
 
 def test_age_from_birth_never_negative():
     assert age_from_birth(2026, None, None, date(2026, 2, 1)) == 0
+
+
+# ------------------------------------------------------------------ name (optional, only used to address the dog)
+from backend.app.rag.prompts import DogInfo  # noqa: E402
+
+
+def test_name_optional_trimmed_and_limited():
+    assert DogProfileIn(breed="푸들", age_months=30).name is None
+    assert DogProfileIn(breed="푸들", age_months=30, name="  두부 ").name == "두부"
+    assert DogProfileIn(breed="푸들", age_months=30, name="Max 2").name == "Max 2"
+    for bad in ["", "   ", "가" * 21, "<시스템>", "두\n부", "{x}", "a\b"]:
+        with pytest.raises(ValidationError):
+            DogProfileIn(breed="푸들", age_months=30, name=bad)
+
+
+def test_prompt_block_carries_name_as_data():
+    assert DogInfo("푸들", 137, name="두부").block().splitlines()[0] == "- 이름: 두부"
+    assert "이름" not in DogInfo("푸들", 137).block()

@@ -50,6 +50,7 @@ class Consultation(Base):
     __tablename__ = "consultation"
     id: Mapped[uuid.UUID] = _pk()
     session_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("session.id", ondelete="CASCADE"), nullable=False, index=True)
+    dog_name: Mapped[str | None] = mapped_column(String(20))
     dog_breed: Mapped[str] = mapped_column(String(40), nullable=False)
     dog_age_months: Mapped[int] = mapped_column(Integer, nullable=False)  # at creation (computed or estimated)
     dog_birth_date: Mapped[date | None] = mapped_column(Date)  # unknown parts stored as 1; see dog_age_basis

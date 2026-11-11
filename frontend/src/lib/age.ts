@@ -1,5 +1,6 @@
-// Age display (docs/05 §7). Screens show the age and, when known, the birth year/month — never the day,
-// which is kept only for birthday features. The server-derived life stage is search-only and never shown.
+// Age display (docs/05 §7). Screens show only the age — the birth date is stored (the day for birthday features)
+// but not shown, since it repeats the age. How exact the age is still shows: "약" for a birth year only,
+// "(추정)" for an estimate. The server-derived life stage is search-only and never shown.
 import type { AgeBasis } from "../api";
 
 export function formatAge(ageMonths: number): string {
@@ -34,16 +35,22 @@ export function daysInMonth(year: number, month: number): number {
   return new Date(year, month, 0).getDate();
 }
 
-type AgeLike = { age_months: number; age_basis: AgeBasis; birth_year: number | null; birth_month: number | null };
+type AgeLike = { age_months: number; age_basis: AgeBasis };
 
-/** "2021년 3월생 · 4세 8개월", "2021년생 · 약 4세", "약 4세 6개월(추정)" */
+/** "4세 8개월" (birth month known), "약 4세" (birth year only), "약 4세 6개월(추정)" (estimate) */
 export function describeAge(d: AgeLike): string {
-  if ((d.age_basis === "day" || d.age_basis === "month") && d.birth_year && d.birth_month) {
-    return `${d.birth_year}년 ${d.birth_month}월생 · ${formatAge(d.age_months)}`;
-  }
-  if (d.age_basis === "year" && d.birth_year) {
+  if (d.age_basis === "day" || d.age_basis === "month") return formatAge(d.age_months);
+  if (d.age_basis === "year") {
     const years = Math.floor(d.age_months / 12);
-    return `${d.birth_year}년생 · 약 ${years > 0 ? `${years}세` : formatAge(d.age_months)}`;
+    return `약 ${years > 0 ? `${years}세` : formatAge(d.age_months)}`;
   }
   return `약 ${formatAge(d.age_months)}(추정)`;
+}
+
+type DogLike = AgeLike & { name: string | null; breed: string; weight_kg: number | null };
+
+/** Consultation summary: "두부(푸들) | 11세 5개월 | 5kg" — without a name "푸들 | …", weight only if entered. */
+export function dogSummary(d: DogLike): string {
+  const who = d.name ? `${d.name}(${d.breed})` : d.breed;
+  return [who, describeAge(d), d.weight_kg != null ? `${d.weight_kg}kg` : null].filter(Boolean).join(" | ");
 }

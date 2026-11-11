@@ -68,7 +68,7 @@ def create_consultation(db: DB, settings: Settings, session: SessionRow, dog: Do
     except ValueError:
         raise ApiError(422, "invalid_birth_date", extra={"fields": ["dog.birth_year"]})
     c = Consultation(
-        session_id=session.id, dog_breed=dog.breed, dog_age_months=age, dog_birth_date=dog.birth_date(),
+        session_id=session.id, dog_name=dog.name or None, dog_breed=dog.breed, dog_age_months=age, dog_birth_date=dog.birth_date(),
         dog_age_basis=dog.age_basis.value, dog_weight_kg=dog.weight_kg,
         dog_neutered=dog.neutered.value if dog.neutered else None, dog_health_notes=dog.health_notes or None,
         life_stage=derive_life_stage(age, settings.life_stage_puppy_max_months,
@@ -202,13 +202,13 @@ def get_run(db: DB, session: SessionRow, run_id: uuid.UUID) -> dict:
 
 
 def dog_view(c: Consultation) -> dict:
-    """Birth parts are returned as far as they were entered (the form can be prefilled with the day);
-    screens show only year and month."""
+    """Birth parts are returned as far as they were entered (the form is prefilled with them and the day is
+    kept for birthdays); screens show only the age."""
     b, basis = c.dog_birth_date, c.dog_age_basis
     birth = {"birth_year": b.year if b else None,
              "birth_month": b.month if b and basis in ("day", "month") else None,
              "birth_day": b.day if b and basis == "day" else None}
-    return {"breed": c.dog_breed, "age_months": c.dog_age_months, "age_basis": basis, **birth,
+    return {"name": c.dog_name, "breed": c.dog_breed, "age_months": c.dog_age_months, "age_basis": basis, **birth,
             "weight_kg": float(c.dog_weight_kg) if c.dog_weight_kg is not None else None,
             "neutered": c.dog_neutered, "health_notes": c.dog_health_notes}
 

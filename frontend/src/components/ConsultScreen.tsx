@@ -2,7 +2,7 @@
 // from GET /consultations/{id}/messages and keeps polling any queued/running run.
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api, newRequestId, type ApiError, type CitationRef, type Run, type Thread } from "../api";
-import { describeAge } from "../lib/age";
+import { dogSummary } from "../lib/age";
 import { emptyDogForm, formFromDog, validateDog, type DogForm } from "../lib/dogForm";
 import { store } from "../lib/store";
 import { AnswerCard, FailedCard, ProcessingCard, time } from "./AnswerCard";
@@ -194,7 +194,7 @@ export function ConsultScreen({ maxChars, onExpired }: { maxChars: number; onExp
   };
 
   const dog = thread?.dog;
-  const summary = dog ? [dog.breed, describeAge(dog), dog.weight_kg != null ? `${dog.weight_kg}kg` : null].filter(Boolean).join(" · ") : null;
+  const summary = dog ? dogSummary(dog) : null;
   const runsByQuestion = new Map((thread?.runs ?? []).map((r) => [r.question_message_id, r]));
   const showExamples = !thread || thread.messages.length === 0;
   const dogErrors = needDog && draft.trim() ? validation.errors : {};

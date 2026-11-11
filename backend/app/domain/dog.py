@@ -48,6 +48,9 @@ class DogProfileIn(BaseModel):
     or, when unknown, as an estimated age in months. Exactly one of the two."""
     model_config = ConfigDict(extra="forbid")
 
+    # optional; only used to address the dog. No control characters or markup-like brackets (it goes into prompts as data)
+    name: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=20,
+                                           pattern=r"^[^\x00-\x1f\x7f<>\[\]{}`\x5c]+$")] | None = None
     breed: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=40)]
     birth_year: int | None = Field(default=None, ge=1990, le=2100)
     birth_month: int | None = Field(default=None, ge=1, le=12)

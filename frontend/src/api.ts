@@ -5,6 +5,7 @@ export type Neutered = "yes" | "no" | "unknown";
 export type AgeBasis = "day" | "month" | "year" | "estimate";
 // Sent when creating a consultation: a birth date as far as known (year -> month -> day) OR an estimated age.
 export type DogIn = {
+  name: string | null;
   breed: string;
   birth_year: number | null;
   birth_month: number | null;

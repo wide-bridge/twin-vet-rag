@@ -5,6 +5,7 @@ import { ageFromBirth, daysInMonth, isFutureBirth, toAgeMonths } from "./age";
 
 export type AgeMode = "birth" | "estimate";
 export type DogForm = {
+  name: string;
   breed: string;
   ageMode: AgeMode;
   birthYear: string;
@@ -16,16 +17,19 @@ export type DogForm = {
   neutered: Neutered | null;
   notes: string;
 };
-export type DogErrors = Partial<Record<"breed" | "age" | "weight" | "notes", string>>;
+export type DogErrors = Partial<Record<"name" | "breed" | "age" | "weight" | "notes", string>>;
 
 export const BREEDS = [
   "말티즈", "푸들", "포메라니안", "비숑 프리제", "시츄", "치와와", "요크셔테리어", "진돗개", "웰시코기",
   "골든 리트리버", "래브라도 리트리버", "닥스훈트", "프렌치 불독", "시바견", "보더콜리", "믹스견", "모름",
 ];
 export const MAX_AGE_MONTHS = 371;
+export const MAX_NAME = 20;
+// same rule as the server: no control characters, markup-like brackets or backslash
+const NAME_FORBIDDEN = /[\u0000-\u001f\u007f<>[\]{}`\\]/;
 
 export const emptyDogForm = (): DogForm => ({
-  breed: "", ageMode: "birth", birthYear: "", birthMonth: "", birthDay: "", years: "", months: "",
+  name: "", breed: "", ageMode: "birth", birthYear: "", birthMonth: "", birthDay: "", years: "", months: "",
   weight: "", neutered: null, notes: "",
 });
 
@@ -35,6 +39,7 @@ const monthsBetween = (from: Date, to: Date) =>
 /** Prefill from a saved dog. A birth date stays exact; an estimate grows with the time since it was saved. */
 export function formFromDog(d: Dog, savedAt?: string | null, today = new Date()): DogForm {
   const rest = {
+    name: d.name ?? "",
     breed: d.breed,
     weight: d.weight_kg != null ? String(d.weight_kg) : "",
     neutered: d.neutered,
@@ -64,6 +69,9 @@ export function formAgeMonths(f: DogForm, today = new Date()): number | null {
 
 export function validateDog(f: DogForm, today = new Date()): { dog: DogIn | null; errors: DogErrors } {
   const errors: DogErrors = {};
+  const name = f.name.trim();
+  if (name.length > MAX_NAME) errors.name = `이름은 ${MAX_NAME}자 이내로 입력해 주세요`;
+  else if (NAME_FORBIDDEN.test(name)) errors.name = "이름에 쓸 수 없는 기호가 있어요";
   const breed = f.breed.trim();
   if (!breed) errors.breed = "품종을 입력해 주세요";
   else if (breed.length > 40) errors.breed = "품종은 40자 이내로 입력해 주세요";
@@ -95,7 +103,7 @@ export function validateDog(f: DogForm, today = new Date()): { dog: DogIn | null
 
   if (Object.keys(errors).length) return { dog: null, errors };
   return {
-    dog: { breed, ...birth, age_months: estimate, weight_kg: weight, neutered: f.neutered, health_notes: f.notes.trim() || null },
+    dog: { name: name || null, breed, ...birth, age_months: estimate, weight_kg: weight, neutered: f.neutered, health_notes: f.notes.trim() || null },
     errors,
   };
 }

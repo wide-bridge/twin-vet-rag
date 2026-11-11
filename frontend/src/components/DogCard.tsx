@@ -1,7 +1,7 @@
-// 우리 아이 정보 (docs/05 §3): breed + age required, health status optional and collapsed.
+// 우리 아이 정보 (docs/05 §3): name optional, breed + age required, health status optional and collapsed.
 // Age: birth date as far as known (year required; month and day may be left as "모름") or an estimate.
 import { useId, useState } from "react";
-import { BREEDS, formAgeMonths, type DogErrors, type DogForm } from "../lib/dogForm";
+import { BREEDS, MAX_NAME, formAgeMonths, type DogErrors, type DogForm } from "../lib/dogForm";
 import { daysInMonth, formatAge } from "../lib/age";
 import type { Neutered } from "../api";
 import { IconChevron, IconError, IconInfo, IconPaw } from "./Icons";
@@ -33,6 +33,13 @@ export function DogCard({ form, errors, onChange }: { form: DogForm; errors: Dog
         <small><span className="req">*</span> 필수 항목</small>
       </h2>
       <div className="dog-grid">
+        <div className="field span-2">
+          <label htmlFor={id + "nm"}>이름 (선택)</label>
+          <input id={id + "nm"} className="input" placeholder="예: 두부" maxLength={MAX_NAME}
+            value={form.name} onChange={(e) => set("name", e.target.value)} aria-invalid={Boolean(errors.name)}
+            aria-describedby={errors.name ? id + "nme" : undefined} autoComplete="off" />
+          <Err id={id + "nme"} text={errors.name} />
+        </div>
         <div className="field">
           <label htmlFor={id + "b"}>품종 <span className="req" aria-hidden="true">*</span></label>
           <input id={id + "b"} className="input" list={id + "bl"} placeholder="예: 말티즈, 믹스견, 모름" maxLength={40}

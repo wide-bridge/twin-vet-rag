@@ -49,6 +49,7 @@ def flow(page: Page, base: str, out: Path, tag: str, w: int) -> None:
     expect(page.get_by_text("품종을 입력해 주세요")).to_be_visible()
     no_hscroll(page, f"{tag} S02 intake")
     page.screenshot(path=out / f"{tag}-s02-intake-errors.png", full_page=False)
+    page.get_by_label("이름 (선택)").fill("두부")
     page.get_by_placeholder("예: 말티즈, 믹스견, 모름").fill("말티즈")
     # age: estimate mode first, then the birth date (year + month, day left as 모름)
     page.get_by_role("button", name="정확히 몰라요").click()
@@ -68,7 +69,7 @@ def flow(page: Page, base: str, out: Path, tag: str, w: int) -> None:
 
     expect(page.get_by_text("답변을 준비하고 있어요")).to_be_visible(timeout=10_000)
     page.screenshot(path=out / f"{tag}-s02-processing.png", full_page=False)
-    expect(page.get_by_text(f"말티즈 · {BIRTH[0]}년 {BIRTH[1]}월생 · {AGE_TEXT} · 3.2kg")).to_be_visible()
+    expect(page.get_by_text(f"두부(말티즈) | {AGE_TEXT} | 3.2kg")).to_be_visible()
     expect(page.get_by_role("article", name="AI 답변")).to_be_visible(timeout=90_000)
     no_hscroll(page, f"{tag} S02 answer")
     page.screenshot(path=out / f"{tag}-s02-answer.png", full_page=False)
