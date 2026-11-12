@@ -59,17 +59,18 @@ button:disabled { cursor: not-allowed; }
   display: flex; align-items: center; justify-content: space-between; gap: 12px;
 }
 .brand-lockup {
-  --logo-w: 116px;
-  display: inline-flex; align-items: baseline; gap: calc(var(--logo-w) * 0.04);
+  --logo-icon: 40px;
+  display: inline-flex; align-items: center; gap: calc(var(--logo-icon) * 0.22);
   line-height: 1; text-decoration: none; flex: none;
 }
-.brand-lockup img { width: var(--logo-w); height: auto; display: inline-block; }
-.brand-lockup .care {
-  font-family: "Nunito", var(--font); font-weight: 700;
-  font-size: calc(var(--logo-w) * 0.1772 / 0.705);
-  color: var(--brand-purple); letter-spacing: 0.01em;
-  position: relative; top: calc(var(--logo-w) * 0.0483 * -1); white-space: nowrap;
+.brand-lockup img { width: var(--logo-icon); height: var(--logo-icon); display: block; }
+.brand-lockup .wordmark {
+  font-family: "Nunito", var(--font); font-weight: 800; font-size: calc(var(--logo-icon) * 0.62);
+  letter-spacing: -0.01em; white-space: nowrap;
 }
+.brand-lockup .w-twin { color: #4d1e7f; }
+.brand-lockup .w-vet { color: #006bc6; }
+.brand-lockup .w-care { color: #4d1e7f; font-weight: 700; margin-left: 0.22em; }
 .header-actions { display: flex; gap: 8px; }
 .menu { position: relative; }
 .menu-list {
@@ -243,7 +244,7 @@ select.input:disabled { color: var(--color-text-muted); background-color: var(--
 /* ------------------------------------------------------------------ expired / misc */
 .center-screen { min-height: 70dvh; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; gap: 16px; padding: 24px var(--gutter); }
 .center-screen .info-icon { width: 64px; height: 64px; border-radius: 50%; }
-@media (max-height: 500px) and (orientation: landscape) { :root { --header-h: 48px; } .brand-lockup { --logo-w: 90px; } }
+@media (max-height: 500px) and (orientation: landscape) { :root { --header-h: 48px; } .brand-lockup { --logo-icon: 32px; } }
 
 /* ------------------------------------------------------------------ app shell + tabs [상담 | 케어 | 설정] (2026-11-12) */
 .app-shell { height: 100dvh; display: flex; flex-direction: column; }
@@ -331,3 +332,43 @@ select.input:disabled { color: var(--color-text-muted); background-color: var(--
 .handoff-meta { font-size: 14px; color: var(--color-text-muted); display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 a.btn { color: var(--color-text); text-decoration: none; display: inline-flex; align-items: center; justify-content: center; }
 a.btn-primary { color: var(--color-on-primary); }
+
+/* ------------------------------------------------------------------ PC showcase: intro + app in a phone frame (2026-11-12) */
+.showcase {
+  min-height: 100vh; display: grid; grid-template-columns: minmax(0, 560px) 414px; gap: clamp(40px, 7vw, 120px);
+  justify-content: center; align-items: center; padding: 24px 48px;
+  background: radial-gradient(circle at 12% 18%, #efe8fa 0%, transparent 45%),
+              radial-gradient(circle at 88% 82%, #e3effb 0%, transparent 50%),
+              linear-gradient(135deg, #f8f6fc 0%, #f3f7fc 55%, #f2f8ef 100%);
+}
+.showcase-info { display: flex; flex-direction: column; gap: 0; }
+.showcase-info .brand-lockup { --logo-icon: 44px; }
+.showcase-dots { display: flex; align-items: center; gap: 6px; margin: 22px 0 18px; }
+.showcase-dots i { width: 10px; height: 10px; border-radius: 50%; background: #4d1e7f; }
+.showcase-dots i:nth-of-type(2) { background: #006bc6; }
+.showcase-dots i:nth-of-type(3) { background: #6ab434; }
+.showcase-dots b { width: 64px; border-top: 2px dashed #c9cfe0; }
+.showcase h1 { margin: 0; font-size: clamp(34px, 3.4vw, 48px); line-height: 1.22; letter-spacing: -0.02em; color: var(--brand-navy); word-break: keep-all; }
+.showcase h1 em { font-style: normal; color: #006bc6; }
+.showcase-lead { margin: 20px 0 24px; color: var(--color-text-muted); font-size: 17px; line-height: 1.7; }
+.feature-grid { list-style: none; margin: 0; padding: 24px 0 0; border-top: 1px solid var(--color-divider); display: grid; grid-template-columns: 1fr 1fr; gap: 18px 28px; }
+.feature-grid li { display: flex; gap: 12px; align-items: flex-start; }
+.feature-icon { width: 36px; height: 36px; border-radius: 50%; background: #fff; box-shadow: 0 1px 3px rgba(16, 40, 88, 0.12); display: grid; place-items: center; font-size: 17px; flex: none; }
+.feature-grid strong { display: block; font-size: 16px; color: var(--brand-navy); }
+.feature-grid small { display: block; font-size: 13px; color: var(--color-text-muted); }
+.qr-card { margin-top: 32px; display: flex; gap: 16px; align-items: center; }
+.qr-card img { width: 96px; height: 96px; border-radius: 12px; background: #fff; padding: 6px; box-shadow: 0 2px 10px rgba(16, 40, 88, 0.12); }
+.qr-card div { display: flex; flex-direction: column; gap: 2px; }
+.qr-card strong { color: var(--brand-navy); }
+.qr-card span { font-size: 14px; color: var(--color-text-muted); }
+.qr-card .qr-url { color: #006bc6; font-weight: 600; }
+.showcase-fine { margin: 28px 0 0; font-size: 12px; color: var(--color-text-muted); line-height: 1.7; }
+.phone {
+  position: relative; width: 414px; height: min(868px, calc(100vh - 48px)); min-height: 600px;
+  padding: 12px; border-radius: 52px; background: #161c2b;
+  box-shadow: 0 30px 60px rgba(16, 40, 88, 0.25), inset 0 0 0 2px #2b3348;
+}
+.phone-notch { position: absolute; top: 20px; left: 50%; transform: translateX(-50%); width: 108px; height: 28px; border-radius: 16px; background: #161c2b; z-index: 2; pointer-events: none; }
+.phone-app { display: block; width: 100%; height: 100%; border: 0; border-radius: 40px; background: #fff; }
+/* inside the phone frame: leave room for the notch above the app header */
+.in-frame .header { padding-top: 26px; }

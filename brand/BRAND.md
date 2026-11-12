@@ -49,3 +49,10 @@ TwinVet의 보라·파랑을 중심으로 한다. PoochPaw의 네이비·코랄�
 - `palette.html`은 로컬에서 열어 보는 색상·로고 미리보기다. 실제 서비스 화면 구현물이 아니다.
 - 이미지 원본은 그대로 보관한다. PoochPaw·wigglo 참고 로고는 서비스 번들에 자동 포함하지 않는다.
 - 화면 배치·입력·오류 처리는 `../docs/05_화면설계서.md`를 따른다.
+
+## 앱 로고 적용 (2026-11-12, 사용자 지시)
+
+- 카카오맵에 등록한 TwinVet 앱 로고를 기준으로 바꾼다. 원본: `twinvet-app-icon-original.png`(심볼), `twinvet-app-logo-original.png`(심볼+TwinVet).
+- 웹 헤더는 심볼 이미지 + 텍스트 워드마크 `Twin`(보라 #4D1E7F) `Vet`(파랑 #006BC6) `Care`(보라, Nunito)로 구성한다. 심볼 크기 변수 `--logo-icon` 하나로 함께 커지고 줄어든다.
+- 웹용 파일은 `python -m scripts.make_brand_assets`로 원본에서 만든다(배경만 투명 처리, 심볼 자체는 변형하지 않음): `twinvet-icon.png`, `favicon-64.png`, `apple-touch-icon.png`, 사이트 QR `qr-twinvet.png`.
+- PC(1024px 이상)는 왼쪽에 서비스 소개, 오른쪽에 휴대폰 프레임 안의 실제 모바일 앱(같은 주소의 iframe)을 보여 준다.

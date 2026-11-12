@@ -8,8 +8,8 @@ export const EMERGENCY_BODY = "호흡 곤란, 의식 저하, 경련, 심한 출�
 export function BrandLockup() {
   return (
     <a className="brand-lockup" href="/" aria-label="TwinVet Care 처음으로">
-      <img src="/brand/twinvet-logo.png" alt="" width={683} height={283} />
-      <span className="care" aria-hidden="true">Care</span>
+      <img src="/brand/twinvet-icon.png" alt="" width={40} height={40} />
+      <span className="wordmark" aria-hidden="true"><span className="w-twin">Twin</span><span className="w-vet">Vet</span><span className="w-care">Care</span></span>
     </a>
   );
 }

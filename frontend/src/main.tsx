@@ -1,12 +1,36 @@
-import { StrictMode } from "react";
+import { StrictMode, useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { App } from "./App";
+import { Showcase } from "./components/Showcase";
 import "./styles.css";
+
+// PC shows the introduction + the app in a phone frame (an iframe of this same page). Inside that iframe,
+// and on phones/tablets, the app itself is rendered.
+const WIDE = "(min-width: 1024px)";
+const framed = (() => {
+  try {
+    return window.self !== window.top || new URLSearchParams(window.location.search).has("frame");
+  } catch {
+    return true; // cross-origin parent: behave as the embedded app
+  }
+})();
+
+function Root() {
+  const [wide, setWide] = useState(() => window.matchMedia(WIDE).matches);
+  useEffect(() => {
+    const mq = window.matchMedia(WIDE);
+    const on = () => setWide(mq.matches);
+    mq.addEventListener("change", on);
+    return () => mq.removeEventListener("change", on);
+  }, []);
+  if (framed) document.documentElement.classList.add("in-frame");
+  return wide && !framed ? <Showcase /> : <App />;
+}
 
 const root = document.getElementById("root");
 if (!root) throw new Error("root element missing");
 createRoot(root).render(
   <StrictMode>
-    <App />
+    <Root />
   </StrictMode>,
 );
