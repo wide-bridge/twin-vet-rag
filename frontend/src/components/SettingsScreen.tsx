@@ -141,6 +141,7 @@ export function SettingsScreen({ profile, onProfile, ttlDays }: {
       const p = await api.saveProfile(body);
       onProfile(p);
       store.setLastDog(null);
+      store.setConsultationId(null); // the 상담 tab starts a new consultation with the updated dog info
       setClinic(p.clinic);
       setPick(undefined);
       setPhone(p.clinic_phone ?? "");

@@ -1,6 +1,7 @@
 // Per-browser conveniences only (docs/05 §3): the current consultation id for refresh recovery and the
 // last dog form to prefill a new consultation. Never server state; storage may be unavailable.
 import type { Dog } from "../api";
+import { kstDay } from "./care";
 
 const K_CONSULTATION = "tvc.consultation";
 const K_DOG = "tvc.lastDog";
@@ -23,8 +24,20 @@ function set(key: string, value: string | null): void {
 }
 
 export const store = {
-  consultationId: () => get(K_CONSULTATION),
-  setConsultationId: (id: string | null) => set(K_CONSULTATION, id),
+  /** The consultation open on the 상담 tab — only for the Korean calendar day it was opened. On a new day the
+   *  tab starts a new consultation (with the dog info as it is now); older ones are reopened from 케어. */
+  consultationId: (): string | null => {
+    const raw = get(K_CONSULTATION);
+    if (!raw) return null;
+    try {
+      const v = JSON.parse(raw);
+      return v && typeof v.id === "string" && v.day === kstDay(new Date().toISOString()) ? v.id : null;
+    } catch {
+      return null; // a plain id stored before 2026-11-12: treat as an earlier day
+    }
+  },
+  setConsultationId: (id: string | null) =>
+    set(K_CONSULTATION, id === null ? null : JSON.stringify({ id, day: kstDay(new Date().toISOString()) })),
   /** The last dog and when it was saved (a prefilled estimate is advanced by the time since). */
   lastDog: (): { dog: Dog; savedAt: string | null } | null => {
     const raw = get(K_DOG);
