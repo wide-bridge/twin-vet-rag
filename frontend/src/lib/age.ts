@@ -49,8 +49,9 @@ export function describeAge(d: AgeLike): string {
 
 type DogLike = AgeLike & { name: string | null; breed: string; weight_kg: number | null };
 
-/** Consultation summary: "두부(푸들) | 11세 5개월 | 5kg" — without a name "푸들 | …", weight only if entered. */
+/** Consultation summary: "두부(푸들) | 11세 5개월 | 5kg" — always 이름(품종); weight only if entered.
+ *  The name is required now; data saved while it was optional shows "이름 미입력(푸들)" until it is filled in. */
 export function dogSummary(d: DogLike): string {
-  const who = d.name ? `${d.name}(${d.breed})` : d.breed;
+  const who = `${d.name || "이름 미입력"}(${d.breed})`;
   return [who, describeAge(d), d.weight_kg != null ? `${d.weight_kg}kg` : null].filter(Boolean).join(" | ");
 }

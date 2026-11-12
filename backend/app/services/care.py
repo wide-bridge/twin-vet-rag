@@ -6,6 +6,7 @@ and the "show to the hospital" page are done in the browser from these cards.
 """
 from __future__ import annotations
 
+import re
 import uuid
 from collections import defaultdict
 
@@ -17,8 +18,25 @@ from ..config import Settings
 from ..db.models import AnswerRun, Consultation, Message
 from ..db.models import Session as SessionRow
 from ..rag.llm import LLM, LLMError
-from ..rag.prompts import SUMMARY_SCHEMA, SUMMARY_SYSTEM, TOPICS, DogInfo, summary_user
+from ..rag.prompts import SUMMARY_MAX_CHARS, SUMMARY_SCHEMA, SUMMARY_SYSTEM, TOPICS, DogInfo, summary_user
 from .consult import dog_view, now, own_consultation
+
+
+_SENTENCE_END = re.compile(r"(?<=[.!?。])\s+")
+
+
+def clip_summary(text: str, limit: int = SUMMARY_MAX_CHARS) -> str:
+    """Keep at most 2 sentences; if still over `limit`, keep 1 sentence; then cut at a word with '…'."""
+    s = " ".join(text.split())
+    parts = [p for p in _SENTENCE_END.split(s) if p]
+    for n in (2, 1):
+        cand = " ".join(parts[:n])
+        if len(cand) <= limit:
+            return cand
+    cut = s[:limit - 1]
+    if " " in cut[limit // 2:]:
+        cut = cut[:cut.rindex(" ")]
+    return cut.rstrip(" ,.") + "…"
 
 
 def _tags(c: Consultation, types: list[str], busy: bool) -> list[str]:
@@ -96,7 +114,7 @@ def summarize(db: DB, settings: Settings, llm: LLM | None, session: SessionRow, 
     topic = d.get("topic") if d.get("topic") in TOPICS else "other"
     topics = [topic] + [t for t in d.get("topics", []) if t in TOPICS and t != topic]
     c.topic, c.topics = topic, list(dict.fromkeys(topics))[:3]
-    c.summary = (d.get("summary") or "").strip()[:300] or None
+    c.summary = clip_summary(d.get("summary") or "") or None
     c.vet_advised = bool(d.get("vet_advised"))
     c.summary_turns, c.summary_at = len(msgs), now()
     db.commit()

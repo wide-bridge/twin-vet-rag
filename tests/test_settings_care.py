@@ -244,3 +244,16 @@ def test_care_is_per_session_and_summary_failure(env):
     env.llm.responses["care_summary"] = LLMError("boom")
     r = c.post(f"/api/v1/consultations/{cid}/summary", headers=H)
     assert r.status_code == 503 and r.json()["error"]["code"] == "summary_unavailable"
+
+
+def test_clip_summary_keeps_short_and_cuts_long():
+    from backend.app.services.care import clip_summary
+    short = "3일째 구토함. 금식 후 소량 급여 안내."
+    assert clip_summary(short) == short
+    three = "가" * 40 + ". " + "나" * 40 + ". " + "다" * 40 + "."
+    assert clip_summary(three) == "가" * 40 + ". " + "나" * 40 + "."
+    two_long = "가" * 70 + ". " + "나" * 70 + "."
+    assert clip_summary(two_long) == "가" * 70 + "."
+    one_long = " ".join(["단어"] * 80)
+    out = clip_summary(one_long)
+    assert len(out) <= 120 and out.endswith("…")

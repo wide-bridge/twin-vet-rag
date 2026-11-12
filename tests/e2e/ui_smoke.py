@@ -56,7 +56,7 @@ def flow(page: Page, ui, base: str, out: Path, tag: str, w: int, framed: bool) -
     expect(ui.get_by_text("품종을 입력해 주세요")).to_be_visible()
     no_hscroll(ui, f"{tag} S02 intake")
     page.screenshot(path=out / f"{tag}-s02-intake-errors.png", full_page=False)
-    ui.get_by_label("이름 (선택)").fill("두부")
+    ui.get_by_placeholder("예: 두부").fill("두부")
     ui.get_by_placeholder("예: 말티즈, 믹스견, 모름").fill("말티즈")
     # age: estimate mode first, then the birth date (year + month, day left as 모름)
     ui.get_by_role("button", name="정확히 몰라요").click()
