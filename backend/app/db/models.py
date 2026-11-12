@@ -10,6 +10,7 @@ from sqlalchemy import (
     CheckConstraint,
     Date,
     DateTime,
+    Float,
     ForeignKey,
     Index,
     Integer,
@@ -60,6 +61,15 @@ class Consultation(Base):
     dog_health_notes: Mapped[str | None] = mapped_column(String(300))
     life_stage: Mapped[str] = mapped_column(String(8), nullable=False)
     status: Mapped[str] = mapped_column(String(16), nullable=False, server_default="active")
+    # settings / care (2026-11-12): profile and 주치동물병원 at creation; the dog fields above stay a snapshot
+    profile_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("dog_profile.id", ondelete="SET NULL"), index=True)
+    clinic_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("clinic.id", ondelete="SET NULL"))
+    topic: Mapped[str | None] = mapped_column(String(16))  # care card topic (rag.prompts.TOPICS)
+    topics: Mapped[list[str] | None] = mapped_column(ARRAY(Text))
+    summary: Mapped[str | None] = mapped_column(Text)  # AI summary for the care card (no diagnosis wording)
+    vet_advised: Mapped[bool | None] = mapped_column(Boolean)  # an answer recommended seeing a vet
+    summary_turns: Mapped[int | None] = mapped_column(Integer)  # message count the summary covers
+    summary_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = _now()
     __table_args__ = (
         CheckConstraint("dog_age_months BETWEEN 0 AND 371", name="ck_consultation_age"),
@@ -68,6 +78,65 @@ class Consultation(Base):
         CheckConstraint("(dog_age_basis = 'estimate') = (dog_birth_date IS NULL)", name="ck_consultation_birth_date"),
         CheckConstraint("life_stage IN ('puppy','adult','senior')", name="ck_consultation_life_stage"),
         CheckConstraint("status IN ('active')", name="ck_consultation_status"),
+    )
+
+
+class Clinic(Base):
+    """주치동물병원 master: public data (MOIS animal hospitals) or a guardian-typed name. From Kakao Local only the
+    place id and place URL are stored (docs/03 §6)."""
+    __tablename__ = "clinic"
+    id: Mapped[uuid.UUID] = _pk()
+    source: Mapped[str] = mapped_column(String(8), nullable=False)  # public / manual
+    public_id: Mapped[str | None] = mapped_column(String(40))  # OPN_ATMY_GRP_CD-MNG_NO
+    name: Mapped[str] = mapped_column(String(100), nullable=False)
+    name_key: Mapped[str] = mapped_column(String(100), nullable=False, index=True)
+    road_address: Mapped[str | None] = mapped_column(Text)
+    road_key: Mapped[str | None] = mapped_column(String(200), index=True)
+    lot_address: Mapped[str | None] = mapped_column(Text)
+    public_phone: Mapped[str | None] = mapped_column(String(20))  # landline from public data (mobiles dropped)
+    crd_x: Mapped[float | None] = mapped_column(Float)  # EPSG:5174 as published
+    crd_y: Mapped[float | None] = mapped_column(Float)
+    business_status: Mapped[str | None] = mapped_column(String(8))
+    public_updated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    kakao_place_id: Mapped[str | None] = mapped_column(String(32), index=True)
+    kakao_place_url: Mapped[str | None] = mapped_column(Text)
+    is_partner: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="false")
+    created_at: Mapped[datetime] = _now()
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now())
+    __table_args__ = (
+        UniqueConstraint("public_id", name="uq_clinic_public_id"),
+        CheckConstraint("source IN ('public', 'manual')", name="ck_clinic_source"),
+        CheckConstraint("(source = 'public') = (public_id IS NOT NULL)", name="ck_clinic_public_id"),
+        CheckConstraint("business_status IS NULL OR business_status IN ('open', 'paused', 'closed', 'other')",
+                        name="ck_clinic_status"),
+    )
+
+
+class DogProfile(Base):
+    """Settings (P08): the current dog and 주치동물병원, found by an anonymous profile key (hash only)."""
+    __tablename__ = "dog_profile"
+    id: Mapped[uuid.UUID] = _pk()
+    token_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    name: Mapped[str | None] = mapped_column(String(20))
+    breed: Mapped[str] = mapped_column(String(40), nullable=False)
+    age_months: Mapped[int] = mapped_column(Integer, nullable=False)  # at updated_at (estimates grow from there)
+    birth_date: Mapped[date | None] = mapped_column(Date)
+    age_basis: Mapped[str] = mapped_column(String(8), nullable=False)
+    weight_kg: Mapped[float | None] = mapped_column(Numeric(4, 1))
+    neutered: Mapped[str | None] = mapped_column(String(8))
+    health_notes: Mapped[str | None] = mapped_column(String(300))
+    clinic_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("clinic.id", ondelete="SET NULL"))
+    clinic_phone: Mapped[str | None] = mapped_column(String(20))  # typed/confirmed by the guardian
+    created_at: Mapped[datetime] = _now()
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
+    last_used_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
+    expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), index=True)  # null = no expiry (MVP)
+    __table_args__ = (
+        UniqueConstraint("token_hash", name="uq_dog_profile_token"),
+        CheckConstraint("age_months BETWEEN 0 AND 371", name="ck_dog_profile_age"),
+        CheckConstraint("neutered IN ('yes', 'no', 'unknown')", name="ck_dog_profile_neutered"),
+        CheckConstraint("age_basis IN ('day', 'month', 'year', 'estimate')", name="ck_dog_profile_age_basis"),
+        CheckConstraint("(age_basis = 'estimate') = (birth_date IS NULL)", name="ck_dog_profile_birth_date"),
     )
 
 

@@ -65,6 +65,14 @@ class Settings(BaseSettings):
     life_stage_puppy_max_months: int = Field(default=12, ge=1)
     life_stage_senior_min_months: int = Field(default=84, ge=1)
 
+    # Settings (P08): dog profile kept for N days after the last use (docs/03 §3, 2026-11-12)
+    profile_ttl_days: int = Field(default=90, ge=1)
+    # 주치동물병원 search: Kakao Local (server-side key; results shown live only, never stored — docs/03 §6)
+    kakao_rest_api_key: SecretStr | None = None
+    clinic_searches_per_minute: int = Field(default=30, ge=1)
+    # public animal-hospital data (MOIS) for scripts/load_clinics.py only; the web app does not need it
+    data_go_kr_service_key: SecretStr | None = None
+
 
     @field_validator("llm_model", "llm_classifier_model", mode="before")
     @classmethod

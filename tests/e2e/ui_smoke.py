@@ -5,7 +5,9 @@
 
 Uses the installed Google Chrome through Playwright (pip install playwright; no browser download).
 Checks: no horizontal overflow at each width, start -> dog form -> question -> grounded answer with
-source chips -> source detail -> feedback -> delete; saves screenshots for review.
+source chips -> source detail -> feedback -> emergency sheet -> 주치동물병원 prompt -> settings (Kakao search,
+public-data match, phone) -> care card + AI summary + show-to-hospital -> delete -> saved-profile start;
+saves screenshots for review.
 """
 from __future__ import annotations
 
@@ -34,6 +36,10 @@ BIRTH, AGE_TEXT = _birth_and_age()
 def no_hscroll(page: Page, label: str) -> None:
     over = page.evaluate("document.documentElement.scrollWidth - document.documentElement.clientWidth")
     assert over <= 0, f"{label}: horizontal overflow {over}px"
+
+
+def tab(page: Page, name: str) -> None:
+    page.get_by_role("button", name=name, exact=True).locator("visible=true").first.click()
 
 
 def flow(page: Page, base: str, out: Path, tag: str, w: int) -> None:
@@ -95,6 +101,54 @@ def flow(page: Page, base: str, out: Path, tag: str, w: int) -> None:
     page.reload()
     expect(page.get_by_role("article", name="AI 답변")).to_be_visible(timeout=10_000)
 
+    # emergency sheet without a 주치동물병원: 24h search first, registration only as a link
+    page.get_by_role("button", name="응급하면 바로 동물병원에 연락하세요").click()
+    expect(page.get_by_role("button", name="📍 가까운 24시 동물병원 찾기")).to_be_visible()
+    expect(page.get_by_role("button", name="주치동물병원 등록하기")).to_be_visible()
+    no_hscroll(page, f"{tag} emergency sheet")
+    page.screenshot(path=out / f"{tag}-s02-emergency.png", full_page=False)
+    page.get_by_role("button", name="닫기").click()
+
+    # one-time prompt after the first answer -> settings
+    expect(page.get_by_text("주치동물병원을 등록해 두면 응급 시 바로 전화할 수 있어요.")).to_be_visible()
+    page.get_by_role("button", name="등록", exact=True).click()
+    expect(page.get_by_role("heading", name="설정")).to_be_visible()
+    expect(page.get_by_placeholder("예: 말티즈, 믹스견, 모름")).to_have_value("말티즈")  # saved with the first consultation
+    page.get_by_placeholder("병원 이름 또는 동네 (예: 망원동)").fill("망원동")
+    page.get_by_role("button", name="검색", exact=True).click()
+    first = page.locator(".place-pick").first
+    expect(first).to_be_visible(timeout=15_000)
+    first.click()
+    expect(page.get_by_label("전화번호")).to_be_visible(timeout=10_000)
+    if page.get_by_label("병원 이름").count():  # no public-data match: the name is typed
+        page.get_by_label("병원 이름").fill("테스트동물병원")
+    page.get_by_label("전화번호").fill("02-123-4567")
+    no_hscroll(page, f"{tag} S09 settings")
+    page.screenshot(path=out / f"{tag}-s09-settings.png", full_page=True)
+    page.get_by_role("button", name="저장", exact=True).click()
+    expect(page.get_by_text("저장했어요. 다음 상담부터 적용돼요.")).to_be_visible(timeout=10_000)
+
+    # care: the consultation as a card with an AI summary; show-to-hospital view
+    tab(page, "케어")
+    expect(page.get_by_role("heading", name="케어")).to_be_visible()
+    expect(page.get_by_text("어제부터 하루에 두 번 토했어요", exact=False).first).to_be_visible(timeout=10_000)
+    expect(page.get_by_text("AI 요약", exact=True).first).to_be_visible(timeout=60_000)
+    no_hscroll(page, f"{tag} S08 care")
+    page.screenshot(path=out / f"{tag}-s08-care.png", full_page=True)
+    page.get_by_role("button", name="병원에 보여주기").first.click()
+    expect(page.get_by_role("dialog", name="병원에 보여줄 요약")).to_be_visible()
+    page.screenshot(path=out / f"{tag}-s08-handoff.png", full_page=False)
+    page.get_by_role("dialog", name="병원에 보여줄 요약").get_by_role("button", name="닫기").click()
+    page.get_by_role("button", name="다시 열기").first.click()
+    expect(page.get_by_role("article", name="AI 답변")).to_be_visible(timeout=10_000)
+
+    # emergency sheet now shows the registered clinic
+    page.get_by_role("button", name="응급하면 바로 동물병원에 연락하세요").click()
+    expect(page.get_by_text("주치동물병원", exact=True)).to_be_visible()
+    expect(page.get_by_role("link", name="📞 02-123-4567")).to_be_visible()
+    page.screenshot(path=out / f"{tag}-s02-emergency-clinic.png", full_page=False)
+    page.get_by_role("button", name="닫기").click()
+
     # delete
     if w < 1024:
         page.get_by_role("button", name="메뉴").click()
@@ -104,8 +158,17 @@ def flow(page: Page, base: str, out: Path, tag: str, w: int) -> None:
     expect(page.get_by_role("dialog", name="이 대화를 삭제할까요?")).to_be_visible()
     page.screenshot(path=out / f"{tag}-s02-delete-confirm.png", full_page=False)
     page.get_by_role("button", name="삭제", exact=True).click()
-    expect(page.get_by_text("우리 아이 정보")).to_be_visible()
-    expect(page.get_by_placeholder("예: 말티즈, 믹스견, 모름")).to_have_value("말티즈")  # prefilled in this browser only
+    # the next consultation starts from the saved profile: summary + [변경], no form
+    expect(page.get_by_role("region", name="우리 아이 정보")).to_be_visible()
+    expect(page.get_by_text(f"두부(말티즈) | {AGE_TEXT} | 3.2kg")).to_be_visible()
+    expect(page.get_by_text("주치동물병원:", exact=False)).to_be_visible()
+    page.screenshot(path=out / f"{tag}-s02-profile-start.png", full_page=False)
+
+    # clean up the saved profile so the run leaves nothing behind
+    tab(page, "설정")
+    page.get_by_role("button", name="저장된 정보 삭제").click()
+    page.get_by_role("button", name="삭제", exact=True).click()
+    expect(page.get_by_text("저장된 정보를 삭제했어요.")).to_be_visible()
 
 
 def main() -> int:

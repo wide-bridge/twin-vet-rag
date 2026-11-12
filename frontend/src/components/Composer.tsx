@@ -1,16 +1,15 @@
 // Bottom input bar (docs/05 §3, §9-3): one-line emergency notice, auto-growing textarea (max 4 lines),
 // PC Enter = send / Shift+Enter = newline, mobile Enter = newline.
-import { useEffect, useRef, useState } from "react";
-import { EMERGENCY_BODY, EMERGENCY_TITLE, Dialog } from "./Common";
+import { useEffect, useRef } from "react";
 import { IconSend, IconWarning } from "./Icons";
 
 const coarse = () => typeof window !== "undefined" && window.matchMedia("(pointer: coarse)").matches;
 
-export function Composer({ value, onChange, onSend, disabled, sendDisabled, maxChars, hint }: {
-  value: string; onChange: (v: string) => void; onSend: () => void; disabled: boolean; sendDisabled: boolean; maxChars: number; hint?: string;
+export function Composer({ value, onChange, onSend, onEmergency, disabled, sendDisabled, maxChars, hint }: {
+  value: string; onChange: (v: string) => void; onSend: () => void; onEmergency: () => void; disabled: boolean;
+  sendDisabled: boolean; maxChars: number; hint?: string;
 }) {
   const ref = useRef<HTMLTextAreaElement>(null);
-  const [showEmergency, setShowEmergency] = useState(false);
   const mobile = coarse();
 
   useEffect(() => {
@@ -25,7 +24,7 @@ export function Composer({ value, onChange, onSend, disabled, sendDisabled, maxC
 
   return (
     <div className="composer">
-      <button type="button" className="emergency-line" onClick={() => setShowEmergency(true)} aria-haspopup="dialog">
+      <button type="button" className="emergency-line" onClick={onEmergency} aria-haspopup="dialog">
         <IconWarning small /> 응급하면 바로 동물병원에 연락하세요
       </button>
       <div className="composer-inner">
@@ -47,12 +46,6 @@ export function Composer({ value, onChange, onSend, disabled, sendDisabled, maxC
           <span style={{ color: tooLong ? "var(--color-danger)" : undefined }}>{value.length}/{maxChars}</span>
         </div>
       </div>
-      {showEmergency && (
-        <Dialog title={EMERGENCY_TITLE} onClose={() => setShowEmergency(false)} sheet
-          actions={<button type="button" className="btn btn-primary" onClick={() => setShowEmergency(false)}>확인</button>}>
-          <p>{EMERGENCY_BODY}</p>
-        </Dialog>
-      )}
     </div>
   );
 }

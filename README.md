@@ -45,6 +45,7 @@ alembic upgrade head                                            # 스키마 생�
 python -m scripts.load_knowledge --version v2 --embedder fake    # 비용 없음, 의미 없는 시험용 벡터
 python -m scripts.load_knowledge --version v2 --embedder openai --max-usd 1.0   # 유료: 예상 비용 표시 후 확인
 python -m scripts.load_knowledge --deactivate <source_record_id>                 # 즉시 검색 제외
+python -m scripts.load_clinics                                  # 공공데이터 동물병원 목록(약 1만 건) 적재·갱신. DATA_GO_KR_SERVICE_KEY 필요
 ```
 임베딩 입력은 `자료명/진료과`(참고 자료) 또는 `진료과/질병`(상담 사례) 머리말 한 줄 + 본문이다(화면 표시 본문은 머리말 없음).
 현재 색인: prepared/v2 + text-embedding-3-small, 27,574청크, 실제 17,367,967토큰(약 $0.35), 2026-11-09 적재. 처리 단계·보장은 docs/03 7절.
@@ -74,8 +75,15 @@ python tests/e2e/ui_smoke.py --widths 320,390,768,1280   # 실행 중인 서버 
 
 ## 운영 작업
 ```powershell
-python -m scripts.cleanup_sessions      # 만료 24시간 지난 세션과 상담 데이터 영구 삭제. 하루 1회 예약 실행
+python -m scripts.cleanup_sessions      # 만료 24시간 지난 세션·상담 + 보관 기한 지난 반려견 프로필 영구 삭제. 하루 1회 예약 실행
+python -m scripts.load_clinics          # 동물병원 목록 갱신(개업·폐업·주소·전화). 원천은 매일 갱신, 주 1회 권장
 ```
+
+### 설정·주치동물병원·케어 (P08·P09, 2026-11-12)
+- 설정: 반려견 정보와 주치동물병원을 `dog_profile`에 저장. 브라우저별 익명 쿠키 `tvc_profile`(해시만 저장), 마지막 사용 후 `PROFILE_TTL_DAYS`(기본 90)일 보관. 첫 상담 때 자동 저장되고 이후 상담은 저장된 정보로 시작. 상담의 반려견 정보는 생성 시점 복사본이라 설정을 바꿔도 지난 상담은 그대로.
+- 병원 찾기: `GET /api/v1/clinics/search`가 카카오 로컬 검색 결과를 화면에 그대로 전달(저장·로그 없음). 고르면 `POST /clinics/match`가 공공데이터 목록에서 같은 병원(도로명주소+이름)을 찾고, 저장은 공공데이터 레코드 + 카카오 장소 ID·링크만. 못 찾으면 보호자가 이름을 직접 입력. 전화번호는 보호자가 입력·확인. 실측 매칭률 110/112(2026-11-12, 8개 지역 검색).
+- 응급 안내: 누르면 주치동물병원 전화·카카오맵, 가까운 24시 동물병원(위치 권한, 위치 저장 안 함), 전화할 때 말할 것.
+- 케어: 상담 1건 = 카드 1장(7일 보관). 처음 볼 때 `LLM_CLASSIFIER_MODEL`로 주제(8개)·2문장 요약·수의사 확인 권유 여부를 만들어 상담에 저장하고, 대화가 늘면 다시 만든다. 같은 날 같은 주제는 묶음 카드. [병원에 보여주기]는 저장된 요약으로 화면에서만 구성(추가 호출·저장 없음).
 
 ## 배포 (DB: Neon PostgreSQL / 앱: Vercel, 2026-11-11 배포·점검 완료)
 로컬·Docker 실행(선택). 실제 서비스 배포는 아래 'Vercel 배포' 절을 따른다.
@@ -109,7 +117,7 @@ docker compose --profile app up -d --build    # 이미지 = React 빌드 + FastA
 
 - 구성: 루트 `index.py`가 FastAPI `app`을 내보내고(Vercel 진입점), `vercel.json`이 React 빌드(`cd frontend && npm ci && npm run build`), 지역 `sin1`(Neon 싱가포르와 같은 지역), 함수 최대 300초(Hobby 한도)를 정한다. 빌드된 화면은 `app.frontend()`로 CDN에 올라간다.
 - 답변 처리: Vercel에는 상시 실행 워커가 없다. `VERCEL` 환경에서는 `RUN_MODE=request`가 기본이 되어 워커 스레드를 띄우지 않고, 브라우저가 질문 접수 직후 `POST /api/v1/runs/{id}/execute`를 호출해 그 요청 안에서 답변을 만든다(약 10~20초). 여러 번 호출해도 한 번만 처리하고, 새로고침 뒤 대기 중인 작업은 화면이 다시 실행을 요청한다. 시간 초과 정리는 조회 시 수행한다. Docker·로컬은 기존 워커 방식(`RUN_MODE=worker`).
-- Vercel 환경변수(Production·Preview): `DATABASE_URL`=Neon **pooled** URL(`postgresql://`→`postgresql+psycopg://`), `OPENAI_API_KEY`, `ALLOWED_ORIGINS`=연결한 도메인(예: `https://twinvet.pawcheck.ai`). `*.vercel.app` 배포 주소는 자동 허용.
+- Vercel 환경변수(Production·Preview): `DATABASE_URL`=Neon **pooled** URL(`postgresql://`→`postgresql+psycopg://`), `OPENAI_API_KEY`, `KAKAO_REST_API_KEY`(병원 검색), `ALLOWED_ORIGINS`=연결한 도메인(예: `https://twinvet.pawcheck.ai`). `*.vercel.app` 배포 주소는 자동 허용.
 - 마이그레이션은 Vercel에서 실행하지 않는다. 스키마 변경 시 로컬에서 `ALEMBIC_DATABASE_URL`=Neon direct URL로 `alembic upgrade head`.
 - 런타임 의존성은 `requirements.txt`(테스트·데이터 준비 도구는 `requirements-dev.txt`). 업로드 제외는 `.vercelignore`.
 - 요청 횟수 제한은 함수 인스턴스별 메모리 값이라 인스턴스가 여러 개면 느슨해진다(PoC 허용). 만료 세션 정리는 Vercel Cron으로 옮길 수 있다(미적용).

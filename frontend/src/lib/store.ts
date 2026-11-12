@@ -4,6 +4,7 @@ import type { Dog } from "../api";
 
 const K_CONSULTATION = "tvc.consultation";
 const K_DOG = "tvc.lastDog";
+const K_CLINIC_PROMPT = "tvc.clinicPromptDone";
 
 function get(key: string): string | null {
   try {
@@ -43,5 +44,8 @@ export const store = {
       return null;
     }
   },
+  /** the one-time "register your 주치동물병원" notice after the first consultation was answered or dismissed */
+  clinicPromptDone: () => get(K_CLINIC_PROMPT) === "1",
+  setClinicPromptDone: () => set(K_CLINIC_PROMPT, "1"),
   setLastDog: (d: Dog | null) => set(K_DOG, d ? JSON.stringify({ dog: d, savedAt: new Date().toISOString() }) : null),
 };

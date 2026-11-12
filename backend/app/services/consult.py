@@ -62,12 +62,15 @@ def today_kst() -> date:
     return datetime.now(KST).date()
 
 
-def create_consultation(db: DB, settings: Settings, session: SessionRow, dog: DogProfileIn) -> Consultation:
+def create_consultation(db: DB, settings: Settings, session: SessionRow, dog: DogProfileIn,
+                        profile=None) -> Consultation:
+    """The dog fields are a snapshot; `profile` (settings) only links the profile and its 주치동물병원."""
     try:
         age = dog.age_on(today_kst())
     except ValueError:
         raise ApiError(422, "invalid_birth_date", extra={"fields": ["dog.birth_year"]})
     c = Consultation(
+        profile_id=profile.id if profile else None, clinic_id=profile.clinic_id if profile else None,
         session_id=session.id, dog_name=dog.name or None, dog_breed=dog.breed, dog_age_months=age, dog_birth_date=dog.birth_date(),
         dog_age_basis=dog.age_basis.value, dog_weight_kg=dog.weight_kg,
         dog_neutered=dog.neutered.value if dog.neutered else None, dog_health_notes=dog.health_notes or None,

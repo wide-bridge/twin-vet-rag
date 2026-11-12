@@ -19,6 +19,14 @@ MESSAGES = {
     "request_conflict": "같은 요청 번호로 다른 질문을 보낼 수 없어요.",
     "rate_limited": "질문이 너무 많아요. 잠시 후 다시 시도해 주세요.",
     "internal_error": "일시적인 오류가 발생했어요. 잠시 후 다시 시도해 주세요.",
+    "profile_not_found": "저장된 반려견 정보가 없어요.",
+    "invalid_phone": "전화번호는 숫자와 하이픈(-)만 7~20자로 입력해 주세요.",
+    "invalid_clinic": "병원 정보를 확인해 주세요.",
+    "clinic_search_unavailable": "지금은 병원 검색을 할 수 없어요. 잠시 후 다시 시도하거나 직접 입력해 주세요.",
+    "empty_query": "병원 이름이나 동네를 입력해 주세요.",
+    "invalid_location": "위치 정보를 확인할 수 없어요.",
+    "query_too_long": "검색어가 너무 길어요.",
+    "summary_unavailable": "지금은 요약을 만들 수 없어요. 잠시 후 다시 시도해 주세요.",
 }
 
 

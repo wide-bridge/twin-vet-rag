@@ -5,16 +5,17 @@ import uuid
 from typing import Annotated, Iterator
 
 from fastapi import APIRouter, Depends, Request, Response
-from pydantic import BaseModel, ConfigDict, Field, StringConstraints
+from pydantic import BaseModel, ConfigDict, Field, StringConstraints, model_validator
 from sqlalchemy.orm import Session as DB
 
 from ..config import Settings
 from ..db.models import Session as SessionRow
 from ..domain.dog import DogProfileIn
-from ..services import consult, worker
+from ..services import care, clinics, consult, profile, worker
 from .errors import ApiError
 
 COOKIE = "tvc_session"
+PROFILE_COOKIE = "tvc_profile"
 CLIENT_HEADER = "x-twinvet-client"
 
 router = APIRouter(prefix="/api/v1")
@@ -67,6 +68,41 @@ class QuestionIn(BaseModel):
     client_request_id: Annotated[str, StringConstraints(pattern=r"^[A-Za-z0-9_-]{8,64}$")]
 
 
+NAME_PATTERN = r"^[^\x00-\x1f\x7f<>\[\]{}`\x5c]+$"  # same rule as the dog name
+
+
+class ClinicChoice(BaseModel):
+    """A public-data clinic found by /clinics/match, or a guardian-typed name when there was no match.
+    From Kakao only the place id and URL are accepted (and stored)."""
+    model_config = ConfigDict(extra="forbid")
+    clinic_id: uuid.UUID | None = None
+    manual_name: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=40,
+                                                  pattern=NAME_PATTERN)] | None = None
+    kakao_place_id: Annotated[str, StringConstraints(pattern=r"^\d{1,20}$")] | None = None
+    kakao_place_url: Annotated[str, StringConstraints(max_length=200)] | None = None
+
+    @model_validator(mode="after")
+    def _one(self) -> "ClinicChoice":
+        if (self.clinic_id is None) == (self.manual_name is None):
+            raise ValueError("give either clinic_id or manual_name")
+        return self
+
+
+class ProfileIn(BaseModel):
+    """`clinic` / `clinic_phone` left out = keep the saved ones; null = remove."""
+    model_config = ConfigDict(extra="forbid")
+    dog: DogProfileIn
+    clinic: ClinicChoice | None = None
+    clinic_phone: Annotated[str, StringConstraints(strip_whitespace=True, max_length=20)] | None = None
+
+
+class MatchIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    name: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=100)]
+    road_address: Annotated[str, StringConstraints(max_length=200)] | None = None
+    address: Annotated[str, StringConstraints(max_length=200)] | None = None
+
+
 class FeedbackIn(BaseModel):
     model_config = ConfigDict(extra="forbid")
     helpful: bool
@@ -92,8 +128,11 @@ def get_session(session: SessionDep):
 
 
 @router.post("/consultations", status_code=201, dependencies=Guard)
-def create_consultation(body: ConsultationIn, session: SessionDep, db: DBDep, settings: SettingsDep):
-    c = consult.create_consultation(db, settings, session, body.dog)
+def create_consultation(body: ConsultationIn, request: Request, session: SessionDep, db: DBDep, settings: SettingsDep):
+    prof = profile.resolve(db, request.cookies.get(PROFILE_COOKIE))
+    if prof is not None:
+        profile.touch(db, settings, prof)  # committed with the consultation
+    c = consult.create_consultation(db, settings, session, body.dog, prof)
     return {"consultation_id": str(c.id), "dog": consult.dog_view(c), "life_stage": c.life_stage}
 
 
@@ -156,11 +195,85 @@ def put_feedback(message_id: uuid.UUID, body: FeedbackIn, session: SessionDep, d
     return {"feedback_id": str(fid)}
 
 
+# ------------------------------------------------------------------ P08 settings: dog profile + 주치동물병원
+def _profile_cookie(response: Response, token: str, settings: Settings) -> None:
+    response.set_cookie(PROFILE_COOKIE, token, max_age=settings.profile_ttl_days * 86400, httponly=True,
+                        secure=settings.cookie_secure, samesite="lax", path="/api")
+
+
+@router.get("/profile")
+def get_profile(request: Request, response: Response, db: DBDep, settings: SettingsDep):
+    token = request.cookies.get(PROFILE_COOKIE)
+    row = profile.resolve(db, token)
+    if row is None:
+        raise ApiError(404, "profile_not_found")
+    profile.touch(db, settings, row)
+    db.commit()
+    _profile_cookie(response, token, settings)  # keep the cookie as long as the row
+    return profile.view(db, row)
+
+
+@router.put("/profile", dependencies=Guard)
+def put_profile(body: ProfileIn, request: Request, response: Response, db: DBDep, settings: SettingsDep):
+    token = request.cookies.get(PROFILE_COOKIE)
+    row = profile.resolve(db, token)
+    new_token, row = profile.save(db, settings, row, body.dog, set_clinic="clinic" in body.model_fields_set,
+                                  clinic_choice=body.clinic, clinic_phone=body.clinic_phone,
+                                  set_phone="clinic_phone" in body.model_fields_set)
+    _profile_cookie(response, new_token or token, settings)
+    return profile.view(db, row)
+
+
+@router.delete("/profile", status_code=204, dependencies=Guard)
+def delete_profile(request: Request, db: DBDep):
+    row = profile.resolve(db, request.cookies.get(PROFILE_COOKIE))
+    if row is not None:
+        profile.remove(db, row)
+    out = Response(status_code=204)
+    out.delete_cookie(PROFILE_COOKIE, path="/api")
+    return out
+
+
+def _client_key(request: Request) -> uuid.UUID:
+    fwd = request.headers.get("x-forwarded-for", "")
+    ip = fwd.split(",")[0].strip() or (request.client.host if request.client else "?")
+    return uuid.uuid5(uuid.NAMESPACE_URL, "clinic-search:" + ip)
+
+
+@router.get("/clinics/search")
+def search_clinics(request: Request, settings: SettingsDep, q: str | None = None, x: float | None = None,
+                   y: float | None = None, emergency: bool = False):
+    """Kakao Local results passed through for display only: not stored, not logged (docs/03 §6)."""
+    if not request.app.state.limiter.allow(_client_key(request), settings.clinic_searches_per_minute):
+        raise ApiError(429, "rate_limited")
+    if (x is None) != (y is None) or (x is not None and not (124 <= x <= 132 and 33 <= y <= 39.5)):
+        raise ApiError(400, "invalid_location")
+    if q is not None and len(q) > 60:
+        raise ApiError(400, "query_too_long")
+    return {"items": clinics.search(request.app.state.places, q, x, y, emergency)}
+
+
+@router.post("/clinics/match", dependencies=Guard)
+def match_clinic(body: MatchIn, db: DBDep):
+    return {"clinic": clinics.clinic_view(clinics.match(db, body.name, body.road_address, body.address))}
+
+
+# ------------------------------------------------------------------ P09 care
+@router.get("/care/consultations")
+def care_list(session: SessionDep, db: DBDep):
+    return {"items": care.list_cards(db, session)}
+
+
+@router.post("/consultations/{consultation_id}/summary", dependencies=Guard)
+def care_summary(consultation_id: uuid.UUID, request: Request, session: SessionDep, db: DBDep, settings: SettingsDep):
+    return care.summarize(db, settings, request.app.state.llm, session, consultation_id)
+
+
 # ------------------------------------------------------------------ public settings for the UI
 @router.get("/config")
 def ui_config(settings: SettingsDep):
     return {"question_max_chars": settings.question_max_chars, "session_ttl_days": settings.session_ttl_days,
-            "run_timeout_seconds": settings.run_timeout_seconds}
+            "run_timeout_seconds": settings.run_timeout_seconds, "profile_ttl_days": settings.profile_ttl_days}
 
 
 __all__ = ["router", "Field"]

@@ -1,16 +1,19 @@
 // S02 상담 (docs/05 §3, §5, §9). Server state (thread, runs) is the source of truth; a refresh restores
 // from GET /consultations/{id}/messages and keeps polling any queued/running run.
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { api, newRequestId, type ApiError, type CitationRef, type Run, type Thread } from "../api";
+import { api, newRequestId, type ApiError, type CareCard, type CitationRef, type Profile, type Run, type Thread } from "../api";
 import { dogSummary } from "../lib/age";
+import { kstDay } from "../lib/care";
 import { emptyDogForm, formFromDog, validateDog, type DogForm } from "../lib/dogForm";
 import { store } from "../lib/store";
 import { AnswerCard, FailedCard, ProcessingCard, time } from "./AnswerCard";
 import { Dialog, Header } from "./Common";
 import { Composer } from "./Composer";
 import { DogCard } from "./DogCard";
+import { EmergencySheet } from "./EmergencySheet";
 import { IconBulb, IconError, IconInfo, IconQuestion } from "./Icons";
 import { SourceDetail } from "./SourceDetail";
+import { useTabs } from "./Tabs";
 
 const EXAMPLES = [
   "하루에 두 번 토했는데 병원에 가야 할까요?",
@@ -20,14 +23,21 @@ const EXAMPLES = [
 ];
 const POLL_MS = 1200;
 
-export function ConsultScreen({ maxChars, onExpired }: { maxChars: number; onExpired: () => void }) {
+export function ConsultScreen({ maxChars, onExpired, profile, onProfile }: {
+  maxChars: number; onExpired: () => void; profile: Profile | null; onProfile: (p: Profile) => void;
+}) {
+  const tabs = useTabs();
   const [cid, setCid] = useState<string | null>(() => store.consultationId());
   const [thread, setThread] = useState<Thread | null>(null);
   const [loading, setLoading] = useState(Boolean(cid));
   const [form, setForm] = useState<DogForm>(() => {
+    if (profile) return formFromDog(profile.dog);
     const saved = store.lastDog();
     return saved ? formFromDog(saved.dog, saved.savedAt) : emptyDogForm();
   });
+  const [showEmergency, setShowEmergency] = useState(false);
+  const [promptDone, setPromptDone] = useState(() => store.clinicPromptDone());
+  const [today, setToday] = useState<CareCard[]>([]);
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
@@ -120,8 +130,28 @@ export function ConsultScreen({ maxChars, onExpired }: { maxChars: number; onExp
     return () => window.removeEventListener("popstate", onPop);
   }, []);
 
+  // settings: a saved profile replaces the form (its age is computed for today by the server)
+  const profileDog = useMemo(() => (profile ? validateDog(formFromDog(profile.dog)).dog : null), [profile]);
   const validation = validateDog(form);
   const needDog = !cid;
+  const useProfile = needDog && Boolean(profileDog);
+  const dogIn = useProfile ? profileDog : validation.dog;
+
+  // a new consultation offers to continue today's ones instead (docs/05 §3)
+  useEffect(() => {
+    if (cid) return;
+    let alive = true;
+    const day = kstDay(new Date().toISOString());
+    api.care()
+      .then(({ items }) => { if (alive) setToday(items.filter((c) => kstDay(c.created_at) === day).slice(0, 3)); })
+      .catch(() => undefined);
+    return () => { alive = false; };
+  }, [cid]);
+  const continueWith = (id: string) => {
+    store.setConsultationId(id);
+    setLoading(true);
+    setCid(id);
+  };
   const send = async (textArg?: string) => {
     const text = (textArg ?? draft).trim();
     if (!text || sending) return;
@@ -130,8 +160,16 @@ export function ConsultScreen({ maxChars, onExpired }: { maxChars: number; onExp
     try {
       let id = cid;
       if (!id) {
-        if (!validation.dog) return;
-        const created = await api.createConsultation(validation.dog);
+        if (!dogIn) return;
+        if (!profile) {
+          // the first consultation also saves the dog to settings (so the consultation is linked to it)
+          try {
+            onProfile(await api.saveProfile({ dog: dogIn }));
+          } catch {
+            /* settings are optional: the consultation still starts */
+          }
+        }
+        const created = await api.createConsultation(dogIn);
         id = created.consultation_id;
         store.setConsultationId(id);
         store.setLastDog(created.dog);
@@ -167,7 +205,7 @@ export function ConsultScreen({ maxChars, onExpired }: { maxChars: number; onExp
   const newConsultation = () => {
     store.setConsultationId(null);
     const saved = thread ? { dog: thread.dog, savedAt: thread.created_at } : store.lastDog();
-    setForm(saved ? formFromDog(saved.dog, saved.savedAt) : emptyDogForm());
+    setForm(profile ? formFromDog(profile.dog) : saved ? formFromDog(saved.dog, saved.savedAt) : emptyDogForm());
     setCid(null);
     setThread(null);
     setDraft("");
@@ -197,7 +235,14 @@ export function ConsultScreen({ maxChars, onExpired }: { maxChars: number; onExp
   const summary = dog ? dogSummary(dog) : null;
   const runsByQuestion = new Map((thread?.runs ?? []).map((r) => [r.question_message_id, r]));
   const showExamples = !thread || thread.messages.length === 0;
-  const dogErrors = needDog && draft.trim() ? validation.errors : {};
+  const dogErrors = needDog && !useProfile && draft.trim() ? validation.errors : {};
+  const answered = (thread?.runs ?? []).some((r) => r.status === "completed");
+  const showClinicPrompt = answered && profile !== null && !profile.clinic && !promptDone;
+  const closePrompt = (register: boolean) => {
+    store.setClinicPromptDone();
+    setPromptDone(true);
+    if (register) tabs?.go("settings");
+  };
 
   return (
     <div className="consult">
@@ -218,7 +263,28 @@ export function ConsultScreen({ maxChars, onExpired }: { maxChars: number; onExp
               </div>
             )}
             {loading && <p className="help">불러오는 중…</p>}
-            {needDog && !loading && <DogCard form={form} errors={dogErrors} onChange={setForm} />}
+            {needDog && !loading && useProfile && profile && (
+              <section className="card profile-card" aria-label="우리 아이 정보">
+                <div className="profile-row">
+                  <span className="summary-chip"><IconInfo small /> <span>{dogSummary(profile.dog)}</span></span>
+                  <button type="button" className="btn" onClick={() => tabs?.go("settings")}>변경</button>
+                </div>
+                <p className="help">
+                  {profile.clinic ? "주치동물병원: " + profile.clinic.name : "주치동물병원을 등록하면 응급 시 바로 전화할 수 있어요."}
+                </p>
+              </section>
+            )}
+            {needDog && !loading && !useProfile && <DogCard form={form} errors={dogErrors} onChange={setForm} />}
+            {needDog && !loading && today.length > 0 && (
+              <section className="continue-box" aria-label="오늘 상담 이어서 묻기">
+                <h3>오늘 상담 이어서 묻기</h3>
+                <ul>
+                  {today.map((c) => (
+                    <li key={c.id}><button type="button" className="btn btn-block btn-left" onClick={() => continueWith(c.id)}>{c.first_question}</button></li>
+                  ))}
+                </ul>
+              </section>
+            )}
             {showExamples && !loading && (
               <section className="examples">
                 <h3><IconBulb small /> 이런 질문을 할 수 있어요</h3>
@@ -244,14 +310,24 @@ export function ConsultScreen({ maxChars, onExpired }: { maxChars: number; onExp
                 </Fragment>
               );
             })}
+            {showClinicPrompt && (
+              <aside className="card prompt-card" aria-label="주치동물병원 등록 안내">
+                <p>주치동물병원을 등록해 두면 응급 시 바로 전화할 수 있어요.</p>
+                <div className="prompt-actions">
+                  <button type="button" className="btn" onClick={() => closePrompt(false)}>나중에</button>
+                  <button type="button" className="btn btn-primary" onClick={() => closePrompt(true)}>등록</button>
+                </div>
+              </aside>
+            )}
             {notice && <p className="error-text" role="alert"><IconError small /> {notice}</p>}
           </main>
         </div>
         {source && <SourceDetail citation={source.c} label={source.label} onClose={closeSource} />}
       </div>
-      <Composer value={draft} onChange={setDraft} onSend={() => send()} maxChars={maxChars}
-        disabled={sending || Boolean(activeRun)} sendDisabled={needDog && !validation.dog}
-        hint={needDog && !validation.dog ? "품종과 나이를 입력하면 보낼 수 있어요" : activeRun ? "답변을 준비하는 동안에는 보낼 수 없어요" : undefined} />
+      <Composer value={draft} onChange={setDraft} onSend={() => send()} onEmergency={() => setShowEmergency(true)} maxChars={maxChars}
+        disabled={sending || Boolean(activeRun)} sendDisabled={needDog && !dogIn}
+        hint={needDog && !dogIn ? "품종과 나이를 입력하면 보낼 수 있어요" : activeRun ? "답변을 준비하는 동안에는 보낼 수 없어요" : undefined} />
+      {showEmergency && <EmergencySheet profile={profile} onClose={() => setShowEmergency(false)} onRegister={() => tabs?.go("settings")} />}
       {confirmDelete && (
         <Dialog title="이 대화를 삭제할까요?" onClose={() => setConfirmDelete(false)} sheet
           actions={<>

@@ -29,7 +29,8 @@ def _default_ai(settings: Settings):
     return OpenAILLM(key, timeout=settings.llm_timeout_seconds), OpenAIEmbedder(key, settings.embedding_model)
 
 
-def create_app(settings: Settings | None = None, *, llm=None, embedder=None, start_worker: bool = True) -> FastAPI:
+def create_app(settings: Settings | None = None, *, llm=None, embedder=None, places=None,
+               start_worker: bool = True) -> FastAPI:
     settings = settings or get_settings()
 
     @asynccontextmanager
@@ -55,6 +56,11 @@ def create_app(settings: Settings | None = None, *, llm=None, embedder=None, sta
     if llm is None and embedder is None:
         llm, embedder = _default_ai(settings)
     app.state.llm, app.state.embedder = llm, embedder
+    if places is None and settings.kakao_rest_api_key:
+        from .services.clinics import KakaoLocal
+
+        places = KakaoLocal(settings.kakao_rest_api_key.get_secret_value())
+    app.state.places = places  # None: clinic search answers 503 (the rest of the app works)
     app.state.limiter = RateLimiter()
     errors.install(app)
     app.include_router(router)
@@ -67,15 +73,18 @@ def create_app(settings: Settings | None = None, *, llm=None, embedder=None, sta
 
     @app.get("/api/v1/health")
     def health() -> JSONResponse:
-        checks = {"db": "down", "openai_key": "present" if settings.openai_api_key else "missing"}
+        checks = {"db": "down", "openai_key": "present" if settings.openai_api_key else "missing",
+                  "kakao_key": "present" if settings.kakao_rest_api_key else "missing"}
         try:
             with app.state.Session() as db:
                 db.execute(text("SELECT 1"))
                 has_vector = db.execute(text("SELECT 1 FROM pg_extension WHERE extname='vector'")).scalar()
                 active = db.execute(text("SELECT count(*) FROM document WHERE status='active' AND active_version_id IS NOT NULL")).scalar()
+                clinics = db.execute(text("SELECT count(*) FROM clinic WHERE source='public'")).scalar()
             checks["db"] = "up"
             checks["pgvector"] = "available" if has_vector else "missing"
             checks["active_documents"] = int(active)
+            checks["public_clinics"] = int(clinics)
         except Exception:  # never leak connection strings or stack traces
             pass
         ok = checks["db"] == "up" and checks.get("pgvector") == "available"

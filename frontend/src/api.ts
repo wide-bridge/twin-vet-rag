@@ -53,7 +53,35 @@ export type CitationDetail = {
   excerpt: string | null;
   excerpt_allowed: boolean;
 };
-export type UiConfig = { question_max_chars: number; session_ttl_days: number; run_timeout_seconds: number };
+export type UiConfig = { question_max_chars: number; session_ttl_days: number; run_timeout_seconds: number; profile_ttl_days?: number };
+
+// Settings (P08): the saved dog and 주치동물병원
+export type Clinic = {
+  id: string;
+  source: "public" | "manual";
+  name: string;
+  road_address: string | null;
+  public_phone: string | null;
+  business_status: "open" | "paused" | "closed" | "other" | null;
+  kakao_place_url: string | null;
+  is_partner: boolean;
+};
+export type Profile = { dog: Dog; clinic: Clinic | null; clinic_phone: string | null; expires_at: string | null };
+export type ClinicChoice =
+  | { clinic_id: string; kakao_place_id?: string | null; kakao_place_url?: string | null }
+  | { manual_name: string; kakao_place_id?: string | null; kakao_place_url?: string | null };
+export type ProfileIn = { dog: DogIn; clinic?: ClinicChoice | null; clinic_phone?: string | null };
+// Kakao Local result, shown live only (never stored)
+export type Place = {
+  place_id: string; name: string; road_address: string; address: string; phone: string; distance_m: number | null; place_url: string;
+};
+// Care (P09)
+export type Topic = "ear" | "eye" | "skin" | "oral" | "digestive" | "urinary" | "respiratory" | "other";
+export type CareTag = "vet_advised" | "in_progress" | "clarifying" | "insufficient" | "out_of_scope";
+export type CareCard = {
+  id: string; created_at: string; dog: Dog; first_question: string; message_count: number;
+  topic: Topic | null; topics: Topic[]; summary: string | null; vet_advised: boolean | null; summary_fresh: boolean; tags: CareTag[];
+};
 
 export class ApiError extends Error {
   constructor(public status: number, public code: string, message: string) {
@@ -108,6 +136,24 @@ export const api = {
   feedback: (messageId: string, helpful: boolean, comment: string | null) =>
     request<{ feedback_id: string }>("PUT", `/messages/${messageId}/feedback`, { helpful, comment }),
   deleteConsultation: (cid: string) => request<void>("DELETE", `/consultations/${cid}`),
+  // settings: null when nothing is saved for this browser
+  profile: () => request<Profile>("GET", "/profile").catch((e: ApiError) => {
+    if (e.status === 404) return null;
+    throw e;
+  }),
+  saveProfile: (body: ProfileIn) => request<Profile>("PUT", "/profile", body),
+  deleteProfile: () => request<void>("DELETE", "/profile"),
+  searchClinics: (p: { q?: string; x?: number; y?: number; emergency?: boolean }) => {
+    const qs = new URLSearchParams();
+    if (p.q) qs.set("q", p.q);
+    if (p.x !== undefined && p.y !== undefined) { qs.set("x", p.x.toFixed(6)); qs.set("y", p.y.toFixed(6)); }
+    if (p.emergency) qs.set("emergency", "true");
+    return request<{ items: Place[] }>("GET", "/clinics/search?" + qs.toString());
+  },
+  matchClinic: (p: Place) => request<{ clinic: Clinic | null }>("POST", "/clinics/match",
+    { name: p.name, road_address: p.road_address || null, address: p.address || null }),
+  care: () => request<{ items: CareCard[] }>("GET", "/care/consultations"),
+  summarize: (cid: string) => request<CareCard>("POST", `/consultations/${cid}/summary`),
 };
 
 export function newRequestId(): string {

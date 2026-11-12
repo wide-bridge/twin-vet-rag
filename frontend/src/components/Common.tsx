@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { IconMore, IconWarning } from "./Icons";
+import { TabNav } from "./Tabs";
 
 export const EMERGENCY_TITLE = "응급 상황이면 AI 답변을 기다리지 마세요.";
 export const EMERGENCY_BODY = "호흡 곤란, 의식 저하, 경련, 심한 출혈, 중독 의심 등은 바로 동물병원(야간에는 24시 동물병원)에 연락하세요.";
@@ -34,6 +35,7 @@ export function Header({ actions = [], children }: { actions?: Action[]; childre
     <header className="header">
       <div className="header-inner">
         <BrandLockup />
+        <TabNav place="top" />
         {actions.length > 0 && (
           <>
             <div className="header-actions only-desktop">
