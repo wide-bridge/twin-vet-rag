@@ -42,8 +42,8 @@ export function Composer({ value, onChange, onSend, onEmergency, disabled, sendD
           <button type="submit" className="btn btn-primary" disabled={!canSend}>보내기 <IconSend small /></button>
         </form>
         <div className="composer-meta">
-          <span>{hint ?? (mobile ? "AI가 정리한 정보이며 진단이 아닙니다" : "Enter 전송 · Shift+Enter 줄바꿈 · AI가 정리한 정보이며 진단이 아닙니다")}</span>
-          <span style={{ color: tooLong ? "var(--color-danger)" : undefined }}>{value.length}/{maxChars}</span>
+          <span>{hint ?? "AI가 정리한 정보이며 진단이 아닙니다"}</span>
+          <span style={{ color: tooLong ? "var(--color-danger)" : undefined, whiteSpace: "nowrap" }}>{value.length}/{maxChars}</span>
         </div>
       </div>
     </div>
