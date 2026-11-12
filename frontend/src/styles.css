@@ -137,7 +137,13 @@ button.chip:hover { border-color: var(--color-primary); }
 .info-icon { width: 40px; height: 40px; border-radius: 10px; background: var(--color-primary-container); color: var(--color-primary); display: grid; place-items: center; flex: none; }
 .emergency-box { margin-top: 16px; padding: 18px 20px; border: 1px solid #f3a59c; border-radius: var(--radius); background: var(--color-danger-bg); color: var(--color-danger); display: flex; gap: 12px; }
 .emergency-box strong { display: block; font-size: 17px; margin-bottom: 4px; }
-.start-actions { margin-top: 28px; display: flex; flex-direction: column; align-items: stretch; gap: 8px; }
+/* the start button stays on screen while the notices scroll (it was below the fold on phones) */
+.start-actions {
+  margin-top: 28px; display: flex; flex-direction: column; align-items: stretch; gap: 8px;
+  position: sticky; bottom: 0; z-index: 5; margin-left: calc(-1 * var(--gutter)); margin-right: calc(-1 * var(--gutter));
+  padding: 16px var(--gutter) max(12px, env(safe-area-inset-bottom));
+  background: linear-gradient(to bottom, rgba(247, 249, 252, 0) 0, var(--color-background) 16px);
+}
 @media (min-width: 768px) {
   .title { font-size: 32px; text-align: center; }
   .start-head { text-align: center; }
