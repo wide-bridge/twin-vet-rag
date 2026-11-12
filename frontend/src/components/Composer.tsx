@@ -30,7 +30,7 @@ export function Composer({ value, onChange, onSend, onEmergency, disabled, sendD
       <div className="composer-inner">
         <form className="composer-row" onSubmit={(e) => { e.preventDefault(); if (canSend) onSend(); }}>
           <label htmlFor="question" className="sr-only">질문</label>
-          <textarea id="question" ref={ref} className="textarea" rows={1} placeholder="반려견에 대해 궁금한 점을 적어 주세요"
+          <textarea id="question" ref={ref} className="textarea" rows={1} placeholder="반려견에 궁금한 것을 적어주세요"
             value={value} disabled={disabled} onChange={(e) => onChange(e.target.value)} aria-invalid={tooLong}
             enterKeyHint={mobile ? "enter" : "send"}
             onKeyDown={(e) => {

@@ -215,7 +215,7 @@ select.input:disabled { color: var(--color-text-muted); background-color: var(--
 .composer-row { display: flex; gap: 8px; align-items: flex-end; }
 .composer-row .textarea { min-height: 48px; max-height: calc(1.5em * 4 + 22px); overflow-y: auto; }
 .composer-row .btn { flex: none; min-height: 48px; }
-.composer-meta { display: flex; justify-content: space-between; gap: 8px; font-size: 13px; color: var(--color-text-muted); margin-top: 4px; }
+.composer-meta { display: flex; justify-content: space-between; gap: 8px; font-size: 14.5px; color: var(--color-text-muted); margin-top: 4px; }
 
 /* ------------------------------------------------------------------ S03 source detail, dialogs */
 .overlay { position: fixed; inset: 0; z-index: 50; background: rgba(16, 40, 88, 0.45); display: flex; align-items: center; justify-content: center; padding: var(--gutter); }
@@ -376,3 +376,12 @@ a.btn-primary { color: var(--color-on-primary); }
 .handoff header, .source-panel header { padding-top: max(10px, env(safe-area-inset-top)); }
 .in-frame .handoff header { padding-top: 40px; }
 @media (max-width: 1023px) { .in-frame .source-panel header { padding-top: 40px; } }
+
+/* composer placeholder on one line at phone widths (the typed text stays 16px: no iOS zoom) */
+.composer .textarea::placeholder { font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+@media (max-width: 359px) {
+  .composer-row .btn-primary { padding-left: 12px; padding-right: 12px; }
+  .composer-row .btn-primary svg { display: none; }
+  .composer .textarea { padding-left: 10px; padding-right: 10px; }
+  .composer .textarea::placeholder { font-size: 12px; }
+}

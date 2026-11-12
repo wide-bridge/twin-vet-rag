@@ -51,7 +51,7 @@ def flow(page: Page, ui, base: str, out: Path, tag: str, w: int, framed: bool) -
     ui.get_by_role("button", name="상담 시작").click()
 
     # S02 first entry: send disabled until breed + age
-    ui.get_by_placeholder("반려견에 대해 궁금한 점을 적어 주세요").fill("어제부터 하루에 두 번 토했어요. 밥은 조금 먹어요. 병원에 가야 할까요?")
+    ui.get_by_placeholder("반려견에 궁금한 것을 적어주세요").fill("어제부터 하루에 두 번 토했어요. 밥은 조금 먹어요. 병원에 가야 할까요?")
     expect(ui.get_by_role("button", name="보내기")).to_be_disabled()
     expect(ui.get_by_text("품종을 입력해 주세요")).to_be_visible()
     no_hscroll(ui, f"{tag} S02 intake")
@@ -93,7 +93,7 @@ def flow(page: Page, ui, base: str, out: Path, tag: str, w: int, framed: bool) -
     expect(ui.get_by_text("저장됐어요")).to_be_visible()
 
     # out-of-scope follow-up renders as its own card type
-    ui.get_by_placeholder("반려견에 대해 궁금한 점을 적어 주세요").fill("고양이가 토해요")
+    ui.get_by_placeholder("반려견에 궁금한 것을 적어주세요").fill("고양이가 토해요")
     ui.get_by_role("button", name="보내기").click()
     expect(ui.get_by_role("article", name="지원 범위 밖")).to_be_visible(timeout=60_000)
     page.screenshot(path=out / f"{tag}-s02-out-of-scope.png", full_page=False)
