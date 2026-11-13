@@ -236,7 +236,7 @@ class Document(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now())
     __table_args__ = (
         UniqueConstraint("dataset_code", "source_record_id", name="uq_document_source"),
-        CheckConstraint("document_type IN ('qa_case','reference')", name="ck_document_type"),
+        CheckConstraint("document_type IN ('qa_case','reference','vet_knowledge')", name="ck_document_type"),
         CheckConstraint("status IN ('active','inactive','deleted')", name="ck_document_status"),
     )
 
@@ -296,3 +296,7 @@ class IngestionRun(Base):
     started_at: Mapped[datetime] = _now()
     finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     __table_args__ = (CheckConstraint("status IN ('running','completed','failed')", name="ck_ingestion_run_status"),)
+
+
+# MVP1 HITL tables live in their own module; import registers them on Base.metadata.
+from . import models_review  # noqa: E402,F401

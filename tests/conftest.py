@@ -49,7 +49,8 @@ def db(test_db_url):
     with engine.begin() as conn:
         conn.execute(text(
             "TRUNCATE session, consultation, message, answer_run, citation, feedback, dog_profile, clinic, "
-            "document, document_version, chunk, ingestion_run CASCADE"
+            "document, document_version, chunk, ingestion_run, reviewer, reviewer_session, concept, concept_relation, "
+            "review_item, review_label, label_concept, review_event, knowledge_candidate CASCADE"
         ))
     session = sessionmaker(bind=engine, expire_on_commit=False)()
     try:
