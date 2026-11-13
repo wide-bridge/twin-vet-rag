@@ -11,6 +11,7 @@ from sqlalchemy import text
 
 from .api import errors
 from .api.routes import router
+from .api.review_routes import router as review_router
 from .config import PROJECT_ROOT, Settings, get_settings
 from .db.engine import session_factory
 from .services.consult import RateLimiter
@@ -64,6 +65,7 @@ def create_app(settings: Settings | None = None, *, llm=None, embedder=None, pla
     app.state.limiter = RateLimiter()
     errors.install(app)
     app.include_router(router)
+    app.include_router(review_router)
 
     @app.get("/api/v1/live")
     def live() -> dict:

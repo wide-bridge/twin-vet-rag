@@ -22,6 +22,7 @@ _SEARCH_SQL = text(
       AND v.status = 'active'
       AND c.embedding IS NOT NULL
       AND c.embedding_model = :model
+      AND (CAST(:allow_mock AS boolean) OR coalesce(d.metadata->>'is_mock', 'false') <> 'true')
       AND (CAST(:life_stage AS text) IS NULL
            OR cardinality(d.life_stages) = 0
            OR d.life_stages && ARRAY[CAST(:life_stage AS text), 'common'])
@@ -49,13 +50,20 @@ def _vec_literal(v: Sequence[float]) -> str:
     return "[" + ",".join(f"{x:.7f}" for x in v) + "]"
 
 
-def search(db: Session, query_embedding: Sequence[float], *, model: str, life_stage: LifeStage | None, top_k: int = 6, ef_search: int = 80) -> list[Hit]:
+def search(db: Session, query_embedding: Sequence[float], *, model: str, life_stage: LifeStage | None, top_k: int = 6,
+           ef_search: int = 80, allow_mock: bool | None = None) -> list[Hit]:
     """Filters (active doc + active version + same embedding model + life stage) are applied in
-    the same query as the ANN scan. ef_search is raised so filtering does not starve top_k."""
+    the same query as the ANN scan. ef_search is raised so filtering does not starve top_k.
+    Mock HITL knowledge (metadata.is_mock) is never returned in production, even if it was activated."""
+    if allow_mock is None:
+        from ..config import get_settings
+
+        allow_mock = not get_settings().hitl_production
     db.execute(text(f"SET LOCAL hnsw.ef_search = {int(ef_search)}"))
     rows = db.execute(
         _SEARCH_SQL,
-        {"qvec": _vec_literal(query_embedding), "model": model, "life_stage": life_stage.value if life_stage else None, "top_k": top_k},
+        {"qvec": _vec_literal(query_embedding), "model": model, "life_stage": life_stage.value if life_stage else None, "top_k": top_k,
+         "allow_mock": bool(allow_mock)},
     ).mappings()
     return [
         Hit(r["chunk_id"], r["document_id"], r["document_type"], r["title"], r["department"], list(r["disease_names"]),

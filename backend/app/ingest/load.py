@@ -179,7 +179,9 @@ def embedding_text(document_type: str, title: str, department: str | None, disea
     """Text sent to the embedding model: a one-line source header + the chunk. The header gives a
     bare paragraph its context (which book, which department). chunk.content stays header-free
     for display; queries are embedded as typed."""
-    if document_type == "reference":
+    if document_type == "vet_knowledge":
+        head = f"수의사 검토 지식: {title}"
+    elif document_type == "reference":
         head = f"자료명: {title}" + (f" · 진료과: {department}" if department else "")
     else:
         head = f"진료과: {department or '미상'}" + (f" · 질병: {', '.join(disease_names)}" if disease_names else "")

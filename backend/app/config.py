@@ -73,6 +73,21 @@ class Settings(BaseSettings):
     # public animal-hospital data (MOIS) for scripts/load_clinics.py only; the web app does not need it
     data_go_kr_service_key: SecretStr | None = None
 
+    # MVP1 HITL (docs/04 §7). production = Vercel, or any non-local database (scripts run against Neon too):
+    # operators cannot approve and mock knowledge cannot be activated there.
+    app_env: str = Field(default_factory=lambda: "production" if os.environ.get("VERCEL") else "development",
+                         pattern="^(production|development|test)$")
+    reviewer_session_hours: int = Field(default=12, ge=1, le=168)
+    review_logins_per_minute: int = Field(default=10, ge=1)
+    hitl_max_spillover: float = Field(default=0.10, ge=0.0, le=1.0)  # regression gate before activation
+
+    @property
+    def hitl_production(self) -> bool:
+        from sqlalchemy.engine import make_url
+
+        host = make_url(self.database_url).host or ""
+        return self.app_env == "production" or host not in {"localhost", "127.0.0.1", "::1"}
+
 
     @field_validator("llm_model", "llm_classifier_model", mode="before")
     @classmethod

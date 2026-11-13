@@ -174,7 +174,7 @@ ANSWER_SYSTEM = """너는 반려견 보호자를 돕는 건강 정보 안내자�
 
 
 def source_block(i: int, document_type: str, title: str, department: str | None, content: str) -> str:
-    kind = "상담 사례" if document_type == "qa_case" else "수의학 자료"
+    kind = {"qa_case": "상담 사례", "vet_knowledge": "수의사 검토 지식"}.get(document_type, "수의학 자료")
     return f"[{i}] ({kind} · {department or '진료과 미상'} · {title})\n{content}"
 
 
