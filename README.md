@@ -64,6 +64,21 @@ python -m scripts.eval_answers --subset dev --n 30 --judge              # 답변
 채점 일치도 4.88·안전성 5.0(5점 만점, LLM 채점은 참고 지표), 질문당 약 $0.002, 지연 중앙값 약 14초.
 최종 검증군(final)은 확정 직전에만 쓴다.
 
+## MVP1 수의사 HITL (docs/01 4절, docs/04 7절)
+작업 화면: `/review` (보호자 화면과 별개, 접근 키 로그인). A단계(참여 수의사 0명)에는 운영자만 접근한다.
+```powershell
+python -m scripts.hitl_admin seed-ontology                                  # 온톨로지 0.1 초안(draft) 적재
+python -m scripts.hitl_admin create-reviewer --role operator --name "운영자"  # 접근 키는 한 번만 표시(해시만 저장)
+python -m scripts.hitl_admin mock-items                                     # 모의 검토 묶음 + AI 제안
+python -m scripts.hitl_admin evaluate --candidate <id> --embedder openai    # 회귀 평가(개발·회귀용, 독립 평가 아님)
+python -m scripts.hitl_admin activate --candidate <id> --embedder openai --yes
+python -m scripts.hitl_admin status
+python -m scripts.make_split_table --version v2                             # 분할표(seed 20261113, 진료과 층화, 중복 그룹 같은 fold)
+```
+- 운영 규칙(`hitl_production`): Vercel(APP_ENV=production) 또는 로컬이 아닌 DB(Neon)에 연결하면 운영 환경으로 본다. 운영 환경에서는 운영자가 발행 승인할 수 없고, 모의 지식은 활성화되지 않으며, 검색도 모의 지식을 반환하지 않는다.
+- 활성화 조건: 독립 재검증 완료 사례 + 라벨링하지 않은 수의사의 승인(내용 해시 고정) + 같은 내용·같은 임베딩 모델의 회귀 평가 통과. 발행 문서는 dataset_code=vetreview, document_type=vet_knowledge.
+- 검토 기록·지식 후보는 RAG 검색 대상이 아니다. 상담 원문을 지식으로 직접 넣지 않는다.
+
 ## 검사·빌드·테스트
 ```powershell
 python -m pytest -q                                   # 단위 테스트

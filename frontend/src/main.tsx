@@ -1,4 +1,4 @@
-import { StrictMode, useEffect, useState } from "react";
+import { lazy, StrictMode, Suspense, useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { App } from "./App";
 import { Showcase } from "./components/Showcase";
@@ -15,7 +15,22 @@ const framed = (() => {
   }
 })();
 
+// MVP1 vet work screens (/review) are a separate app, loaded only on that path
+const ReviewApp = lazy(() => import("./review/ReviewApp").then((m) => ({ default: m.ReviewApp })));
+const isReview = window.location.pathname.replace(/\/+$/, "") === "/review";
+
 function Root() {
+  if (isReview) {
+    return (
+      <Suspense fallback={null}>
+        <ReviewApp />
+      </Suspense>
+    );
+  }
+  return <GuardianRoot />;
+}
+
+function GuardianRoot() {
   const [wide, setWide] = useState(() => window.matchMedia(WIDE).matches);
   useEffect(() => {
     const mq = window.matchMedia(WIDE);
