@@ -78,11 +78,31 @@ python -m scripts.hitl_admin activate --candidate <id> --embedder openai --yes
 python -m scripts.hitl_admin status
 python -m scripts.make_split_table --version v2                             # 분할표(seed 20261113, 진료과 층화, 중복 그룹 같은 fold)
 ```
-- 현재 상태(2026-11-14): 수의사 없이 진행하는 **출처 근거 품질 점검** 중이다. 실제 질문 묶음·자동 점검·재점검은 구현됐고, 비교 실행 기록·프롬프트 선택·적재 되돌리기(`load_knowledge --rollback-run`)는 구현 예정이다. 아래 발행·승인 규칙은 수의사 갈래의 현재 구현이다(docs/01 §4).
+- 현재 상태(2026-11-14): 수의사 없이 진행하는 **출처 근거 품질 점검** 중이다. 실제 질문 묶음·자동 점검·재점검, 비교 실행 기록·프롬프트 선택, 적재 되돌리기가 구현됐다(아래 '비교 실행과 되돌리기'). 아래 발행·승인 규칙은 수의사 갈래의 현재 구현이다(docs/01 §4).
 - 운영 규칙(`hitl_production`): Vercel(APP_ENV=production) 또는 로컬이 아닌 DB(Neon)에 연결하면 운영 환경으로 본다. 운영 환경에서는 운영자가 발행 승인할 수 없고, 모의 지식은 활성화되지 않으며, 검색도 모의 지식을 반환하지 않는다.
 - 재검증: 수의사 2명의 선택 항목(정확성·근거·충분성·안내·안전 문제·재사용 범위)이 모두 같아야 독립 재검증 완료, 하나라도 다르면 이견.
 - 활성화 조건: 독립 재검증 완료 사례 + 후보를 작성·수정하지 않은 수의사의 승인(내용 해시 고정) + 같은 내용·같은 임베딩 모델의 유효한 검색 영향 점검 통과(실제 후보는 비교 가능한 질문 30개 이상). 적용 조건은 발행 본문에 들어간다. 발행 문서는 dataset_code=vetreview, document_type=vet_knowledge.
 - 검토 기록·지식 후보는 RAG 검색 대상이 아니다. 상담 원문을 지식으로 직접 넣지 않는다.
+
+### 비교 실행과 되돌리기 (docs/04 §7 '수의사 없는 품질 점검')
+
+```bash
+# 비교 실행: 한 번에 하나만 바꾼다. 결과는 DATA_OUTPUT_DIR/eval/runs/<run_id>.json (유료, 사례당 약 $0.008)
+python -m scripts.eval_answers --cases cases.json --prompt current --yes            # cases.json = [{"id": "<eval_dev id>", "role": "dev"|"confirm"}]
+python -m scripts.eval_answers --inputs-from <run.json> --prompt <변형> --yes       # 같은 질문·반려견·생애주기·대화로 재실행
+python -m scripts.eval_answers --rescore <run.json> --yes                           # 점검기만 다시(답변 생성 없음)
+
+# 원천 본문 정제 적재: 제목·진료과·질병명·생애주기·메타데이터가 바뀌거나 새 문서가 있으면 쓰기 전에 거부
+python -m scripts.load_knowledge --version <정제본> --embedder openai --content-only
+# 되돌리기: 출력된 적재 실행 ID로. 전체 복귀 또는 전체 거부(변경 없음)
+python -m scripts.load_knowledge --rollback-run <ingestion_run id>
+```
+
+- 사례는 eval_dev에서만 고른다(eval_final은 `--final-check`일 때만). 검색 색인에 들어 있는 사례는 거부한다.
+- 프롬프트 변형은 `rag.prompts.ANSWER_SYSTEM_VARIANTS`에 추가한다. 앱은 항상 `current`를 쓰고, 비교로 채택이 확정되면 기본값을 바꾸고 PROMPT_VERSION을 올린다.
+- 되돌리기 거부 사유: 직전 버전 기록 없음(이 기능 이전 실행), 이미 되돌림, 이후 다른 실행이 다시 바꾼 문서, 삭제된 문서, 직전 버전 청크·임베딩 없음, 직전 버전 임베딩 모델 다름. 하나라도 있으면 아무것도 바꾸지 않고 목록만 출력한다.
+- 적재 활성화·되돌리기·문서 비활성/삭제는 같은 데이터셋 잠금을 써서 동시에 돌지 않는다.
+- 운영(Neon) 반영 절차: 로컬에서 비교·되돌리기를 확인한 정제본(파일 체크섬)·설정·임베딩 모델을 그대로 `load_knowledge --content-only`로 적재(사용자 실행) → 새 버전 활성화·수정 근거 검색·이전 내용 미잔존 확인 → 문제 시 `--rollback-run`.
 
 ## 검사·빌드·테스트
 ```powershell

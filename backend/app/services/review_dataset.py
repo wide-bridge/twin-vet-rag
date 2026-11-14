@@ -33,7 +33,7 @@ from ..domain.review_guide import FIELDS, GUIDE_VERSION
 from ..rag.embeddings import Embedder
 from ..rag.llm import LLM, LLMError
 from ..rag.pipeline import first_age_months, run_pipeline, stated_age_months
-from ..rag.prompts import PROMPT_VERSION, DogInfo
+from ..rag.prompts import PROMPT_VERSION, DogInfo, Turn
 from . import review as svc
 
 ORIGIN = "dataset"
@@ -208,45 +208,84 @@ class Answered:
     retrieved: list
     usage: dict
     check: dict | None = None
+    life_stage: LifeStage | None = None
+
+
+def run_auto_check(llm: LLM, settings: Settings, *, question: str, answer: str, response_type: str,
+                   retrieved: list[dict], reference: str | None, department: str | None) -> tuple[dict, dict]:
+    """The automatic check on one answer (retrieved: rank/title/department/cited/excerpt dicts). Returns
+    (check, usage). Used for new answers and to re-score saved answers without generating them again."""
+    r = llm.complete_json(model=settings.llm_model, system=AUTO_CHECK_SYSTEM, schema=AUTO_CHECK_SCHEMA,
+                          user=auto_check_user(question, answer, response_type, retrieved, reference),
+                          name="auto_check", reasoning="low")
+    cited_ranks = {h["rank"] for h in retrieved if h["cited"]}
+    r.data["citation_mismatch"] = [n for n in r.data.get("citation_mismatch") or [] if n in cited_ranks]
+    cited_depts = [h["department"] for h in retrieved if h["cited"]]
+    check = {
+        **r.data, "issues": issue_types(r.data, response_type), "check_version": CHECK_VERSION,
+        "model": r.model, "response_type": response_type,
+        "top1_score": retrieved[0]["score"] if retrieved else None,
+        "cited_department_match": (department in cited_depts) if cited_depts and department else None,
+        "retrieved": [{k: v for k, v in h.items() if k not in ("excerpt", "content")} for h in retrieved],
+        # AI Hub reference answer written by a vet for this question (dataset description); compared only
+        "reference_answer": reference,
+    }
+    return check, {"model": r.model, "input": r.input_tokens, "output": r.output_tokens}
+
+
+def history_turns(history: list) -> list[Turn]:
+    """Stored bundle history ([{role, content}, ...]) -> pipeline turns."""
+    turns, q = [], None
+    for m in history or []:
+        if m.get("role") == "user":
+            if q is not None:
+                turns.append(Turn(q, None))
+            q = m.get("content", "")
+        elif q is not None:
+            turns.append(Turn(q, m.get("content")))
+            q = None
+    if q is not None:
+        turns.append(Turn(q, None))
+    return turns
 
 
 def answer_and_check(db: Session, row: dict, *, settings: Settings, llm: LLM, embedder: Embedder,
-                     auto_check: bool = True) -> Answered:
+                     auto_check: bool = True, dog: DogInfo | None = None, life_stage: LifeStage | None = None,
+                     history: list[Turn] | None = None, answer_system: str | None = None) -> Answered:
     """Run the app pipeline on one question, then the automatic check. Raises LLMError when the answer fails;
-    a failed check leaves check=None."""
-    dog, stage = dog_for(row, settings)
-    res = run_pipeline(db, settings=settings, llm=llm, embedder=embedder, dog=dog, life_stage=stage,
-                       history=[], question=row["question"])
+    a failed check leaves check=None. dog/life_stage/history: fixed inputs of an earlier run (re-check and comparison
+    runs must not re-derive them from the question)."""
+    if dog is None or life_stage is None:
+        dog, life_stage = dog_for(row, settings)
+    res = run_pipeline(db, settings=settings, llm=llm, embedder=embedder, dog=dog, life_stage=life_stage,
+                       history=history or [], question=row["question"], answer_system=answer_system)
     cited_ids = [h.chunk_id for h in res.citations]
     citations = [{"n": i, "title": h.title, "department": h.department, "document_type": h.document_type,
                   "excerpt": h.content[:EXCERPT_CHARS]} for i, h in enumerate(res.citations, 1)]
     retrieved = [{"rank": i, "title": h.title, "department": h.department, "document_type": h.document_type,
-                  "score": round(h.score, 4), "cited": h.chunk_id in cited_ids, "excerpt": h.content[:EXCERPT_CHARS]}
+                  "score": round(h.score, 4), "cited": h.chunk_id in cited_ids, "excerpt": h.content[:EXCERPT_CHARS],
+                  "chunk_id": str(h.chunk_id), "document_id": str(h.document_id),
+                  "version_id": str(h.version_id) if h.version_id else None, "content": h.content}
                  for i, h in enumerate(res.retrieved, 1)]
     out = Answered(res, citations, retrieved, dict(res.token_usage))
     if auto_check:
         try:
-            r = llm.complete_json(model=settings.llm_model, system=AUTO_CHECK_SYSTEM, schema=AUTO_CHECK_SCHEMA,
-                                  user=auto_check_user(row["question"], res.text, res.response_type, retrieved,
-                                                       row.get("reference_answer")),
-                                  name="auto_check", reasoning="low")
-            out.usage["auto_check"] = {"model": r.model, "input": r.input_tokens, "output": r.output_tokens}
-            cited_ranks = {h["rank"] for h in retrieved if h["cited"]}
-            r.data["citation_mismatch"] = [n for n in r.data.get("citation_mismatch") or [] if n in cited_ranks]
-            dept = row.get("department")
-            cited_depts = [h["department"] for h in retrieved if h["cited"]]
-            out.check = {
-                **r.data, "issues": issue_types(r.data, res.response_type), "check_version": CHECK_VERSION,
-                "model": r.model, "response_type": res.response_type,
-                "top1_score": retrieved[0]["score"] if retrieved else None,
-                "cited_department_match": (dept in cited_depts) if cited_depts and dept else None,
-                "retrieved": [{k: v for k, v in h.items() if k != "excerpt"} for h in retrieved],
-                # AI Hub reference answer written by a vet for this question (dataset description); compared only
-                "reference_answer": row.get("reference_answer"),
-            }
+            out.check, out.usage["auto_check"] = run_auto_check(
+                llm, settings, question=row["question"], answer=res.text, response_type=res.response_type,
+                retrieved=retrieved, reference=row.get("reference_answer"), department=row.get("department"))
         except LLMError:
             out.check = None
     return out
+
+
+def stored_dog(item: ReviewItem, settings: Settings) -> tuple[DogInfo, LifeStage]:
+    """The dog the bundle was answered with (not re-derived from the question)."""
+    d = item.dog or {}
+    age = int(d.get("age_months", AGE_FOR_STAGE["adult"]))
+    stage = d.get("life_stage")
+    life_stage = LifeStage(stage) if stage else derive_life_stage(
+        age, settings.life_stage_puppy_max_months, settings.life_stage_senior_min_months)
+    return DogInfo(d.get("breed", "모름"), age, age_basis="estimate"), life_stage
 
 
 def hide_suggestion(source_ref: str, hide_pct: int) -> bool:
@@ -298,9 +337,11 @@ def build_dataset_items(db: Session, rows: Iterable[dict], *, settings: Settings
         if db.execute(select(ReviewItem.id).where(ReviewItem.origin == ORIGIN, ReviewItem.source_ref == ref)).first():
             rep.skipped_existing += 1
             continue
-        dog, _ = dog_for(row, settings)
+        dog, stage = dog_for(row, settings)
         try:
-            a = answer_and_check(db, row, settings=settings, llm=llm, embedder=embedder, auto_check=auto_check)
+            a = answer_and_check(db, row, settings=settings, llm=llm, embedder=embedder, auto_check=auto_check,
+                                 dog=dog, life_stage=stage)
+            a.life_stage = stage
         except LLMError:
             db.rollback()
             rep.failed += 1
@@ -313,7 +354,8 @@ def build_dataset_items(db: Session, rows: Iterable[dict], *, settings: Settings
                     "source": f"aihub59/{row.get('subset', '')}", "department": row.get("department")}
         hidden = prelabel and hide_suggestion(ref, hide_pct)
         item, _ = svc.create_item(db, origin=ORIGIN, source_ref=ref, question=row["question"], ai_answer=res.text,
-                                  dog={"breed": dog.breed, "age_months": dog.age_months, "age_basis": "질문에서 추정"},
+                                  dog={"breed": dog.breed, "age_months": dog.age_months, "age_basis": "질문에서 추정",
+                                       "life_stage": a.life_stage.value},
                                   response_type=res.response_type, citations=citations, versions=versions,
                                   show_ai_suggestion=not hidden)
         usage = a.usage
@@ -359,9 +401,12 @@ def recheck_item(db: Session, item: ReviewItem, *, settings: Settings, llm: LLM,
     The bundle itself is never changed (its hash stays); the new answer and check go into review_event 'rechecked'."""
     before = svc.latest_auto_check(db, item) or {}
     row = {"question": item.question, "department": (item.versions or {}).get("department"),
-           "life_stages": [], "eval_id": item.source_ref, "reference_answer": before.get("reference_answer")}
-    a = answer_and_check(db, row, settings=settings, llm=llm, embedder=embedder, auto_check=True)
-    detail = {"answer": a.res.text, "response_type": a.res.response_type, "citations": a.citations,
+           "eval_id": item.source_ref, "reference_answer": before.get("reference_answer")}
+    dog, stage = stored_dog(item, settings)  # same inputs as the first answer (docs/02 §4-1 비교 입력 고정)
+    a = answer_and_check(db, row, settings=settings, llm=llm, embedder=embedder, auto_check=True, dog=dog,
+                         life_stage=stage, history=history_turns(item.history))
+    detail = {"inputs": {"dog_age_months": dog.age_months, "life_stage": stage.value, "history_turns": len(item.history or [])},
+              "answer": a.res.text, "response_type": a.res.response_type, "citations": a.citations,
               "prompt_version": PROMPT_VERSION, "index_version": a.res.index_version, "check": a.check,
               "issues_before": before.get("issues"), "issues_after": (a.check or {}).get("issues")}
     svc._event(db, actor=None, actor_kind="ai", event="rechecked", item=item, **detail)

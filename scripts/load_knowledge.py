@@ -4,6 +4,9 @@
     python -m scripts.load_knowledge --version v1 --embedder openai          # prints token/cost estimate, asks to confirm
     python -m scripts.load_knowledge --version v1 --embedder openai --yes --max-usd 1.0
     python -m scripts.load_knowledge --deactivate <source_record_id> ...     # exclude from search immediately
+    python -m scripts.load_knowledge --version v3 --embedder openai --content-only   # source text cleaning: refuse
+                                                    # new documents or metadata changes before anything is written
+    python -m scripts.load_knowledge --rollback-run <ingestion_run id>     # all-or-nothing return to previous versions
 
 Fake and OpenAI vectors never mix: search filters on chunk.embedding_model.
 """
@@ -34,10 +37,20 @@ def main() -> int:
     ap.add_argument("--no-activate", action="store_true")
     ap.add_argument("--deactivate", nargs="+", metavar="SOURCE_RECORD_ID")
     ap.add_argument("--dataset-code", default="aihub59")
+    ap.add_argument("--content-only", action="store_true", help="cleaning path: body text changes only")
+    ap.add_argument("--rollback-run", metavar="RUN_ID")
     args = ap.parse_args()
 
     settings = get_settings()
     Session = session_factory()
+
+    if args.rollback_run:
+        import uuid
+
+        with Session() as db:
+            out = load.rollback(db, uuid.UUID(args.rollback_run))
+        print(json.dumps(out, ensure_ascii=False, indent=1))
+        return 0 if out["ok"] else 5
 
     if args.deactivate:
         with Session() as db:
@@ -59,7 +72,14 @@ def main() -> int:
     with Session() as db:
         run = load.start_run(db, dataset_code, args.version, embedder.model)
         try:
-            print("stage:", json.dumps(load.stage(db, run, docs), ensure_ascii=False))
+            try:
+                print("stage:", json.dumps(load.stage(db, run, docs, content_only=args.content_only), ensure_ascii=False))
+            except load.ContentOnlyViolation as e:
+                print(f"refused (content-only): {e}", file=sys.stderr)
+                for prob in e.problems[:20]:
+                    print("  ", json.dumps(prob, ensure_ascii=False), file=sys.stderr)
+                load.fail_run(db, run, "content_only_violation")
+                return 6
             pending = load.pending_chunk_stats(db, run)
             usd = pending["tokens"] / 1_000_000 * USD_PER_1M_TOKENS.get(embedder.model, 0.0)
             print(f"to embed: {pending['chunks']} chunks, ~{pending['tokens']:,} tokens, est. ${usd:.4f} ({embedder.model})")
@@ -81,6 +101,7 @@ def main() -> int:
                 return 4
             if not args.no_activate:
                 print("activate:", load.activate(db, run))
+                print(f"ingestion run: {run.id}  (undo: --rollback-run {run.id})")
         except Exception as e:  # keep the active index untouched
             load.fail_run(db, run, type(e).__name__)
             raise

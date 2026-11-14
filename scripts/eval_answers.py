@@ -10,7 +10,14 @@ a made-up age that contradicts the question would trigger an age-conflict clarif
 --judge asks the answer model to grade each grounded answer against the reference vet answer (1-5):
   consistency (agrees with the reference, no contradiction) and safety (no diagnosis/prescription
   claims, sends to a vet when needed). Judge scores are a proxy, not a clinical review.
-Do not tune prompts or thresholds on the final subset (docs/03 §5).
+Do not tune prompts or thresholds on the final subset (docs/03 §5); reading it needs --final-check.
+
+Comparison runs (no-vet quality check, docs/04 §7) — one JSON file per run under DATA_OUTPUT_DIR/eval/runs:
+    python -m scripts.eval_answers --cases cases.json --prompt current --yes      # first run; cases.json =
+                                        # [{"id": "<eval_id>", "role": "dev"|"confirm"}, ...] from eval_dev
+    python -m scripts.eval_answers --inputs-from <run.json> --prompt <variant> --yes   # same fixed inputs
+    python -m scripts.eval_answers --rescore <run.json> --yes                     # current checker, saved answers
+Paid (about $0.008 per case per run, $0.004 per rescored case).
 """
 from __future__ import annotations
 
@@ -32,6 +39,7 @@ from backend.app.rag.embeddings import OpenAIEmbedder  # noqa: E402
 from backend.app.rag.llm import LLMError, OpenAILLM  # noqa: E402
 from backend.app.rag.pipeline import first_age_months, run_pipeline, stated_age_months  # noqa: E402
 from backend.app.rag.prompts import DogInfo  # noqa: E402
+from backend.app.services import compare_run  # noqa: E402
 
 AGE_FOR_STAGE = {"puppy": 6, "adult": 48, "senior": 120}
 # USD per 1M tokens (input, output), OpenAI price list checked 2026-11-09 (docs/04 §5)
@@ -66,11 +74,23 @@ def main() -> int:
     ap.add_argument("--version", default="v2")
     ap.add_argument("--judge", action="store_true")
     ap.add_argument("--out")
+    ap.add_argument("--final-check", action="store_true", help="allow eval_final (final confirmation only)")
+    ap.add_argument("--cases", help="comparison run: JSON list of {id, role}")
+    ap.add_argument("--inputs-from", help="comparison run: reuse the fixed inputs of an earlier run file")
+    ap.add_argument("--rescore", help="re-score a saved run with the current checker (no answer generation)")
+    ap.add_argument("--prompt", default="current", help="answer prompt variant (rag.prompts.ANSWER_SYSTEM_VARIANTS)")
+    ap.add_argument("--data-label", help="label of the index/data under test, e.g. v2 or v3-clean@<checksum>")
+    ap.add_argument("--yes", action="store_true", help="confirm a paid comparison run")
     args = ap.parse_args()
 
+    if args.subset == "final" and not args.final_check:
+        print("eval_final is for the final confirmation only: add --final-check", file=sys.stderr)
+        return 2
     s = get_settings()
     key = s.openai_api_key.get_secret_value()
     llm, emb = OpenAILLM(key, timeout=s.llm_timeout_seconds), OpenAIEmbedder(key, s.embedding_model)
+    if args.cases or args.inputs_from or args.rescore:
+        return comparison(args, s, llm, emb)
     rows = [json.loads(x) for x in (Path(s.data_output_dir) / "prepared" / args.version / f"eval_{args.subset}.jsonl")
             .read_text(encoding="utf-8").splitlines()]
     random.Random(11).shuffle(rows)
@@ -129,6 +149,39 @@ def main() -> int:
     if args.out:
         Path(args.out).parent.mkdir(parents=True, exist_ok=True)
         Path(args.out).write_text(json.dumps({"report": report, "items": results}, ensure_ascii=False, indent=2), encoding="utf-8")
+    return 0
+
+
+def comparison(args, s, llm, emb) -> int:
+    runs_dir = Path(s.data_output_dir) / "eval" / "runs"
+    if args.rescore:
+        run = json.loads(Path(args.rescore).read_text(encoding="utf-8"))
+        n = sum(1 for c in run["cases"] if (c.get("result") or {}).get("response_type") not in (None, "failed"))
+        if not args.yes:
+            print(f"add --yes to re-score {n} saved answers (about ${n * 0.004:.2f})")
+            return 2
+        out = compare_run.rescore(run, settings=s, llm=llm)
+    else:
+        if args.inputs_from:
+            cases = compare_run.inputs_from(json.loads(Path(args.inputs_from).read_text(encoding="utf-8")))
+        else:
+            spec = json.loads(Path(args.cases).read_text(encoding="utf-8"))
+            prepared = Path(s.data_output_dir) / "prepared" / args.version
+            rows = compare_run.read_rows(prepared, "dev")
+            if args.final_check:
+                rows |= compare_run.read_rows(prepared, "final")
+            with session_factory()() as db:
+                cases = compare_run.build_inputs(db, s, spec, rows)
+        if not args.yes:
+            print(f"add --yes to run {len(cases)} cases with prompt '{args.prompt}' (about ${len(cases) * 0.008:.2f})")
+            return 2
+        with session_factory()() as db:
+            out = compare_run.run_cases(db, cases, settings=s, llm=llm, embedder=emb, prompt=args.prompt,
+                                        data_label=args.data_label or args.version,
+                                        on_case=lambda i, n, r: print(f"[{i}/{n}] {r['response_type']}", flush=True))
+    path = compare_run.write(out, runs_dir)
+    print(json.dumps(out["summary"], ensure_ascii=False))
+    print("run file:", path)
     return 0
 
 

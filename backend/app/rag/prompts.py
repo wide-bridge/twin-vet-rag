@@ -150,6 +150,8 @@ ANSWER_SCHEMA = {
     "additionalProperties": False,
 }
 
+# Answer prompt variants for local comparison runs (scripts/eval_answers --cases). The app always uses "current";
+# a variant becomes the app default only after a comparison is accepted (then PROMPT_VERSION is bumped).
 ANSWER_SYSTEM = """너는 반려견 보호자를 돕는 건강 정보 안내자다. 수의사가 아니며 진단·처방을 하지 않는다.
 제공된 <근거 자료>(상담 사례와 수의학 자료)에 있는 내용만으로 답한다.
 
@@ -237,3 +239,6 @@ TEXT_OUT_OF_SCOPE = "반려견 건강 질문만 도와드릴 수 있어요. 고�
 
 def dumps(o) -> str:
     return json.dumps(o, ensure_ascii=False)
+
+
+ANSWER_SYSTEM_VARIANTS: dict[str, str] = {"current": ANSWER_SYSTEM}

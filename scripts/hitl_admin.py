@@ -74,7 +74,8 @@ def regression_questions(version: str, fold: int, n: int) -> list[str]:
                 ids.append(r["source_record_id"])
     wanted = set(sorted(ids)[: n * 4])
     out: list[str] = []
-    for name, field in (("qa_cases.jsonl", "content"), ("eval_dev.jsonl", "question"), ("eval_final.jsonl", "question")):
+    # eval_final is reserved for the final confirmation (docs/02 §4-1); never used by routine checks
+    for name, field in (("qa_cases.jsonl", "content"), ("eval_dev.jsonl", "question")):
         p = prepared / name
         if not p.exists():
             continue
@@ -99,7 +100,7 @@ def main() -> int:
     sub.add_parser("mock-items")
     p = sub.add_parser("dataset-items")
     p.add_argument("--n", type=int, default=20)
-    p.add_argument("--subset", choices=["dev", "final"], default="dev")
+    p.add_argument("--subset", choices=["dev"], default="dev")  # eval_final: final confirmation only
     p.add_argument("--version", default="v2")
     p.add_argument("--prelabel", action="store_true", help="also fill the vet label form (vet stage)")
     p.add_argument("--hide-pct", type=int, default=30)

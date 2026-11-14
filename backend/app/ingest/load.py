@@ -4,8 +4,11 @@ Stages (each resumable, docs/02 §2 운영자 흐름):
   stage     -> document upsert, new document_version(status=staging) + chunks, only when content changed
   embed     -> fill chunk.embedding for this run's staging chunks (batched, committed per batch)
   validate  -> every staged chunk embedded with the right model; self-retrieval sample check
-  activate  -> one transaction: previous active version -> inactive, staged -> active
-A failure before `activate` leaves the currently active index untouched.
+  activate  -> one transaction: previous active version -> inactive, staged -> active; records each document's
+               previous active version in run.counts.activate.previous_versions
+  rollback  -> one transaction: the run's documents back to their recorded previous versions, all or nothing
+A failure before `activate` leaves the currently active index untouched. activate, rollback and document status
+changes take the same per-dataset lock, so they never interleave (docs/03 §4).
 """
 from __future__ import annotations
 
@@ -26,6 +29,19 @@ from ..rag.embeddings import Embedder
 
 SOURCE_NAME = "AI Hub 반려견 성장 및 질병 관련 말뭉치"
 USAGE_NOTE = "AI Hub 개방데이터(59). 이용 조건 확인 전: 원문 발췌 비공개"
+
+
+class ContentOnlyViolation(ValueError):
+    """A content-only load (source text cleaning) would change document metadata or add documents."""
+
+    def __init__(self, problems: list[dict]):
+        super().__init__(f"{len(problems)} document(s) are not content-only changes")
+        self.problems = problems
+
+
+def dataset_lock(db: Session, dataset_code: str) -> None:
+    """Transaction-scoped lock shared by activate / rollback / status changes of one dataset (released on commit)."""
+    db.execute(text("SELECT pg_advisory_xact_lock(hashtext(:k))"), {"k": f"twinvet:index:{dataset_code}"})
 
 
 def index_version(dataset_code: str, prepared_version: str, model: str) -> str:
@@ -97,9 +113,36 @@ def _finish(db: Session, run: IngestionRun, status: str, error_code: str | None 
 
 
 # ---------------------------------------------------------------- stage
-def stage(db: Session, run: IngestionRun, docs: list[DocInput], batch: int = 1000) -> dict:
+def content_only_problems(db: Session, dataset_code: str, docs: list[DocInput]) -> list[dict]:
+    """For a content-only load: documents that are new, or whose title/department/disease names/life stages/metadata
+    differ from the stored document. stage() overwrites those fields at once and rollback restores versions only."""
+    stored = {r.source_record_id: r for r in db.execute(
+        select(Document.source_record_id, Document.title, Document.department, Document.disease_names,
+               Document.life_stages, Document.meta).where(Document.dataset_code == dataset_code))}
+    problems = []
+    for d in docs:
+        ex = stored.get(d.source_record_id)
+        if ex is None:
+            problems.append({"source_record_id": d.source_record_id, "reason": "new_document"})
+            continue
+        changed = [f for f, a, b in (("title", ex.title, d.title), ("department", ex.department, d.department),
+                                     ("disease_names", list(ex.disease_names or []), list(d.disease_names or [])),
+                                     ("life_stages", list(ex.life_stages or []), list(d.life_stages or [])),
+                                     ("metadata", ex.meta or {}, d.meta or {})) if a != b]
+        if changed:
+            problems.append({"source_record_id": d.source_record_id, "reason": "metadata_changed", "fields": changed})
+    return problems
+
+
+def stage(db: Session, run: IngestionRun, docs: list[DocInput], batch: int = 1000, content_only: bool = False) -> dict:
     """Create staging versions only for new/changed content. Re-running reuses an existing
-    staging/failed version with the same hash (so already-embedded chunks are not paid for twice)."""
+    staging/failed version with the same hash (so already-embedded chunks are not paid for twice).
+    content_only=True (source text cleaning path only): refuse before writing anything when a document is new or its
+    metadata would change. Ordinary loads keep updating metadata as before."""
+    if content_only:
+        problems = content_only_problems(db, run.dataset_code, docs)
+        if problems:
+            raise ContentOnlyViolation(problems)
     existing = {
         row.source_record_id: row
         for row in db.execute(
@@ -270,7 +313,9 @@ def validate(db: Session, run: IngestionRun, embedding_model: str, sample: int =
 
 # ---------------------------------------------------------------- activate / deactivate / delete
 def activate(db: Session, run: IngestionRun) -> dict:
-    """Atomic switch. Only versions staged by this run are promoted."""
+    """Atomic switch. Only versions staged by this run are promoted. Each document's previous active version
+    (or none) is recorded once in run.counts.activate.previous_versions for rollback."""
+    dataset_lock(db, run.dataset_code)
     staged = db.execute(
         select(DocumentVersion.id, DocumentVersion.document_id).where(
             DocumentVersion.ingestion_run_id == run.id, DocumentVersion.status == "staging")
@@ -280,6 +325,9 @@ def activate(db: Session, run: IngestionRun) -> dict:
         return {"activated": 0}
     doc_ids = [r.document_id for r in staged]
     ver_ids = [r.id for r in staged]
+    prev = dict(db.execute(select(Document.id, Document.active_version_id).where(Document.id.in_(doc_ids))).all())
+    previous_versions = [{"document_id": str(d), "version_id": str(v),
+                          "previous_version_id": str(prev[d]) if prev.get(d) else None} for v, d in staged]
     db.execute(update(DocumentVersion).where(DocumentVersion.document_id.in_(doc_ids), DocumentVersion.status == "active").values(status="inactive"))
     db.execute(update(DocumentVersion).where(DocumentVersion.id.in_(ver_ids)).values(status="active"))
     # document.status is left alone: an operator's inactive/deleted decision survives reloads
@@ -288,11 +336,85 @@ def activate(db: Session, run: IngestionRun) -> dict:
         update(doc_t).where(doc_t.c.id == bindparam("did")).values(active_version_id=bindparam("vid")),
         [{"did": d, "vid": v} for v, d in staged],
     )
-    run.counts = {**(run.counts or {}), "activate": {"versions": len(staged)}}
+    act = dict((run.counts or {}).get("activate") or {})
+    act["versions"] = len(staged)
+    act.setdefault("previous_versions", previous_versions)  # written once, never overwritten
+    run.counts = {**(run.counts or {}), "activate": act}
     run.stage = None
     run.status, run.finished_at = "completed", datetime.now(timezone.utc)
     db.commit()
     return {"activated": len(staged)}
+
+
+def rollback(db: Session, run_id: uuid.UUID) -> dict:
+    """Return every document this run activated to its recorded previous version, or change nothing.
+
+    Refused as a whole (ok=False, conflicts listed) when: the run has no previous-version record (older runs) or was
+    already rolled back; a document was changed again by a later run (its active version is no longer this run's);
+    a document was deleted afterwards; the previous version has no chunks or unembedded chunks (deletion removes
+    chunks); or the previous version's embedding model differs from this run's. A document new in this run is
+    unlinked (active_version_id = NULL) and its version set inactive; document.status is never changed.
+    """
+    run = db.get(IngestionRun, run_id)
+    if run is None:
+        return {"ok": False, "conflicts": [{"reason": "run_not_found"}]}
+    dataset_lock(db, run.dataset_code)
+    db.refresh(run)
+    counts = run.counts or {}
+    entries = (counts.get("activate") or {}).get("previous_versions")
+    conflicts: list[dict] = []
+    if counts.get("rollback"):
+        conflicts.append({"reason": "already_rolled_back"})
+    if entries is None:
+        conflicts.append({"reason": "no_previous_version_record"})
+    entries = entries or []
+    docs = {str(d.id): d for d in db.execute(
+        select(Document).where(Document.id.in_([uuid.UUID(e["document_id"]) for e in entries]))).scalars()} if entries else {}
+    prev_ids = [uuid.UUID(e["previous_version_id"]) for e in entries if e["previous_version_id"]]
+    prev_stats = {str(r.id): r for r in db.execute(text(
+        "SELECT v.id, v.document_id, count(c.id) AS chunks, count(c.embedding) AS embedded, "
+        "count(*) FILTER (WHERE c.embedding_model IS DISTINCT FROM :model) AS other_model "
+        "FROM document_version v LEFT JOIN chunk c ON c.document_version_id = v.id "
+        "WHERE v.id = ANY(:ids) GROUP BY v.id, v.document_id"), {"ids": prev_ids, "model": run.embedding_model})} if prev_ids else {}
+    for e in entries:
+        doc = docs.get(e["document_id"])
+        ref = {"document_id": e["document_id"], "source_record_id": doc.source_record_id if doc else None}
+        if doc is None:
+            conflicts.append({**ref, "reason": "document_missing"})
+            continue
+        if doc.status == "deleted":
+            conflicts.append({**ref, "reason": "document_deleted"})
+        if str(doc.active_version_id) != e["version_id"]:
+            conflicts.append({**ref, "reason": "changed_by_later_run"})
+        pv = e["previous_version_id"]
+        if pv:
+            st = prev_stats.get(pv)
+            if st is None or st.document_id != doc.id:
+                conflicts.append({**ref, "reason": "previous_version_missing"})
+            elif st.chunks == 0 or st.embedded < st.chunks:
+                conflicts.append({**ref, "reason": "previous_version_has_no_chunks"})
+            elif st.other_model:
+                conflicts.append({**ref, "reason": "previous_embedding_model_differs"})
+    if conflicts:
+        db.rollback()  # nothing was written; releases the lock
+        return {"ok": False, "run_id": str(run_id), "conflicts": conflicts}
+
+    restored = unlinked = 0
+    for e in entries:
+        doc = docs[e["document_id"]]
+        db.execute(update(DocumentVersion).where(DocumentVersion.id == uuid.UUID(e["version_id"])).values(status="inactive"))
+        if e["previous_version_id"]:
+            pv = uuid.UUID(e["previous_version_id"])
+            db.execute(update(DocumentVersion).where(DocumentVersion.id == pv).values(status="active"))
+            doc.active_version_id = pv
+            restored += 1
+        else:
+            doc.active_version_id = None
+            unlinked += 1
+    run.counts = {**counts, "rollback": {"at": datetime.now(timezone.utc).isoformat(), "restored": restored,
+                                         "unlinked_new": unlinked}}
+    db.commit()
+    return {"ok": True, "run_id": str(run_id), "restored": restored, "unlinked_new": unlinked}
 
 
 def fail_run(db: Session, run: IngestionRun, error_code: str) -> None:
@@ -306,6 +428,7 @@ def set_document_status(db: Session, dataset_code: str, source_record_ids: list[
     (citations keep their title snapshot and report the source as unavailable)."""
     if status not in ("active", "inactive", "deleted"):
         raise ValueError(status)
+    dataset_lock(db, dataset_code)
     docs = db.execute(select(Document.id).where(Document.dataset_code == dataset_code, Document.source_record_id.in_(source_record_ids))).scalars().all()
     if not docs:
         return 0

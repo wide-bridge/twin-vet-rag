@@ -127,7 +127,9 @@ def _add_usage(usage: dict, key: str, r) -> None:
 
 
 def run_pipeline(db: Session, *, settings: Settings, llm: LLM, embedder: Embedder, dog: DogInfo,
-                 life_stage: LifeStage, history: list[Turn], question: str) -> PipelineResult:
+                 life_stage: LifeStage, history: list[Turn], question: str,
+                 answer_system: str | None = None) -> PipelineResult:
+    """answer_system: comparison runs only (prompts.ANSWER_SYSTEM_VARIANTS); the app passes nothing."""
     usage: dict = {}
     models = {"classifier": settings.llm_classifier_model}
 
@@ -163,7 +165,7 @@ def run_pipeline(db: Session, *, settings: Settings, llm: LLM, embedder: Embedde
     # (4) grounded answer; source numbers are checked against this search only
     models["answer"] = settings.llm_model
     sources = [source_block(i, h.document_type, h.title, h.department, h.content) for i, h in enumerate(hits, 1)]
-    a = llm.complete_json(model=settings.llm_model, system=ANSWER_SYSTEM,
+    a = llm.complete_json(model=settings.llm_model, system=answer_system or ANSWER_SYSTEM,
                           user=answer_user(dog, history, question, sources), schema=ANSWER_SCHEMA,
                           name="answer", reasoning="low")
     _add_usage(usage, "answer", a)

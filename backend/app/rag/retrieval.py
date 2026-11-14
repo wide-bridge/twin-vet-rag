@@ -12,7 +12,7 @@ from ..domain.dog import LifeStage
 
 _SEARCH_SQL = text(
     """
-    SELECT c.id AS chunk_id, d.id AS document_id, d.document_type, d.title, d.department,
+    SELECT c.id AS chunk_id, d.id AS document_id, v.id AS version_id, d.document_type, d.title, d.department,
            d.disease_names, d.life_stages, c.content, c.embedding_version,
            1 - (c.embedding <=> CAST(:qvec AS vector)) AS score
     FROM chunk c
@@ -44,6 +44,7 @@ class Hit:
     content: str
     index_version: str | None
     score: float
+    version_id: uuid.UUID | None = None  # document_version of the chunk (comparison records)
 
 
 def _vec_literal(v: Sequence[float]) -> str:
@@ -67,6 +68,6 @@ def search(db: Session, query_embedding: Sequence[float], *, model: str, life_st
     ).mappings()
     return [
         Hit(r["chunk_id"], r["document_id"], r["document_type"], r["title"], r["department"], list(r["disease_names"]),
-            list(r["life_stages"]), r["content"], r["embedding_version"], float(r["score"]))
+            list(r["life_stages"]), r["content"], r["embedding_version"], float(r["score"]), r["version_id"])
         for r in rows
     ]
