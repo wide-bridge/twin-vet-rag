@@ -168,3 +168,70 @@ def write(run: dict, out_dir: Path) -> Path:
     p = out_dir / f"{run['run_id']}.json"
     p.write_text(json.dumps(run, ensure_ascii=False, indent=1, default=str), encoding="utf-8")
     return p
+
+
+def compare_html(a: dict, b: dict) -> str:
+    """Two runs of the same cases side by side (local review file; AI Hub text stays local)."""
+    import html as h
+
+    e = h.escape
+    bi = {c["case_id"]: c for c in b["cases"]}
+
+    def unsupported(r):
+        return [x["claim"] for x in ((r.get("check") or {}).get("claims") or []) if x.get("support") == "unsupported"]
+
+    def stat(run):
+        res = [c["result"] for c in run["cases"]]
+        g = [r for r in res if r.get("response_type") == "grounded"]
+        return {"grounded": len(g), "limited_retrieval": sum(r.get("limited_at") == "retrieval" for r in res),
+                "limited_answer": sum(r.get("limited_at") == "answer" for r in res),
+                "unsupported_claims": sum(len(unsupported(r)) for r in res),
+                "cases_with_unsupported": sum(bool(unsupported(r)) for r in res),
+                "avg_chars": round(sum(len(r.get("answer") or "") for r in g) / len(g)) if g else 0,
+                "issues": dict(Counter(t for r in res for t in (r.get("check") or {}).get("issues", []))),
+                "usd": run["summary"]["usd"]}
+
+    sa, sb = stat(a), stat(b)
+    rows = "".join(f"<tr><td>{e(k)}</td><td>{e(str(sa[k]))}</td><td>{e(str(sb[k]))}</td></tr>" for k in sa)
+
+    def side(r):
+        chk = r.get("check") or {}
+        un = "".join(f"<li>{e(x)}</li>" for x in unsupported(r)) or "<li>없음</li>"
+        miss = "".join(f"<li>{e(x)}</li>" for x in chk.get("missing_conditions") or []) or "<li>없음</li>"
+        return (f"<p><b>{e(r.get('response_type', ''))}</b>{' · 제한: ' + e(r['limited_at']) if r.get('limited_at') else ''}"
+                f" · 문제 유형: {e(', '.join(chk.get('issues', [])) or '없음')}</p>"
+                f"<p class='ans'>{e(r.get('answer') or '')}</p>"
+                f"<details><summary>근거 없는 주장 {len(unsupported(r))}</summary><ul>{un}</ul></details>"
+                f"<details><summary>빠진 조건</summary><ul>{miss}</ul></details>"
+                f"<details><summary>검색 근거 {len(r.get('retrieved') or [])}</summary><ol>"
+                + "".join(f"<li>{e(x['title'])} ({e(x.get('department') or '-')}) {x['score']}{' · 인용' if x.get('cited') else ''}"
+                          f"<br><small>{e((x.get('content') or '')[:400])}</small></li>" for x in r.get("retrieved") or [])
+                + "</ol></details>")
+
+    cards = []
+    for i, c in enumerate(a["cases"], 1):
+        cb = bi.get(c["case_id"])
+        if cb is None:
+            continue
+        ra, rb = c["result"], cb["result"]
+        changed = (ra.get("response_type") != rb.get("response_type")
+                   or set((ra.get("check") or {}).get("issues", [])) != set((rb.get("check") or {}).get("issues", [])))
+        inp = c["inputs"]
+        cards.append(f"""<section class="card{' changed' if changed else ''}"><h3>{i}. [{e(c['role'])}] {e(inp.get('department') or '')}
+ · 반려견 {e(str(inp['dog']['age_months']))}개월/{e(inp['life_stage'])}{' · 결과 달라짐' if changed else ''}</h3>
+<p class="q">{e(inp['question'])}</p>
+<div class="two"><div><h4>A: {e(a['config']['prompt_variant'])}</h4>{side(ra)}</div><div><h4>B: {e(b['config']['prompt_variant'])}</h4>{side(rb)}</div></div>
+<details><summary>원천 수의사 답변 (참고 비교용)</summary><p>{e(inp.get('reference_answer') or '')}</p></details></section>""")
+    return f"""<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>비교 {e(a['run_id'])} vs {e(b['run_id'])}</title><style>
+:root{{--bg:#fafafa;--fg:#1d1d1f;--card:#fff;--line:#e3e3e3;--muted:#5f6368;--hi:#fff6d6}}
+@media (prefers-color-scheme:dark){{:root{{--bg:#151515;--fg:#eee;--card:#202020;--line:#333;--muted:#aaa;--hi:#3a3216}}}}
+body{{margin:0;background:var(--bg);color:var(--fg);font:15px/1.6 system-ui,"Malgun Gothic",sans-serif}} main{{max-width:1200px;margin:0 auto;padding:16px}}
+.card{{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px 16px;margin:14px 0}} .changed{{border-left:5px solid #d99a00}}
+.two{{display:grid;grid-template-columns:1fr 1fr;gap:16px}} @media(max-width:800px){{.two{{grid-template-columns:1fr}}}}
+.q{{background:var(--hi);padding:8px;border-radius:6px}} .ans{{white-space:pre-wrap}} small{{color:var(--muted)}}
+table{{border-collapse:collapse}} td,th{{border-bottom:1px solid var(--line);padding:4px 10px;text-align:left}}
+</style></head><body><main><h1>답변 비교 (같은 입력, 프롬프트만 다름)</h1>
+<p>A = {e(a['run_id'])} · B = {e(b['run_id'])} · 점검기 {e(a['config']['check_version'])} / {e(b['config']['check_version'])}.
+자동 점검은 운영자 확인의 보조이며 안전성·수의학적 검증이 아닙니다. 15건은 전체 성능 입증이 아니라 발견한 오류가 줄었는지·뚜렷한 부작용이 없는지 보는 규모입니다.</p>
+<table><tr><th></th><th>A</th><th>B</th></tr>{rows}</table>{''.join(cards)}</main></body></html>"""

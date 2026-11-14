@@ -12,8 +12,11 @@ Conservative scope of this rule version:
   - answer sentences count as template only when *every* phrase is in the phrase inventory: phrases (split at the
     template endings) seen in at least `min_docs` different answers after removing filler adverbs. A one-off vet
     sentence cannot be in the inventory, even when it reads like care advice.
-  - removed answer sentences that carry care/safety wording (vet visit, prescription, stopping) or a topic word of the
-    case department are marked 'hold' (판단 보류) instead of 'remove' (삭제 후보).
+  - removed answer sentences that carry care/safety wording (vet visit, prescription, stopping) are marked 'hold'
+    (판단 보류); so are sentences sharing a topic word with the case department, for 피부과·안과·치과 only (no topic
+    list for 내과·외과).
+What the rules check is template shape and repetition only. They do NOT check whether a sentence is unrelated to the
+question or unnecessary in that case; that is judged on samples. The cleaned text keeps 'hold' sentences in place.
 """
 from __future__ import annotations
 
@@ -22,7 +25,7 @@ from collections import Counter
 from dataclasses import dataclass, field
 from typing import Iterable
 
-RULE_VERSION = "clean-draft-2026-11-14.4"
+RULE_VERSION = "clean-draft-2026-11-14.5"
 
 _SENT = re.compile(r"[^.?!]+[.?!]?")
 
@@ -154,7 +157,7 @@ def _decide_answer(s: str, department: str | None) -> tuple[str, str]:
     topic = DEPT_TOPICS.get(department or "")
     if topic and topic.search(s):
         return "hold", f"{department} 사례와 주제가 겹침"
-    return "remove", "질문과 무관한 일반 관리 문구"
+    return "remove", "반복 구절 규칙에 일치 (질문과의 관련성은 규칙이 확인하지 않음)"
 
 
 def detect(text: str, side: str, department: str | None = None, inventory: set[str] | None = None) -> Result:
@@ -168,10 +171,18 @@ def detect(text: str, side: str, department: str | None = None, inventory: set[s
     removed = []
     for s in sents[start:]:
         if side == "question":
-            removed.append(Removal(s, rule_fn(s) or "", "remove", "원 질문 뒤에 붙은 정형 요청 문장"))
+            removed.append(Removal(s, rule_fn(s) or "", "remove", "정형 요청 규칙에 일치 (질문과의 관련성은 규칙이 확인하지 않음)"))
         else:
             decision, why = _decide_answer(s, department)
             removed.append(Removal(s, rule_fn(s) or "", decision, why))
     not_covered = [s for s in sents[:start] if rule_fn(s)]
     kept = text[:spans[start][0]].rstrip() if start < len(sents) else text
     return Result(kept, removed, not_covered)
+
+
+def cleaned(text: str, result: Result) -> str:
+    """Text after removing only the 'remove' candidates; 'hold' sentences stay where they were."""
+    if not result.removed:
+        return text
+    holds = [x.text for x in result.removed if x.decision == "hold"]
+    return " ".join([result.kept] + holds).strip()

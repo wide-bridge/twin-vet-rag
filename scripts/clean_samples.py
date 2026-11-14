@@ -35,6 +35,7 @@ def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--version", default="v2")
     ap.add_argument("--min-docs", type=int, default=20)
+    ap.add_argument("--ids", help="JSON list of source_record_ids: also write review_trial.html with every one of them")
     args = ap.parse_args()
     s = get_settings()
     prepared = Path(s.data_output_dir) / "prepared" / args.version
@@ -66,8 +67,8 @@ def main() -> int:
             "documents_not_covered": sum(1 for x in results if x[idx].not_covered),
         }
     summ["documents_any"] = sum(1 for x in results if x[3].removed or x[4].removed)
-    # held-out question sets (questions only; reference answers are not indexed)
-    for subset in ("dev", "final"):
+    # held-out questions: eval_dev only (eval_final is for the final confirmation, docs/02 §4-1)
+    for subset in ("dev",):
         ev = [json.loads(x) for x in (prepared / f"eval_{subset}.jsonl").read_text(encoding="utf-8").splitlines() if x]
         summ[f"eval_{subset}_questions_with_candidates"] = sum(1 for e in ev if cr.detect(e["question"], "question").removed)
         summ[f"eval_{subset}_total"] = len(ev)
@@ -86,6 +87,16 @@ def main() -> int:
                                     "answer_removed": [vars(x) for x in ra.removed]}, ensure_ascii=False) + "\n")
 
     write_html(out_dir / "review.html", summ, results, df)
+    if args.ids:
+        wanted = json.loads(Path(args.ids).read_text(encoding="utf-8"))
+        trial = [x for x in results if x[0]["source_record_id"] in set(wanted) and (x[3].removed or x[4].removed)]
+        cards = "\n".join(card(i + 1, *x, "15건 비교에서 검색된 문서") for i, x in enumerate(trial))
+        head = (f"<h1>시험 정제 후보 {len(trial)}건 <small>{esc(cr.RULE_VERSION)}</small></h1><p>3단계 15건 비교에서 검색된 문서 중 "
+                "후보가 있는 문서 전체입니다. 문서별로 삭제 후보(취소선)가 그 문서에서 불필요한지 확인해 주세요. 보류(노란색)는 남깁니다.</p>")
+        page = (out_dir / "review.html").read_text(encoding="utf-8")
+        page = page[:page.index("<main>") + 6] + head + cards + "</main></body></html>"
+        (out_dir / "review_trial.html").write_text(page, encoding="utf-8")
+        print("trial review:", out_dir / "review_trial.html", len(trial))
     print(json.dumps(summ, ensure_ascii=False, indent=1))
     print("review:", out_dir / "review.html")
     return 0
@@ -119,7 +130,7 @@ def card(n: int, r, q, a, rq, ra, why: str) -> str:
 <div class="two"><div><h4>질문 (원문, 표시된 부분이 후보)</h4><p>{marked(q, rq.removed, 'q')}</p></div>
 <div><h4>수의사 답변 (원문, 표시된 부분이 후보)</h4><p>{marked(a, ra.removed, 'a')}</p></div></div>
 <details><summary>후보 문장 {len(rq.removed) + len(ra.removed)}개 (보류 {len(holds)}개)</summary><ul>{rm_list}</ul></details>
-<details><summary>정리 후 (삭제 후보·보류 모두 뺐을 때)</summary><p><b>질문</b> {esc(rq.kept)}</p><p><b>답변</b> {esc(ra.kept)}</p></details>
+<details open><summary>정리 후 (삭제 후보만 빼고 판단 보류는 남김)</summary><p><b>질문</b> {esc(cr.cleaned(q, rq))}</p><p><b>답변</b> {esc(cr.cleaned(a, ra))}</p></details>
 </section>"""
 
 
@@ -203,7 +214,8 @@ table{{border-collapse:collapse;width:100%;font-size:14px}} td,th{{border-bottom
 <ul><li>대상은 <b>질문·답변 끝에 붙은 정형 문장 묶음</b>뿐입니다. 끝에서부터 정형 문장이 이어지는 동안만 후보로 잡고, 정형이 아닌 문장을 만나면 멈춥니다. 앞·중간에 끼어 있거나 원문 문장에 붙은 정형 문구는 건드리지 않습니다(아래 '규칙이 다루지 않는 사례').</li>
 <li>질문: 정해진 관리 주제 59개(샴푸 주기, 내원 시점 등)로 시작하는 요청 문장, 또는 요청 표현만으로 된 문장.</li>
 <li>답변: 문장의 모든 구절이 '정형 구절 목록'(답변 {summ['inventory_min_docs']}건 이상에서 반복된 구절 {summ['inventory_phrases']}개)에 있을 때만. 한 번만 쓰인 수의사 문장은 목록에 없으므로 걸리지 않습니다.</li>
-<li>답변 후보 중 진료·처방·중단·상담 등 주의 문구가 있거나 진료과 주제와 겹치는 문장은 <b>판단 보류</b>로 따로 표시했습니다.</li></ul>
+<li>답변 후보 중 진료·처방·중단·상담 등 주의 문구가 있는 문장은 <b>판단 보류</b>입니다. 진료과 주제가 겹치면 보류하는 규칙은 피부과·안과·치과에만 있고 내과·외과에는 없습니다.</li>
+<li><b>규칙은 정형 모양과 반복만 확인합니다.</b> 그 문장이 해당 질문과 무관한지, 그 사례에서 불필요한지는 확인하지 않습니다. 그 판단은 아래 표본에서 합니다. 따라서 이 건수는 삭제 승인 범위가 아닙니다.</li></ul>
 <h2>건수 (문구 탐지 건수이며 오류율이 아님)</h2>
 <div class="wrap"><table><tr><th></th><th>질문</th><th>답변</th></tr>
 <tr><td>후보가 있는 문서 (전체 {summ['documents']}건)</td><td>{q['documents_with_candidates']}</td><td>{a['documents_with_candidates']}</td></tr>
@@ -211,7 +223,7 @@ table{{border-collapse:collapse;width:100%;font-size:14px}} td,th{{border-bottom
 <tr><td>모두 뺄 경우 줄어드는 글자 수</td><td>{q['chars_removed_if_all']:,}</td><td>{a['chars_removed_if_all']:,}</td></tr>
 <tr><td>규칙이 다루지 않는 위치에 정형 문구가 남은 문서</td><td>{q['documents_not_covered']}</td><td>{a['documents_not_covered']}</td></tr>
 <tr><td>진료과별 후보 문서</td><td>{esc(json.dumps(q['by_department'], ensure_ascii=False))}</td><td>{esc(json.dumps(a['by_department'], ensure_ascii=False))}</td></tr></table></div>
-<p>참고: 평가용 질문(색인 안 됨) 중 후보가 있는 질문 — eval_dev {summ['eval_dev_questions_with_candidates']}/{summ['eval_dev_total']}, eval_final {summ['eval_final_questions_with_candidates']}/{summ['eval_final_total']}. 평가 질문 정리 여부는 별도 결정입니다.</p>
+<p>참고: 평가용 질문(색인 안 됨) 중 후보가 있는 질문 — eval_dev {summ['eval_dev_questions_with_candidates']}/{summ['eval_dev_total']}. 평가 질문은 이번에 바꾸지 않습니다. eval_final은 읽지 않습니다.</p>
 <h2>대표 표본 {len(picks)}건</h2>{cards}
 <h2>판단 보류 문구 (답변, 상위 40)</h2><p>주의 문구가 있거나 진료과 주제와 겹쳐 이번 정제에서 유지를 권하는 구절입니다.</p>
 <div class="wrap"><table><tr><th>건수</th><th>구절 예</th><th>보류 이유</th></tr>{hold_rows}</table></div>

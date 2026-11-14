@@ -51,3 +51,10 @@ def test_topic_word_question_from_a_guardian_is_not_template():
         assert cr.question_rule(s) is None, s
     assert cr.question_rule("샴푸 주기를 단계별로 설명해 주실 수 있을까요?") == "q_topic_request"
     assert cr.question_rule("귀·발 관리를 집에서 실천할 때 주의할 점이 있을까요 간단히 알려 주세요.") == "q_topic_request"
+
+
+def test_cleaned_text_keeps_hold_sentences():
+    a = "원래 결론입니다. 증상이 길어지면 병원 상담을 권합니다. 불편하면 강도는 낮춰 주세요."
+    r = cr.detect(a, "answer", "내과", INV)
+    assert [x.decision for x in r.removed] == ["hold", "remove"]
+    assert cr.cleaned(a, r) == "원래 결론입니다. 증상이 길어지면 병원 상담을 권합니다."

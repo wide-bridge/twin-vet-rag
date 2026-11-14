@@ -81,8 +81,15 @@ def main() -> int:
     ap.add_argument("--prompt", default="current", help="answer prompt variant (rag.prompts.ANSWER_SYSTEM_VARIANTS)")
     ap.add_argument("--data-label", help="label of the index/data under test, e.g. v2 or v3-clean@<checksum>")
     ap.add_argument("--yes", action="store_true", help="confirm a paid comparison run")
+    ap.add_argument("--compare", nargs=2, metavar=("RUN_A", "RUN_B"), help="side-by-side HTML of two run files (free)")
     args = ap.parse_args()
 
+    if args.compare:
+        ra, rb = (json.loads(Path(x).read_text(encoding="utf-8")) for x in args.compare)
+        out = Path(get_settings().data_output_dir) / "eval" / "runs" / f"compare_{ra['run_id']}_vs_{rb['run_id']}.html"
+        out.write_text(compare_run.compare_html(ra, rb), encoding="utf-8")
+        print("compare:", out)
+        return 0
     if args.subset == "final" and not args.final_check:
         print("eval_final is for the final confirmation only: add --final-check", file=sys.stderr)
         return 2

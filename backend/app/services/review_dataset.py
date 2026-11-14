@@ -120,7 +120,7 @@ def clean_prelabel(data: dict, n_citations: int, concept_status: dict[str, str])
     return (None if errors else d), errors
 
 
-CHECK_VERSION = "2026-11-14.3"  # .3: narrower conditions/hold, emergency list not a claim
+CHECK_VERSION = "2026-11-14.4"  # .3: narrower conditions/hold, emergency list not a claim; .4: full source text (was first 600 chars)
 ISSUE_TYPES = {
     "not_answered": "답변하지 않음(근거 부족·범위 밖·확인 질문)",
     "retrieval_miss": "검색 실패(질문과 맞지 않는 근거)",
@@ -174,7 +174,8 @@ AUTO_CHECK_SYSTEM = """너는 반려견 건강 상담 RAG 시스템의 답변을
 def auto_check_user(question: str, answer: str, response_type: str, retrieved: list[dict],
                     reference: str | None = None) -> str:
     src = "\n".join(f"[{h['rank']}] {'(인용함) ' if h['cited'] else ''}{h['title']} ({h.get('department') or '-'})\n"
-                    f"{h.get('excerpt') or ''}" for h in retrieved)
+                    f"{h.get('content') or h.get('excerpt') or ''}" for h in retrieved)  # full text: a 600-char excerpt hid
+    # the end of long sources, so claims taken from there were wrongly reported as unsupported (2026-11-14 step 3)
     return (f"<보호자 질문>\n{question}\n</보호자 질문>\n<응답 유형>{response_type}</응답 유형>\n"
             f"<AI 답변>\n{answer}\n</AI 답변>\n<검색 근거>\n{src or '(없음)'}\n</검색 근거>\n"
             f"<원천 수의사 답변>\n{reference or '(없음)'}\n</원천 수의사 답변>")

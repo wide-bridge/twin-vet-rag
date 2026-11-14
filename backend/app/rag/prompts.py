@@ -241,4 +241,15 @@ def dumps(o) -> str:
     return json.dumps(o, ensure_ascii=False)
 
 
-ANSWER_SYSTEM_VARIANTS: dict[str, str] = {"current": ANSWER_SYSTEM}
+# Step-3 candidate (2026-11-14): no individual advice beyond the sources; only two kinds of sentences may be written
+# without a source (vet-visit advice, the fixed emergency notice). Not the app default until a comparison accepts it.
+ANSWER_SYSTEM_STRICT_SOURCES = ANSWER_SYSTEM.replace(
+    """- 확인할 증상이나 집에서 할 수 있는 관리는 "- "로 시작하는 목록으로 2~5개 쓸 수 있다.""",
+    """- 근거 없이 쓸 수 있는 문장은 두 가지뿐이다: (1) 동물병원 진료를 권하는 안내, (2) 질문에 호흡 곤란·의식 저하·경련·심한 출혈·중독 의심이 있을 때 즉시 연락하라는 고정 안내.
+  그 밖의 원인·확인할 증상·집에서 할 관리·관찰·기록 방법은 근거 자료에 적힌 것만 쓴다. 근거에 없는 관리 요령(목욕·보습·외용제·환경·기록 방법 등)을 일반 상식으로 덧붙이지 않는다.
+- 질문에 요청이 여러 개 있으면 근거 자료로 답할 수 있는 부분만 답하고, 근거가 없는 요청은 답하지 않는다.
+- 확인할 증상이나 집에서 할 수 있는 관리는 "- "로 시작하는 목록으로 2~5개 쓸 수 있다.""",
+)
+assert ANSWER_SYSTEM_STRICT_SOURCES != ANSWER_SYSTEM
+
+ANSWER_SYSTEM_VARIANTS: dict[str, str] = {"current": ANSWER_SYSTEM, "strict-sources": ANSWER_SYSTEM_STRICT_SOURCES}
