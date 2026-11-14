@@ -3,7 +3,13 @@
 
 설계 문서: [docs/](docs/) (서비스기획서·사용자흐름·데이터모델·개발명세·화면설계 5종)
 
-**서비스 주소:** https://twinvet.pawcheck.ai (Vercel + Neon, 2026-11-11 배포·점검 완료. 예비 주소 https://twin-vet-rag.vercel.app). 자세한 내용은 아래 '배포' 절.
+**서비스 주소** (Vercel + Neon, 자세한 내용은 아래 '배포' 절)
+
+| 주소 | 용도 | 상태 |
+|---|---|---|
+| https://twinvet.pawcheck.ai | 보호자 상담 (PoC) | 2026-11-11 배포. 예비 주소 https://twin-vet-rag.vercel.app |
+| https://hitl-review.pawcheck.ai | MVP1 HITL 검토 도구 (M02, 화면 제목 'TwinVet HITL Review') | 2026-11-14 배포 완료. 접근 키 로그인, 보호자 화면에서 링크 없음 |
+| https://vet.pawcheck.ai | 병원·수의사 응대 화면 (M03, 다음 개발 단계) | 연결만 됨. 개발 전까지 hitl-review로 이동 |
 
 ## 환경
 - Python: 기존 conda 환경 `smart_tour` (Python 3.12). 새 가상환경을 만들지 않는다.
@@ -65,7 +71,10 @@ python -m scripts.eval_answers --subset dev --n 30 --judge              # 답변
 최종 검증군(final)은 확정 직전에만 쓴다.
 
 ## MVP1 수의사 HITL (docs/01 4절, docs/04 7절)
-HITL 검토 화면: 운영 `https://hitl-review.pawcheck.ai`(`vet.pawcheck.ai`는 M03 병원 화면용으로 남김, 지금은 hitl-review로 이동), 로컬·미리보기 `/review` (보호자 화면과 별개, 링크 없음, 접근 키 로그인). A단계(참여 수의사 0명)에는 운영자만 접근한다.
+HITL 검토 화면: 운영 `https://hitl-review.pawcheck.ai`, 로컬·미리보기 `/review` (보호자 화면과 별개, 링크 없음, 접근 키 로그인). A단계(참여 수의사 0명)에는 운영자만 접근한다.
+- 운영 현황(2026-11-14): 운영자 계정 1개, 검토 항목 0건. 운영에 M02 검토 항목을 넣는 경로는 아직 없다(`dataset-items`는 개발 DB 전용).
+- 접근 키는 만들 때 한 번만 표시된다. 대화창·채팅·커밋에 붙이지 않는다. 노출되면 새 계정을 만들고 이전 계정을 `deactivate-reviewer --id`로 끈다(끄면 기존 로그인도 즉시 무효).
+- 운영(Neon)에 계정을 만들 때는 `DATABASE_URL`을 Neon direct URL(`postgresql+psycopg://`)로 잠시 지정하고 실행한 뒤 지운다(사용자 실행).
 ```powershell
 python -m scripts.hitl_admin seed-ontology                                  # 온톨로지 0.1 초안(draft) 적재
 python -m scripts.hitl_admin create-reviewer --role operator --name "운영자"  # 접근 키는 한 번만 표시(해시만 저장)
@@ -157,19 +166,29 @@ docker compose --profile app up -d --build    # 이미지 = React 빌드 + FastA
 
 - 구성: 루트 `index.py`가 FastAPI `app`을 내보내고(Vercel 진입점), `vercel.json`이 React 빌드(`cd frontend && npm ci && npm run build`), 지역 `sin1`(Neon 싱가포르와 같은 지역), 함수 최대 300초(Hobby 한도)를 정한다. 빌드된 화면은 `app.frontend()`로 CDN에 올라간다.
 - 답변 처리: Vercel에는 상시 실행 워커가 없다. `VERCEL` 환경에서는 `RUN_MODE=request`가 기본이 되어 워커 스레드를 띄우지 않고, 브라우저가 질문 접수 직후 `POST /api/v1/runs/{id}/execute`를 호출해 그 요청 안에서 답변을 만든다(약 10~20초). 여러 번 호출해도 한 번만 처리하고, 새로고침 뒤 대기 중인 작업은 화면이 다시 실행을 요청한다. 시간 초과 정리는 조회 시 수행한다. Docker·로컬은 기존 워커 방식(`RUN_MODE=worker`).
-- Vercel 환경변수(Production·Preview): `DATABASE_URL`=Neon **pooled** URL(`postgresql://`→`postgresql+psycopg://`), `OPENAI_API_KEY`, `KAKAO_REST_API_KEY`(병원 검색), `ALLOWED_ORIGINS`=연결한 도메인(예: `https://twinvet.pawcheck.ai`). `*.vercel.app` 배포 주소는 자동 허용.
+- Vercel 환경변수: `DATABASE_URL`=Neon **pooled** URL(`postgresql://`→`postgresql+psycopg://`, Production·Preview), `OPENAI_API_KEY`(Production·Preview), `KAKAO_REST_API_KEY`(병원 검색, Production), `ALLOWED_ORIGINS`=`https://twinvet.pawcheck.ai,https://hitl-review.pawcheck.ai`(Production), `REVIEW_HOST`=`hitl-review.pawcheck.ai`(Production, 미리보기에서는 비워 `/review`로 시험). `*.vercel.app` 배포 주소는 자동 허용. **환경변수는 다음 배포부터 적용**된다.
+- Vercel CLI(개발 PC): `C:\Users\hugctx\AppData\Roaming\npm\vercel.cmd`(PATH에 없음). 2026-11-14 로그인·`vercel link` 완료. `vercel env ls production`으로 확인, `vercel env add <이름> production`으로 추가(값은 직접 입력, 비밀값이 아니면 sensitive=n). `.vercel/`·`.env.local`(Vercel 접속 토큰만)은 git 제외이며 앱은 읽지 않는다.
+- 배포 방식: Vercel 프로젝트 twin-vet-rag는 2026-11-11 대시보드에서 GitHub 저장소를 Import해 만들었고 Git 연결이 켜져 있다. **main push = 운영 배포**, 작업 브랜치 push = Preview 배포.
 - 마이그레이션은 Vercel에서 실행하지 않는다. 스키마 변경 시 로컬에서 `ALEMBIC_DATABASE_URL`=Neon direct URL로 `alembic upgrade head`.
 - 런타임 의존성은 `requirements.txt`(테스트·데이터 준비 도구는 `requirements-dev.txt`). 업로드 제외는 `.vercelignore`.
-- **MVP1 품질 점검·검토 도구 배포 절차 (2026-11-14 배포 완료: main f1319bc, Codex 재검토·사용자 승인 후. 배포 후 확인 통과: vet.pawcheck.ai 로그인·목록·로그아웃 1280/390, twinvet /review → vet 이동, noindex, 보호자 시험 상담 390 통과 후 삭제. 이후 같은 날 HITL 주소를 hitl-review.pawcheck.ai로 바꾸고 `REVIEW_HOST`·`ALLOWED_ORIGINS`(Vercel CLI로 설정) 반영해 main 998c9ad 재배포. 확인: hitl-review 로그인·목록·로그아웃 1280/390, 보호자 주소의 검토 API 404, hitl-review의 보호자 API 404, twinvet/review·vet.pawcheck.ai → hitl-review 이동, 보호자 시험 상담 390 통과 후 삭제)** — 이 배포는 도구를 운영에 올리는 것이며 정제 효과나 MVP 완료를 뜻하지 않는다.
-  1. Codex 재검토 통과 확인(수정 3건, 커밋 3534357 이후).
-  2. 병합: main이 브랜치의 조상이라 fast-forward로 합친다. `git checkout main && git merge --ff-only feat/mvp1-hitl && git push origin main`.
-  3. 배포: Vercel 프로젝트 twin-vet-rag는 2026-11-11 대시보드에서 GitHub 저장소를 Import해 만들었고 Git 연결이 켜져 있다. **main push가 곧 운영 배포**다(main 커밋 bcfe761에 Vercel 상태 success 기록 확인, 2026-11-14). 작업 브랜치 push는 Preview 배포만 만든다.
-  - 병합 전 사용자 작업(HITL 검토 주소 `hitl-review.pawcheck.ai`; 2026-11-14 vet → hitl-review로 변경):
-    a. Vercel twin-vet-rag → Domains → **Add Existing** → `hitl-review.pawcheck.ai`(Production). 표시되는 CNAME 값(twinvet과 같은 `a81dabfff608cdc4.vercel-dns-017.com`)을 whois 네임서버 고급설정에 호스트명 `hitl-review`로 추가(끝에 점 없이). 밑줄(`_`)은 인증서가 발급되지 않아 쓸 수 없다.
-    b. Vercel 환경변수(Production만): `REVIEW_HOST`=`hitl-review.pawcheck.ai` 추가, `ALLOWED_ORIGINS`=`https://twinvet.pawcheck.ai,https://hitl-review.pawcheck.ai`로 수정. 환경변수는 다음 배포부터 적용되므로 병합 전에 넣는다.
-  4. DB: 마이그레이션 없음(Neon은 e5b7d2a9c4f1 적용 상태, 2026-11-14 읽기 전용 확인). 검토자 계정은 만들지 않는다.
-  5. 배포 후 확인: `/api/v1/health`(db up, 활성 문서 19,417), `https://hitl-review.pawcheck.ai` 로그인 화면 열림, 로그인 없이 `https://hitl-review.pawcheck.ai/api/v1/review/me` → 401, `https://twinvet.pawcheck.ai/api/v1/review/me` → 404, `https://twinvet.pawcheck.ai/review`와 `https://vet.pawcheck.ai` → hitl-review로 이동, 작업 주소 응답에 `X-Robots-Tag: noindex`. 시험 상담은 `python tests/e2e/ui_smoke.py --base https://twinvet.pawcheck.ai --widths 390`(실제 상담 1건 약 $0.01, 운영 DB에 저장된 뒤 스크립트가 대화·저장 정보를 화면의 삭제 기능으로 지움. 익명 세션 1건은 만료 후 정리).
-  6. 문제가 있으면 Vercel에서 직전 production 배포로 되돌리거나 main에 `git revert`. DB 변경이 없어 DB 복구는 필요 없다.
+- **MVP1 HITL 검토 도구 배포 — 2026-11-14 완료** (도구를 운영에 올린 것이며 정제 효과나 MVP 완료를 뜻하지 않는다)
+  - 경과: Codex 재검토(수정 3건 3534357, 주소 분리 8088b6a·f1319bc) → 사용자 승인 → main fast-forward 병합 f1319bc(검토 주소 vet.pawcheck.ai) → 같은 날 HITL 도구라 주소를 `hitl-review.pawcheck.ai`로 바로잡고(58d60d0) 환경변수 반영해 main 998c9ad 재배포. DB 변경 없음(Neon `e5b7d2a9c4f1`).
+  - 배포 후 확인(998c9ad): health db up·활성 문서 19,417 / hitl-review 로그인·목록·로그아웃 1280·390px, 가로 스크롤 없음 / hitl-review의 검토 API 로그인 전 401, 보호자 API 404 / twinvet의 검토 API 404 / `twinvet.pawcheck.ai/review`·`vet.pawcheck.ai` → hitl-review 이동 / hitl-review 응답 `X-Robots-Tag: noindex`, twinvet에는 없음 / 보호자 시험 상담 390px 통과 후 삭제(최근 30분 상담 0건 확인).
+  - 문제 시: Vercel에서 직전 production 배포로 되돌리거나 main에 `git revert`. DB 복구는 필요 없다.
+- **새 하위 주소를 붙이는 절차** (2026-11-14 vet·hitl-review에서 확인)
+  1. Vercel twin-vet-rag → Domains → **Add Existing** → 주소 입력(Production). **Buy는 유료 구매 버튼**이다.
+  2. whois.co.kr → 네임서버 고급설정 → CNAME 레코드 관리 → 신청란 추가: 호스트명(예 `hitl-review`), 값 `a81dabfff608cdc4.vercel-dns-017.com`(같은 프로젝트라 twinvet과 같음, **끝에 점 없이**). 호스트명에 밑줄(`_`)은 인증서가 발급되지 않아 쓸 수 없다.
+  3. whois 네임서버 4대(ns1~ns4)에 반영되는 데 수십 분~수 시간 걸린다. 인증서 발급이 "Failed To Generate Cert"(NXDOMAIN)로 실패하면 반영을 기다렸다가 Domains에서 **Refresh**.
+  4. 앱 동작이 바뀌는 주소면 환경변수를 넣고 main에 병합(다음 배포에 적용).
+- **도메인·DNS 현황** (pawcheck.ai, 네임서버 whoisdomain.kr ns1~ns4. SOA serial은 변경해도 2025122501로 고정이라 반영 여부는 레코드를 직접 조회해 확인)
+
+  | 호스트 | ns1 | ns2 | ns3 | ns4 | 인증서 |
+  |---|---|---|---|---|---|
+  | twinvet | 정상 | 정상 | 정상 | 정상 | 발급 |
+  | vet | 정상 | 정상 | 정상 | 정상 | 발급 (ns2가 늦게 반영됐으나 같은 날 해소) |
+  | hitl-review | **미반영** | **미반영** | 정상 | 정상 | 발급 (2026-11-14 19:48 기준, 추가 후 약 30분) |
+
+  - ns1(223.130.139.7)·ns2(211.188.57.152)가 ns3·ns4보다 늦게 반영되는 패턴이다. 미반영 서버에 물은 사용자는 일시적으로 주소를 못 찾을 수 있고, 인증서 갱신(약 90일)이 실패할 수 있다. 24시간 뒤에도 미반영이면 whois 고객센터에 "pawcheck.ai의 hitl-review CNAME이 ns1·ns2에 반영되지 않음"으로 문의한다.
 - 요청 횟수 제한은 함수 인스턴스별 메모리 값이라 인스턴스가 여러 개면 느슨해진다(PoC 허용). 만료 세션 정리는 Vercel Cron으로 옮길 수 있다(미적용).
 
 ### 무료 운영 점검 결과 (2026-11-11)
