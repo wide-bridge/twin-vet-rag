@@ -57,7 +57,6 @@ export function ReviewApp() {
   const [route, setRoute] = useState<Route>(parseHash);
   const [guide, setGuide] = useState<Guide | null>(null);
   const [concepts, setConcepts] = useState<Concept[]>([]);
-  const [m03On, setM03On] = useState(false);
 
   useEffect(() => {
     document.title = "TwinVet HITL Review";
@@ -70,7 +69,6 @@ export function ReviewApp() {
     if (!me) return;
     reviewApi.guide().then(setGuide).catch(() => undefined);
     reviewApi.concepts().then((r) => setConcepts(r.items)).catch(() => undefined);
-    if (me.role === "operator") reviewApi.m03Availability().then((r) => setM03On(r.enabled));
   }, [me]);
 
   const onAuthError = useCallback((e: unknown) => {
@@ -87,7 +85,7 @@ export function ReviewApp() {
           <nav className="rv-nav" aria-label="작업 메뉴">
             <a href="#/" aria-current={route.name === "list" || route.name === "item" ? "page" : undefined}>검토 목록</a>
             <a href="#/candidates" aria-current={route.name === "candidates" ? "page" : undefined}>지식 후보</a>
-            {m03On && <a href="#/m03" aria-current={route.name === "m03" ? "page" : undefined}>운영자 현황</a>}
+            {me.role === "operator" && <a href="#/m03" aria-current={route.name === "m03" ? "page" : undefined}>운영자 현황</a>}
           </nav>
           <div className="rv-me">
             <span>{me.display_name}</span>
@@ -104,7 +102,7 @@ export function ReviewApp() {
         {route.name === "list" && <ItemList onAuthError={onAuthError} />}
         {route.name === "item" && guide && <ItemScreen key={route.id} id={route.id} me={me} guide={guide} concepts={concepts} onAuthError={onAuthError} />}
         {route.name === "candidates" && <CandidateScreen me={me} itemId={route.itemId} onAuthError={onAuthError} />}
-        {route.name === "m03" && me.role === "operator" && m03On && (
+        {route.name === "m03" && me.role === "operator" && (
           route.id ? <M03ImportScreen key={route.id} id={route.id} onAuthError={onAuthError} /> : <M03Screen onAuthError={onAuthError} />
         )}
       </main>

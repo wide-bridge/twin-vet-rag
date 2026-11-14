@@ -209,7 +209,8 @@ def test_profile_delete_and_expiry_remove_copies_and_expired_ones_are_hidden_fir
         assert s.execute(text("SELECT count(*) FROM vet_question")).scalar() == 0
 
 
-def test_operator_views_are_off_with_m03(db, test_db_url):
+def test_operator_status_works_while_m03_is_closed(db, test_db_url):
+    """운영자 현황 is visible in hitl-review even before M03 opens to guardians (all zero); vets still get 403."""
     from backend.app.config import Settings
     from backend.app.main import create_app
     from backend.app.rag.embeddings import FakeEmbedder
@@ -220,4 +221,7 @@ def test_operator_views_are_off_with_m03(db, test_db_url):
         key = rsvc.create_reviewer(s, "operator", "운영자")[1]
     c = TestClient(app, base_url="http://localhost:8000")
     assert c.post(f"{R}/login", json={"access_key": key}, headers=H).status_code == 200
-    assert c.get(f"{R}/m03/stats").status_code == 404 and c.get(f"{R}/m03/pending").status_code == 404
+    st = c.get(f"{R}/m03/stats")
+    assert st.status_code == 200 and st.json()["questions"] == {"sent": 0, "answered": 0, "cancelled": 0}
+    assert c.get(f"{R}/m03/pending").json() == {"items": []}
+    assert c.get("/api/v1/vets").status_code == 404  # guardian M03 API stays closed
