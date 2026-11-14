@@ -276,3 +276,60 @@ def test_vet_host_answers_only_the_vet_api(db, test_db_url):
     assert guardian_host.get("/api/v1/vets").status_code == 200
     for c in (vet_host, guardian_host, review_host):  # the switch is readable from every app
         assert c.get("/api/v1/m03/availability").json() == {"enabled": True}
+
+
+def test_cancelled_questions_close_their_link(m3):
+    """Codex 2026-11-14 ①: a cancelled question (by the guardian or by ending the link) is not readable by link."""
+    g, cid, answer = m3.guardian()
+    second = m3.ask(g, cid, "물은 얼마나 줘야 하나요?")
+    v1 = m3.vet("v1")
+    lid = _connect(m3, g, v1)
+    anon = TestClient(m3.app, base_url="http://localhost:8000")
+    q1 = g.post("/api/v1/vet-questions", json={"link_id": lid, "answer_message_id": answer}, headers=H).json()
+    q2 = g.post("/api/v1/vet-questions", json={"link_id": lid, "answer_message_id": second}, headers=H).json()
+    assert anon.get(f"/api/v1/vet-questions/by-token/{q1['access_token']}").status_code == 200
+
+    g.post(f"/api/v1/vet-questions/{q1['id']}/cancel", headers=H)
+    assert anon.get(f"/api/v1/vet-questions/by-token/{q1['access_token']}").status_code == 404
+    re = g.post(f"/api/v1/vet-questions/{q1['id']}/link", headers=H)
+    assert re.status_code == 409 and re.json()["error"]["code"] == "question_closed"
+
+    g.delete(f"/api/v1/vet-links/{lid}", headers=H)  # q2 is cancelled with the link
+    assert anon.get(f"/api/v1/vet-questions/by-token/{q2['access_token']}").status_code == 404
+    assert g.post(f"/api/v1/vet-questions/{q2['id']}/link", headers=H).status_code == 409
+    with m3.app.state.Session() as s:
+        assert s.execute(text("SELECT count(*) FROM vet_question WHERE access_token_hash IS NOT NULL")).scalar() == 0
+
+
+def test_expired_profile_is_closed_to_the_vet_before_cleanup(m3):
+    """Codex 2026-11-14 ②: once the guardian's profile expires the vet can no longer list, read or answer it,
+    even though the cleanup job has not deleted the rows yet."""
+    g, cid, answer = m3.guardian()
+    second = m3.ask(g, cid, "물은 얼마나 줘야 하나요?")
+    v1 = m3.vet("v1")
+    lid = _connect(m3, g, v1)
+    q1 = g.post("/api/v1/vet-questions", json={"link_id": lid, "answer_message_id": answer}, headers=H).json()
+    q2 = g.post("/api/v1/vet-questions", json={"link_id": lid, "answer_message_id": second}, headers=H).json()
+    v1.post(f"{V}/questions/{q2['id']}/reply", json={"text": "답변"}, headers=H)
+    b, _, answer_b = m3.guardian("푸들")  # another guardian, still alive
+    lid_b = _connect(m3, b, v1)
+    qb = b.post("/api/v1/vet-questions", json={"link_id": lid_b, "answer_message_id": answer_b}, headers=H).json()
+
+    with m3.app.state.Session() as s:
+        s.execute(text("UPDATE dog_profile SET expires_at = now() - interval '1 minute' WHERE id = "
+                       "(SELECT profile_id FROM vet_question WHERE id = :q)"), {"q": q1["id"]})
+        s.commit()
+        assert s.execute(text("SELECT count(*) FROM vet_question")).scalar() == 3  # rows still there (no cleanup)
+
+    assert [i["id"] for i in v1.get(f"{V}/questions").json()["items"]] == [qb["id"]]
+    assert [l["id"] for l in v1.get(f"{V}/links").json()["items"]] == [lid_b]
+    for qid in (q1["id"], q2["id"]):
+        assert v1.get(f"{V}/questions/{qid}").status_code == 404
+        assert v1.put(f"{V}/questions/{qid}/draft", json={"text": "x"}, headers=H).status_code == 404
+        assert v1.post(f"{V}/questions/{qid}/reply", json={"text": "x"}, headers=H).status_code == 404
+        assert v1.post(f"{V}/questions/{qid}/correction", json={"text": "x"}, headers=H).status_code == 404
+    assert v1.post(f"{V}/links/{lid}/end", headers=H).status_code == 404
+    anon = TestClient(m3.app, base_url="http://localhost:8000")
+    assert anon.get(f"/api/v1/vet-questions/by-token/{q1['access_token']}").status_code == 404
+    assert g.get("/api/v1/vet-questions").status_code == 409  # the guardian's own profile is gone too
+    assert v1.get(f"{V}/questions/{qb['id']}").status_code == 200  # other guardians unaffected

@@ -135,7 +135,7 @@ def _end_link(db: DB, link: VetLink, by: str) -> None:
         link.status, link.ended_at, link.ended_by = "ended", t, by
         for q in db.execute(select(VetQuestion).where(VetQuestion.link_id == link.id, VetQuestion.status == "sent")
                             .with_for_update()).scalars():
-            q.status, q.cancelled_reason = "cancelled", "link_ended"
+            q.status, q.cancelled_reason, q.access_token_hash = "cancelled", "link_ended", None
     else:
         raise ApiError(409, "link_closed")
 
@@ -254,7 +254,7 @@ def cancel_question(db: DB, settings: Settings, prof: DogProfile, qid: uuid.UUID
     q = _own_question(db, prof, qid, lock=True)
     if q.status != "sent":
         raise ApiError(409, "question_closed")
-    q.status, q.cancelled_reason = "cancelled", "guardian"
+    q.status, q.cancelled_reason, q.access_token_hash = "cancelled", "guardian", None  # the link stops working
     profile_svc.touch(db, settings, prof)
     db.commit()
     return guardian_question_view(db, q)
@@ -280,6 +280,8 @@ def set_consent(db: DB, settings: Settings, prof: DogProfile, qid: uuid.UUID, co
 
 def reissue_token(db: DB, settings: Settings, prof: DogProfile, qid: uuid.UUID) -> str:
     q = _own_question(db, prof, qid, lock=True)
+    if q.status == "cancelled":
+        raise ApiError(409, "question_closed")
     token = secrets.token_urlsafe(32)
     q.access_token_hash = sha256(token)  # the previous link stops working
     profile_svc.touch(db, settings, prof)
@@ -293,7 +295,7 @@ def question_by_token(db: DB, settings: Settings, token: str) -> dict:
         raise ApiError(404, "not_found")
     q = db.execute(select(VetQuestion).where(VetQuestion.access_token_hash == sha256(token))).scalar_one_or_none()
     prof = db.get(DogProfile, q.profile_id) if q else None
-    if q is None or prof is None or (prof.expires_at is not None and prof.expires_at <= now()):
+    if q is None or q.status == "cancelled" or prof is None or not _profile_alive(prof):
         raise ApiError(404, "not_found")
     if q.status == "answered" and q.guardian_seen_at is None:
         q.guardian_seen_at = now()
@@ -303,8 +305,23 @@ def question_by_token(db: DB, settings: Settings, token: str) -> dict:
 
 
 # ---------------------------------------------------------------- vet side
+def _profile_alive(prof: DogProfile) -> bool:
+    return prof.expires_at is None or prof.expires_at > now()
+
+
+def _alive():
+    """SQL condition: the guardian's dog profile has not expired (cleanup may not have run yet)."""
+    return select(DogProfile.id).where(DogProfile.id == VetQuestion.profile_id).where(
+        (DogProfile.expires_at.is_(None)) | (DogProfile.expires_at > now())).exists()
+
+
+def _alive_link():
+    return select(DogProfile.id).where(DogProfile.id == VetLink.profile_id).where(
+        (DogProfile.expires_at.is_(None)) | (DogProfile.expires_at > now())).exists()
+
+
 def _vet_link(db: DB, vet: VetAccount, link_id: uuid.UUID, lock: bool = False) -> VetLink:
-    s = select(VetLink).where(VetLink.id == link_id, VetLink.vet_id == vet.id)
+    s = select(VetLink).where(VetLink.id == link_id, VetLink.vet_id == vet.id, _alive_link())
     link = db.execute(s.with_for_update() if lock else s).scalar_one_or_none()
     if link is None:
         raise ApiError(404, "not_found")
@@ -320,10 +337,10 @@ def vet_link_view(link: VetLink, open_questions: int = 0) -> dict:
 
 
 def vet_links(db: DB, vet: VetAccount) -> list[dict]:
-    rows = db.execute(select(VetLink).where(VetLink.vet_id == vet.id, VetLink.status.in_(("requested", "accepted")))
+    rows = db.execute(select(VetLink).where(VetLink.vet_id == vet.id, VetLink.status.in_(("requested", "accepted")), _alive_link())
                       .order_by(VetLink.requested_at.desc())).scalars().all()
     counts = dict(db.execute(select(VetQuestion.link_id, func.count()).where(
-        VetQuestion.vet_id == vet.id, VetQuestion.status == "sent").group_by(VetQuestion.link_id)).all())
+        VetQuestion.vet_id == vet.id, VetQuestion.status == "sent", _alive()).group_by(VetQuestion.link_id)).all())
     return [vet_link_view(x, counts.get(x.id, 0)) for x in rows]
 
 
@@ -360,12 +377,12 @@ def vet_question_view(db: DB, q: VetQuestion, full: bool) -> dict:
 
 
 def vet_questions(db: DB, vet: VetAccount) -> list[dict]:
-    rows = db.execute(select(VetQuestion).where(VetQuestion.vet_id == vet.id).order_by(VetQuestion.created_at.desc())).scalars()
+    rows = db.execute(select(VetQuestion).where(VetQuestion.vet_id == vet.id, _alive()).order_by(VetQuestion.created_at.desc())).scalars()
     return [vet_question_view(db, q, full=False) for q in rows]
 
 
 def _vet_question(db: DB, vet: VetAccount, qid: uuid.UUID, lock: bool = False) -> VetQuestion:
-    s = select(VetQuestion).where(VetQuestion.id == qid, VetQuestion.vet_id == vet.id)
+    s = select(VetQuestion).where(VetQuestion.id == qid, VetQuestion.vet_id == vet.id, _alive())
     q = db.execute(s.with_for_update() if lock else s).scalar_one_or_none()
     if q is None:
         raise ApiError(404, "not_found")
