@@ -50,7 +50,8 @@ def db(test_db_url):
         conn.execute(text(
             "TRUNCATE session, consultation, message, answer_run, citation, feedback, dog_profile, clinic, "
             "document, document_version, chunk, ingestion_run, reviewer, reviewer_session, concept, concept_relation, "
-            "review_item, review_label, label_concept, review_event, knowledge_candidate CASCADE"
+            "review_item, review_label, label_concept, review_event, knowledge_candidate, "
+            "vet_account, vet_session, vet_link, vet_question, vet_reply_revision, usage_daily CASCADE"
         ))
     session = sessionmaker(bind=engine, expire_on_commit=False)()
     try:
