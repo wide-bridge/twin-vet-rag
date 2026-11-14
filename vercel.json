@@ -15,6 +15,7 @@
       "permanent": false
     }
   ],
+  "rewrites": [{ "source": "/review", "destination": "/index.html" }],
   "headers": [
     {
       "source": "/(.*)",
