@@ -78,6 +78,7 @@ python -m scripts.hitl_admin activate --candidate <id> --embedder openai --yes
 python -m scripts.hitl_admin status
 python -m scripts.make_split_table --version v2                             # 분할표(seed 20261113, 진료과 층화, 중복 그룹 같은 fold)
 ```
+- 현재 상태(2026-11-14): 수의사 없이 진행하는 **출처 근거 품질 점검** 중이다. 실제 질문 묶음·자동 점검·재점검은 구현됐고, 비교 실행 기록·프롬프트 선택·적재 되돌리기(`load_knowledge --rollback-run`)는 구현 예정이다. 아래 발행·승인 규칙은 수의사 갈래의 현재 구현이다(docs/01 §4).
 - 운영 규칙(`hitl_production`): Vercel(APP_ENV=production) 또는 로컬이 아닌 DB(Neon)에 연결하면 운영 환경으로 본다. 운영 환경에서는 운영자가 발행 승인할 수 없고, 모의 지식은 활성화되지 않으며, 검색도 모의 지식을 반환하지 않는다.
 - 재검증: 수의사 2명의 선택 항목(정확성·근거·충분성·안내·안전 문제·재사용 범위)이 모두 같아야 독립 재검증 완료, 하나라도 다르면 이견.
 - 활성화 조건: 독립 재검증 완료 사례 + 후보를 작성·수정하지 않은 수의사의 승인(내용 해시 고정) + 같은 내용·같은 임베딩 모델의 유효한 검색 영향 점검 통과(실제 후보는 비교 가능한 질문 30개 이상). 적용 조건은 발행 본문에 들어간다. 발행 문서는 dataset_code=vetreview, document_type=vet_knowledge.
