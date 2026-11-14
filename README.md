@@ -163,7 +163,7 @@ docker compose --profile app up -d --build    # 이미지 = React 빌드 + FastA
 - **MVP1 품질 점검·검토 도구 배포 절차 (2026-11-14 준비, 승인 대기)** — 이 배포는 도구를 운영에 올리는 것이며 정제 효과나 MVP 완료를 뜻하지 않는다.
   1. Codex 재검토 통과 확인(수정 3건, 커밋 3534357 이후).
   2. 병합: main이 브랜치의 조상이라 fast-forward로 합친다. `git checkout main && git merge --ff-only feat/mvp1-hitl && git push origin main`.
-  3. 배포: Vercel 프로젝트가 GitHub main에 연결돼 있으면 push로 자동 배포된다(연결 방식은 사용자가 대시보드에서 확인). 연결이 없으면 Vercel 대시보드 또는 CLI로 production 배포.
+  3. 배포: Vercel 프로젝트 twin-vet-rag는 2026-11-11 대시보드에서 GitHub 저장소를 Import해 만들었고 Git 연결이 켜져 있다. **main push가 곧 운영 배포**다(main 커밋 bcfe761에 Vercel 상태 success 기록 확인, 2026-11-14). 작업 브랜치 push는 Preview 배포만 만든다.
   4. DB: 마이그레이션 없음(Neon은 e5b7d2a9c4f1 적용 상태, 2026-11-14 읽기 전용 확인). 검토자 계정은 만들지 않는다.
   5. 배포 후 확인: `/api/v1/health`(db up, 활성 문서 19,417), `/review` 화면 열림, 로그인 없이 `/api/v1/review/me` → 401. 시험 상담은 `python tests/e2e/ui_smoke.py --base https://twinvet.pawcheck.ai --widths 390`(실제 상담 1건 약 $0.01, 운영 DB에 저장된 뒤 스크립트가 대화·저장 정보를 화면의 삭제 기능으로 지움. 익명 세션 1건은 만료 후 정리).
   6. 문제가 있으면 Vercel에서 직전 production 배포로 되돌리거나 main에 `git revert`. DB 변경이 없어 DB 복구는 필요 없다.
