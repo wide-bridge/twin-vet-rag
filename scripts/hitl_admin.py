@@ -120,6 +120,8 @@ def main() -> int:
     p.add_argument("--item", required=True)
     p.add_argument("--yes", action="store_true")
     sub.add_parser("issues")
+    p = sub.add_parser("usage-stats", help="서비스 이용통계: stores today's Flow/Stock rows, prints the report (counts only)")
+    p.add_argument("--days", type=int)
     p = sub.add_parser("m03-stats", help="M03 numbers only (same function as the hitl-review screen), read-only")
     p.add_argument("--days", type=int)
     sub.add_parser("status")
@@ -130,6 +132,9 @@ def main() -> int:
     with session_factory(s.database_url)() as db:
         if a.cmd == "seed-ontology":
             print(svc.seed_ontology(db))
+        elif a.cmd == "usage-stats":
+            from backend.app.services import usage
+            print(json.dumps(usage.report(db, s, a.days), ensure_ascii=False, indent=1, default=str))
         elif a.cmd == "m03-stats":
             from backend.app.services import m03_hitl
             print(json.dumps(m03_hitl.stats(db, a.days), ensure_ascii=False, indent=1))

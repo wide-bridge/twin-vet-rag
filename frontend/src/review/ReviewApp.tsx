@@ -18,6 +18,7 @@ import {
   type M03Pending,
   type M03PendingDetail,
   type M03Stats,
+  type UsageReport,
 } from "./api";
 import "./review.css";
 
@@ -35,13 +36,14 @@ const COMPARE_FIELDS = ["accuracy", "evidence_support", "sufficiency", "guidance
 const SUMMARY_FIELDS = ["accuracy", "evidence_support", "sufficiency", "guidance", "reuse_scope"] as const;
 const AGREEMENT: readonly string[] = COMPARE_FIELDS;
 
-type Route = { name: "list" } | { name: "item"; id: string } | { name: "candidates"; itemId?: string } | { name: "m03"; id?: string };
+type Route = { name: "list" } | { name: "item"; id: string } | { name: "candidates"; itemId?: string } | { name: "m03"; id?: string } | { name: "usage" };
 
 function parseHash(): Route {
   const h = window.location.hash.replace(/^#\/?/, "");
   const [path, query] = h.split("?");
   const parts = path.split("/").filter(Boolean);
   if (parts[0] === "items" && parts[1]) return { name: "item", id: parts[1] };
+  if (parts[0] === "usage") return { name: "usage" };
   if (parts[0] === "m03") return { name: "m03", id: parts[1] };
   if (parts[0] === "candidates") return { name: "candidates", itemId: new URLSearchParams(query ?? "").get("item") ?? undefined };
   return { name: "list" };
@@ -85,7 +87,8 @@ export function ReviewApp() {
           <nav className="rv-nav" aria-label="작업 메뉴">
             <a href="#/" aria-current={route.name === "list" || route.name === "item" ? "page" : undefined}>검토 목록</a>
             <a href="#/candidates" aria-current={route.name === "candidates" ? "page" : undefined}>지식 후보</a>
-            {me.role === "operator" && <a href="#/m03" aria-current={route.name === "m03" ? "page" : undefined}>HITL-flow 현황</a>}
+            {me.role === "operator" && <a href="#/m03" aria-current={route.name === "m03" ? "page" : undefined}>HITL 통계</a>}
+            {me.role === "operator" && <a href="#/usage" aria-current={route.name === "usage" ? "page" : undefined}>서비스 이용통계</a>}
           </nav>
           <div className="rv-me">
             <span>{me.display_name}</span>
@@ -102,6 +105,7 @@ export function ReviewApp() {
         {route.name === "list" && <ItemList onAuthError={onAuthError} />}
         {route.name === "item" && guide && <ItemScreen key={route.id} id={route.id} me={me} guide={guide} concepts={concepts} onAuthError={onAuthError} />}
         {route.name === "candidates" && <CandidateScreen me={me} itemId={route.itemId} onAuthError={onAuthError} />}
+        {route.name === "usage" && me.role === "operator" && <UsageScreen onAuthError={onAuthError} />}
         {route.name === "m03" && me.role === "operator" && (
           route.id ? <M03ImportScreen key={route.id} id={route.id} onAuthError={onAuthError} /> : <M03Screen onAuthError={onAuthError} />
         )}
@@ -716,7 +720,7 @@ function M03Screen({ onAuthError }: { onAuthError: (e: unknown) => void }) {
   const n = (v: number | null | undefined, unit = "") => (v === null || v === undefined ? "-" : `${v}${unit}`);
   return (
     <section aria-labelledby="m03-title">
-      <h1 id="m03-title" className="rv-h1">HITL-flow 현황 <small className="help">보호자 → 수의사 → HITL 검토로 이어지는 숫자 · 질문 본문 없음</small></h1>
+      <h1 id="m03-title" className="rv-h1">HITL 통계 <small className="help">보호자 → 수의사 → HITL 검토로 이어지는 숫자 · 질문 본문 없음</small></h1>
       <div className="rv-filters" role="group" aria-label="기간">
         {[7, 30, 90, undefined].map((d) => (
           <button key={String(d)} className="chip" aria-pressed={days === d} onClick={() => setDays(d)}>{d ? `최근 ${d}일` : "전체"}</button>
@@ -791,7 +795,7 @@ function M03ImportScreen({ id, onAuthError }: { id: string; onAuthError: (e: unk
   );
   return (
     <section aria-labelledby="m03-imp-title">
-      <p><a href="#/m03">← HITL-flow 현황</a></p>
+      <p><a href="#/m03">← HITL 통계</a></p>
       <h1 id="m03-imp-title" className="rv-h1">검토 묶음으로 이관 {d?.corrected && <Badge tone="warn">정정된 회신</Badge>}</h1>
       {err && <p className="error-text" role="alert">{err}</p>}
       {done ? (
@@ -807,6 +811,100 @@ function M03ImportScreen({ id, onAuthError }: { id: string; onAuthError: (e: unk
           <label className="rv-check"><input type="checkbox" checked={checked} onChange={(e) => setChecked(e.target.checked)} /> 본문을 모두 읽고 식별 정보를 정리했습니다</label>
           <button className="btn btn-primary" disabled={busy || !checked || !f.question.trim() || !f.ai_answer.trim() || !f.vet_reply.trim()} onClick={submit}>검토 묶음으로 이관</button>
         </div>
+      )}
+    </section>
+  );
+}
+
+// ------------------------------------------------------------------ 서비스 이용통계: Flow (what happened per day) + Stock (levels)
+const FLOW_ROWS: [string, string][] = [
+  ["consultations", "상담"], ["questions", "질문"], ["grounded", "근거 답변"], ["clarification", "되묻기"],
+  ["insufficient_evidence", "근거 부족"], ["out_of_scope", "범위 밖"], ["failed", "실패"],
+  ["feedback_helpful", "도움 됐어요"], ["feedback_unhelpful", "아쉬워요"], ["profiles_created", "반려견 정보 저장"],
+  ["sessions", "접속(세션)"], ["vet_questions_sent", "수의사 질문"], ["vet_replies", "수의사 회신"],
+];
+const STOCK_ROWS: [string, string][] = [
+  ["consultations_kept", "보관 중 상담"], ["sessions_live", "유효 세션"], ["profiles_kept", "저장된 반려견 정보"],
+  ["profiles_with_clinic", "주치동물병원 등록"], ["vets_active", "활동 수의사"], ["vet_links_accepted", "수의사 연결"],
+  ["vet_questions_waiting", "회신 대기 질문"], ["review_items", "HITL 검토 묶음"], ["knowledge_active", "발행 지식"],
+  ["documents_active", "검색 문서"],
+];
+const TOPIC: Record<string, string> = { ear: "귀", eye: "눈", skin: "피부", oral: "구강", digestive: "소화", urinary: "비뇨", respiratory: "호흡", other: "기타·행동" };
+
+function UsageScreen({ onAuthError }: { onAuthError: (e: unknown) => void }) {
+  const [days, setDays] = useState<number | undefined>(7);
+  const [r, setR] = useState<UsageReport | null>(null);
+  const [err, setErr] = useState("");
+  useEffect(() => {
+    setR(null);
+    reviewApi.usage(days).then(setR).catch((e) => { onAuthError(e); setErr(e instanceof Error ? e.message : "불러올 수 없습니다."); });
+  }, [days, onAuthError]);
+  const t = r?.flow.totals;
+  const answers = (t?.answers as number) || 0;
+  const pct = (n: number | null | undefined) => (answers && n ? ` (${Math.round(((n as number) / answers) * 100)}%)` : "");
+  const maxDay = Math.max(1, ...(r?.flow.by_day.map((d) => (d.consultations as number) || 0) ?? [1]));
+  const topics = Object.entries(t?.topics ?? {}).sort((a, b) => b[1] - a[1]);
+  return (
+    <section aria-labelledby="usage-title">
+      <h1 id="usage-title" className="rv-h1">서비스 이용통계 <small className="help">숫자만 · 개인정보·질문 내용 없음</small></h1>
+      <div className="rv-filters" role="group" aria-label="기간">
+        {[7, 30, 90, undefined].map((d) => (
+          <button key={String(d)} className="chip" aria-pressed={days === d} onClick={() => setDays(d)}>{d ? `최근 ${d}일` : "전체"}</button>
+        ))}
+      </div>
+      {err && <p className="error-text" role="alert">{err}</p>}
+      {r && t && (
+        <>
+          <h2 className="rv-h2">Flow <small>기간 동안 일어난 일</small></h2>
+          <div className="rv-stats">
+            <div className="card rv-card"><p className="rv-kpi">{t.consultations}</p><p className="help">상담</p></div>
+            <div className="card rv-card"><p className="rv-kpi">{t.questions}</p><p className="help">질문</p></div>
+            <div className="card rv-card"><p className="rv-kpi">{t.grounded ?? 0}{pct(t.grounded)}</p><p className="help">근거 답변 / 답변 {answers}</p></div>
+            <div className="card rv-card"><p className="rv-kpi">{t.failed ?? 0}</p><p className="help">실패</p></div>
+            <div className="card rv-card"><p className="rv-kpi">{t.answer_ms_avg ? `${((t.answer_ms_avg as number) / 1000).toFixed(1)}초` : "-"}</p><p className="help">평균 답변 시간</p></div>
+            <div className="card rv-card"><p className="rv-kpi">{t.feedback_helpful ?? 0} / {t.feedback_unhelpful ?? 0}</p><p className="help">도움 됐어요 / 아쉬워요</p></div>
+          </div>
+          {topics.length > 0 && (
+            <p className="help" style={{ marginTop: 10 }}>상담 주제: {topics.map(([k, n]) => `${TOPIC[k] ?? k} ${n}`).join(" · ")}</p>
+          )}
+          <div className="rv-table-wrap">
+            <table className="rv-table">
+              <caption className="sr-only">일별 Flow</caption>
+              <thead><tr><th scope="col">날짜</th>{FLOW_ROWS.map(([, l]) => <th key={l} scope="col">{l}</th>)}<th scope="col">평균 답변</th></tr></thead>
+              <tbody>
+                {[...r.flow.by_day].reverse().map((d) => (
+                  <tr key={d.day}>
+                    <th scope="row">{d.day.slice(5)}<span className="rv-bar" style={{ width: `${(((d.consultations as number) || 0) / maxDay) * 48}px` }} aria-hidden="true" /></th>
+                    {FLOW_ROWS.map(([k]) => <td key={k}>{(d[k] as number) ?? 0}</td>)}
+                    <td>{d.answer_ms_avg ? `${((d.answer_ms_avg as number) / 1000).toFixed(1)}초` : "-"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <p className="help">상담 원본은 {r.retention_days}일 뒤 삭제됩니다. 그 전에 날짜별 숫자를 저장해 두므로 이후에도 추이가 남습니다(최근 {r.retention_days + 1}일은 원본으로 다시 계산).</p>
+
+          <h2 className="rv-h2" style={{ marginTop: 24 }}>Stock <small>지금 쌓여 있는 양</small></h2>
+          <div className="rv-stats">
+            {STOCK_ROWS.map(([k, l]) => (
+              <div key={k} className="card rv-card"><p className="rv-kpi">{r.stock.now[k] ?? 0}</p><p className="help">{l}</p></div>
+            ))}
+          </div>
+          {r.stock.by_day.length > 1 && (
+            <div className="rv-table-wrap">
+              <table className="rv-table">
+                <caption className="sr-only">일별 Stock</caption>
+                <thead><tr><th scope="col">날짜</th>{STOCK_ROWS.map(([, l]) => <th key={l} scope="col">{l}</th>)}</tr></thead>
+                <tbody>
+                  {[...r.stock.by_day].reverse().map((d) => (
+                    <tr key={d.day}><th scope="row">{d.day.slice(5)}</th>{STOCK_ROWS.map(([k]) => <td key={k}>{d[k] ?? "-"}</td>)}</tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+          <p className="help">Stock 추이는 그날 마지막으로 기록된 값입니다. 이 화면을 열거나 하루 1회 정리 작업이 돌 때 기록됩니다.</p>
+        </>
       )}
     </section>
   );

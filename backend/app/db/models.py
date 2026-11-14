@@ -301,3 +301,4 @@ class IngestionRun(Base):
 # MVP1 HITL tables live in their own module; import registers them on Base.metadata.
 from . import models_review  # noqa: E402,F401
 from . import models_m03  # noqa: E402,F401
+from . import models_stats  # noqa: E402,F401

@@ -234,7 +234,7 @@ def approve_candidate(cand_id: uuid.UUID, reviewer: ReviewerDep, db: DBDep, sett
 
 # ------------------------------------------------------------------ M03 operator: stats + import (docs/04 §7-1)
 def m03_operator(reviewer: ReviewerDep) -> Reviewer:
-    """HITL-flow 현황 works whether or not M03 is open to guardians (numbers are simply zero while it is off)."""
+    """HITL 통계 works whether or not M03 is open to guardians (numbers are simply zero while it is off)."""
     if reviewer.role != "operator":
         raise ApiError(403, "operator_only", "운영자만 볼 수 있어요.")
     return reviewer
@@ -277,3 +277,12 @@ def m03_import(qid: uuid.UUID, body: M03ImportIn, op: OperatorDep, db: DBDep):
     from ..services import m03_hitl
     return m03_hitl.import_question(db, op, qid, revision_id=body.revision_id, question=body.question,
                                     ai_answer=body.ai_answer, note=body.note_to_vet, vet_reply=body.vet_reply)
+
+
+# ------------------------------------------------------------------ 서비스 이용통계 (operator; Flow per day + Stock)
+@router.get("/usage")
+def usage_stats(op: OperatorDep, db: DBDep, settings: SettingsDep, days: int | None = None):
+    from ..services import usage
+    if days is not None and not 1 <= days <= 3650:
+        raise ApiError(422, "invalid_input", extra={"fields": ["days"]})
+    return usage.report(db, settings, days)

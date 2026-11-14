@@ -22,6 +22,13 @@ export type M03Stats = {
   consent: { yes: number; total: number; rate: number | null };
   import: { pending: number; imported: number; needs_recheck: number };
 };
+// 서비스 이용통계 (operator): Flow per KST day + Stock levels, counts only
+export type UsageFlow = Record<string, number | null> & { topics?: Record<string, number> };
+export type UsageReport = {
+  days: number | null; today: string; retention_days: number;
+  flow: { totals: UsageFlow; by_day: (UsageFlow & { day: string })[] };
+  stock: { now: Record<string, number>; by_day: (Record<string, number> & { day: string })[] };
+};
 export type M03Pending = { id: string; replied_at: string | null; revision_id: string; corrected: boolean; earlier_imports: number; question_preview: string };
 export type M03PendingDetail = {
   id: string; revision_id: string; corrected: boolean; question: string; ai_answer: string; note_to_vet: string | null;
@@ -159,6 +166,7 @@ export const reviewApi = {
   createCandidate: (b: CandidateBody) => call<Candidate>("POST", "/candidates", b),
   updateCandidate: (id: string, b: CandidateBody) => call<Candidate>("PUT", `/candidates/${id}`, b),
   approve: (id: string) => call<Candidate>("POST", `/candidates/${id}/approve`),
+  usage: (days?: number) => call<UsageReport>("GET", "/usage" + (days ? `?days=${days}` : "")),
   m03Stats: (days?: number) => call<M03Stats>("GET", "/m03/stats" + (days ? `?days=${days}` : "")),
   m03Pending: () => call<{ items: M03Pending[] }>("GET", "/m03/pending"),
   m03PendingDetail: (id: string) => call<M03PendingDetail>("GET", `/m03/pending/${id}`),

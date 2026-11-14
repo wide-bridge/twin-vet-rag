@@ -81,3 +81,13 @@ div.rv-pane { padding: 0; display: flex; flex-direction: column; gap: 14px; }
 
 .rv-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; }
 .rv-stats p { margin: 0; }
+
+.rv-kpi { font-size: 24px; font-weight: 700; margin: 0; color: var(--brand-navy); }
+.rv-table-wrap { overflow-x: auto; margin-top: 12px; border: 1px solid var(--color-divider); border-radius: 10px; background: var(--color-surface); }
+.rv-table { border-collapse: collapse; width: 100%; font-size: 13.5px; font-variant-numeric: tabular-nums; }
+.rv-table th, .rv-table td { padding: 8px 10px; border-bottom: 1px solid var(--color-divider); text-align: right; white-space: nowrap; }
+.rv-table thead th { background: var(--color-surface-muted); font-weight: 600; text-align: right; }
+.rv-table th[scope="row"], .rv-table thead th:first-child { text-align: left; position: sticky; left: 0; background: var(--color-surface); }
+.rv-table thead th:first-child { background: var(--color-surface-muted); }
+.rv-bar { display: inline-block; height: 8px; margin-left: 8px; border-radius: 4px; background: var(--color-primary); vertical-align: middle; }
+.rv-table-wrap + .help { margin-top: 8px; }
