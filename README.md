@@ -100,7 +100,7 @@ python -m scripts.load_knowledge --rollback-run <ingestion_run id>
 
 - 사례는 eval_dev에서만 고른다(eval_final은 `--final-check`일 때만). 검색 색인에 들어 있는 사례는 거부한다.
 - 프롬프트 변형은 `rag.prompts.ANSWER_SYSTEM_VARIANTS`에 추가한다. 앱은 항상 `current`를 쓰고, 비교로 채택이 확정되면 기본값을 바꾸고 PROMPT_VERSION을 올린다.
-- 되돌리기 거부 사유: 직전 버전 기록 없음(이 기능 이전 실행), 이미 되돌림, 이후 다른 실행이 다시 바꾼 문서, 삭제된 문서, 직전 버전 청크·임베딩 없음, 직전 버전 임베딩 모델 다름. 하나라도 있으면 아무것도 바꾸지 않고 목록만 출력한다.
+- 되돌리기 거부 사유: `--content-only` 적재가 아님(일반 적재는 메타데이터를 복구할 수 없음), 직전 버전 기록 없음(이 기능 이전 실행), 이미 되돌림, 이후 다른 실행이 다시 바꾼 문서, 삭제된 문서, 직전 버전 청크·임베딩 없음, 직전 버전 임베딩 모델 다름. 하나라도 있으면 아무것도 바꾸지 않고 목록만 출력한다.
 - 적재 활성화·되돌리기·문서 비활성/삭제는 같은 데이터셋 잠금을 써서 동시에 돌지 않는다.
 - 운영(Neon) 반영 절차: 로컬에서 비교·되돌리기를 확인한 정제본(파일 체크섬)·설정·임베딩 모델을 그대로 `load_knowledge --content-only`로 적재(사용자 실행) → 새 버전 활성화·수정 근거 검색·이전 내용 미잔존 확인 → 문제 시 `--rollback-run`.
 
@@ -160,6 +160,13 @@ docker compose --profile app up -d --build    # 이미지 = React 빌드 + FastA
 - Vercel 환경변수(Production·Preview): `DATABASE_URL`=Neon **pooled** URL(`postgresql://`→`postgresql+psycopg://`), `OPENAI_API_KEY`, `KAKAO_REST_API_KEY`(병원 검색), `ALLOWED_ORIGINS`=연결한 도메인(예: `https://twinvet.pawcheck.ai`). `*.vercel.app` 배포 주소는 자동 허용.
 - 마이그레이션은 Vercel에서 실행하지 않는다. 스키마 변경 시 로컬에서 `ALEMBIC_DATABASE_URL`=Neon direct URL로 `alembic upgrade head`.
 - 런타임 의존성은 `requirements.txt`(테스트·데이터 준비 도구는 `requirements-dev.txt`). 업로드 제외는 `.vercelignore`.
+- **MVP1 품질 점검·검토 도구 배포 절차 (2026-11-14 준비, 승인 대기)** — 이 배포는 도구를 운영에 올리는 것이며 정제 효과나 MVP 완료를 뜻하지 않는다.
+  1. Codex 재검토 통과 확인(수정 3건, 커밋 3534357 이후).
+  2. 병합: main이 브랜치의 조상이라 fast-forward로 합친다. `git checkout main && git merge --ff-only feat/mvp1-hitl && git push origin main`.
+  3. 배포: Vercel 프로젝트가 GitHub main에 연결돼 있으면 push로 자동 배포된다(연결 방식은 사용자가 대시보드에서 확인). 연결이 없으면 Vercel 대시보드 또는 CLI로 production 배포.
+  4. DB: 마이그레이션 없음(Neon은 e5b7d2a9c4f1 적용 상태, 2026-11-14 읽기 전용 확인). 검토자 계정은 만들지 않는다.
+  5. 배포 후 확인: `/api/v1/health`(db up, 활성 문서 19,417), `/review` 화면 열림, 로그인 없이 `/api/v1/review/me` → 401. 시험 상담은 `python tests/e2e/ui_smoke.py --base https://twinvet.pawcheck.ai --widths 390`(실제 상담 1건 약 $0.01, 운영 DB에 저장된 뒤 스크립트가 대화·저장 정보를 화면의 삭제 기능으로 지움. 익명 세션 1건은 만료 후 정리).
+  6. 문제가 있으면 Vercel에서 직전 production 배포로 되돌리거나 main에 `git revert`. DB 변경이 없어 DB 복구는 필요 없다.
 - 요청 횟수 제한은 함수 인스턴스별 메모리 값이라 인스턴스가 여러 개면 느슨해진다(PoC 허용). 만료 세션 정리는 Vercel Cron으로 옮길 수 있다(미적용).
 
 ### 무료 운영 점검 결과 (2026-11-11)
