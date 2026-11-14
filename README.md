@@ -160,7 +160,7 @@ docker compose --profile app up -d --build    # 이미지 = React 빌드 + FastA
 - Vercel 환경변수(Production·Preview): `DATABASE_URL`=Neon **pooled** URL(`postgresql://`→`postgresql+psycopg://`), `OPENAI_API_KEY`, `KAKAO_REST_API_KEY`(병원 검색), `ALLOWED_ORIGINS`=연결한 도메인(예: `https://twinvet.pawcheck.ai`). `*.vercel.app` 배포 주소는 자동 허용.
 - 마이그레이션은 Vercel에서 실행하지 않는다. 스키마 변경 시 로컬에서 `ALEMBIC_DATABASE_URL`=Neon direct URL로 `alembic upgrade head`.
 - 런타임 의존성은 `requirements.txt`(테스트·데이터 준비 도구는 `requirements-dev.txt`). 업로드 제외는 `.vercelignore`.
-- **MVP1 품질 점검·검토 도구 배포 절차 (2026-11-14 준비, 승인 대기)** — 이 배포는 도구를 운영에 올리는 것이며 정제 효과나 MVP 완료를 뜻하지 않는다.
+- **MVP1 품질 점검·검토 도구 배포 절차 (2026-11-14 배포 완료: main f1319bc, Codex 재검토·사용자 승인 후. 배포 후 확인 통과: vet.pawcheck.ai 로그인·목록·로그아웃 1280/390, twinvet /review → vet 이동, noindex, 보호자 시험 상담 390 통과 후 삭제. 미적용: Vercel `REVIEW_HOST` 환경변수가 없어 도메인별 API 차단은 아직 꺼져 있음)** — 이 배포는 도구를 운영에 올리는 것이며 정제 효과나 MVP 완료를 뜻하지 않는다.
   1. Codex 재검토 통과 확인(수정 3건, 커밋 3534357 이후).
   2. 병합: main이 브랜치의 조상이라 fast-forward로 합친다. `git checkout main && git merge --ff-only feat/mvp1-hitl && git push origin main`.
   3. 배포: Vercel 프로젝트 twin-vet-rag는 2026-11-11 대시보드에서 GitHub 저장소를 Import해 만들었고 Git 연결이 켜져 있다. **main push가 곧 운영 배포**다(main 커밋 bcfe761에 Vercel 상태 success 기록 확인, 2026-11-14). 작업 브랜치 push는 Preview 배포만 만든다.
