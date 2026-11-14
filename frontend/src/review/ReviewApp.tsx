@@ -15,6 +15,9 @@ import {
   type Label,
   type LabelBody,
   type Me,
+  type M03Pending,
+  type M03PendingDetail,
+  type M03Stats,
 } from "./api";
 import "./review.css";
 
@@ -32,13 +35,14 @@ const COMPARE_FIELDS = ["accuracy", "evidence_support", "sufficiency", "guidance
 const SUMMARY_FIELDS = ["accuracy", "evidence_support", "sufficiency", "guidance", "reuse_scope"] as const;
 const AGREEMENT: readonly string[] = COMPARE_FIELDS;
 
-type Route = { name: "list" } | { name: "item"; id: string } | { name: "candidates"; itemId?: string };
+type Route = { name: "list" } | { name: "item"; id: string } | { name: "candidates"; itemId?: string } | { name: "m03"; id?: string };
 
 function parseHash(): Route {
   const h = window.location.hash.replace(/^#\/?/, "");
   const [path, query] = h.split("?");
   const parts = path.split("/").filter(Boolean);
   if (parts[0] === "items" && parts[1]) return { name: "item", id: parts[1] };
+  if (parts[0] === "m03") return { name: "m03", id: parts[1] };
   if (parts[0] === "candidates") return { name: "candidates", itemId: new URLSearchParams(query ?? "").get("item") ?? undefined };
   return { name: "list" };
 }
@@ -53,6 +57,7 @@ export function ReviewApp() {
   const [route, setRoute] = useState<Route>(parseHash);
   const [guide, setGuide] = useState<Guide | null>(null);
   const [concepts, setConcepts] = useState<Concept[]>([]);
+  const [m03On, setM03On] = useState(false);
 
   useEffect(() => {
     document.title = "TwinVet HITL Review";
@@ -65,6 +70,7 @@ export function ReviewApp() {
     if (!me) return;
     reviewApi.guide().then(setGuide).catch(() => undefined);
     reviewApi.concepts().then((r) => setConcepts(r.items)).catch(() => undefined);
+    if (me.role === "operator") reviewApi.m03Availability().then((r) => setM03On(r.enabled));
   }, [me]);
 
   const onAuthError = useCallback((e: unknown) => {
@@ -79,8 +85,9 @@ export function ReviewApp() {
         <div className="rv-header-inner">
           <a className="rv-brand" href="#/">TwinVet HITL Review</a>
           <nav className="rv-nav" aria-label="작업 메뉴">
-            <a href="#/" aria-current={route.name !== "candidates" ? "page" : undefined}>검토 목록</a>
+            <a href="#/" aria-current={route.name === "list" || route.name === "item" ? "page" : undefined}>검토 목록</a>
             <a href="#/candidates" aria-current={route.name === "candidates" ? "page" : undefined}>지식 후보</a>
+            {m03On && <a href="#/m03" aria-current={route.name === "m03" ? "page" : undefined}>M03 현황·이관</a>}
           </nav>
           <div className="rv-me">
             <span>{me.display_name}</span>
@@ -97,6 +104,9 @@ export function ReviewApp() {
         {route.name === "list" && <ItemList onAuthError={onAuthError} />}
         {route.name === "item" && guide && <ItemScreen key={route.id} id={route.id} me={me} guide={guide} concepts={concepts} onAuthError={onAuthError} />}
         {route.name === "candidates" && <CandidateScreen me={me} itemId={route.itemId} onAuthError={onAuthError} />}
+        {route.name === "m03" && me.role === "operator" && m03On && (
+          route.id ? <M03ImportScreen key={route.id} id={route.id} onAuthError={onAuthError} /> : <M03Screen onAuthError={onAuthError} />
+        )}
       </main>
     </div>
   );
@@ -165,6 +175,7 @@ function ItemList({ onAuthError }: { onAuthError: (e: unknown) => void }) {
               <span className="rv-row-badges">
                 <Badge tone={i.is_mock ? "mock" : "muted"}>{ORIGIN[i.origin]}</Badge>
                 <Badge tone={i.review_status === "disputed" ? "warn" : i.review_status === "draft" ? "draft" : "ok"}>{STATUS[i.review_status]}</Badge>
+                {i.needs_recheck && <Badge tone="warn">재확인 필요</Badge>}
               </span>
               <span className="rv-row-q">{i.question}</span>
               <span className="rv-row-mine">{i.my_label === "submitted" ? "내 라벨 제출함" : i.my_label === "draft" ? "임시 저장" : "미작성"}</span>
@@ -259,16 +270,20 @@ function ItemScreen({ id, me, guide, concepts, onAuthError }: { id: string; me: 
       <h1 id="rv-item-title" className="rv-h1">
         검토 묶음 <Badge tone={it.is_mock ? "mock" : "muted"}>{ORIGIN[it.origin]}</Badge>{" "}
         <Badge tone={it.review_status === "disputed" ? "warn" : it.review_status === "draft" ? "draft" : "ok"}>{STATUS[it.review_status]}</Badge>
+        {it.needs_recheck && <Badge tone="warn">재확인 필요</Badge>}
       </h1>
+      {it.needs_recheck && (
+        <p className="rv-banner" role="note">이관한 뒤 수의사가 회신을 정정했습니다. 이 묶음의 참고 답변·라벨은 이관 당시 그대로이며, 새 회신은 운영자가 다시 정리해 별도 묶음으로 이관합니다.</p>
+      )}
       <div className="rv-split">
         <article className="card rv-pane" aria-label="검토 묶음">
           <h2 className="rv-h2">반려견 정보 <small>({it.origin === "dataset" ? "질문 내용에서 추정" : "보호자 입력"})</small></h2>
           <p className="rv-dog">{Object.entries(it.dog).map(([k, v]) => `${DOG_LABEL[k] ?? k}: ${String(v)}`).join(" · ") || "없음"}</p>
           {it.history.length > 0 && (
             <>
-              <h2 className="rv-h2">이전 대화</h2>
+              <h2 className="rv-h2">{it.origin === "consultation" ? "보호자 메모" : "이전 대화"}</h2>
               <ol className="rv-history">
-                {it.history.map((m, i) => <li key={i}><b>{m.role === "user" ? "보호자" : "AI"}</b> {m.content}</li>)}
+                {it.history.map((m, i) => <li key={i}><b>{m.role === "user" ? "보호자" : m.role === "note" ? "보호자가 덧붙인 설명" : "AI"}</b> {m.content}</li>)}
               </ol>
             </>
           )}
@@ -293,6 +308,12 @@ function ItemScreen({ id, me, guide, concepts, onAuthError }: { id: string; me: 
                 </li>
               ))}
             </ol>
+          )}
+          {it.vet_reference && (
+            <>
+              <h2 className="rv-h2">수의사 회신 <small>(참고 답변 · 라벨 아님 · 운영자가 정리한 사본)</small></h2>
+              <p className="rv-quote">{it.vet_reference}</p>
+            </>
           )}
           {d.auto_check && <AutoCheckView c={d.auto_check} />}
           <p className="help">버전: {Object.entries(it.versions).map(([k, v]) => `${k}=${v}`).join(", ") || "-"}</p>
@@ -655,6 +676,7 @@ function CandidateScreen({ me, itemId, onAuthError }: { me: Me; itemId?: string;
               {c.is_mock && <Badge tone="mock">모의</Badge>}
               <Badge>{c.kind === "case" ? "사례" : "일반 지식"}</Badge>
               <Badge tone={c.publish_status === "active" ? "ok" : c.publish_status === "approved" ? "ok" : "draft"}>{PUBLISH[c.publish_status]}</Badge>
+              {c.source_withdrawn_at && <Badge tone="warn">근거 사본 삭제됨 · 다시 작성 필요</Badge>}
               {c.eval_passed != null && (
                 <Badge tone={c.eval_passed ? "ok" : "warn"}>
                   검색 영향 점검 {c.eval_result?.valid === false ? "평가 불가" : c.eval_passed ? "통과" : "실패"}
@@ -677,6 +699,117 @@ function CandidateScreen({ me, itemId, onAuthError }: { me: Me; itemId?: string;
           </li>
         ))}
       </ul>
+    </section>
+  );
+}
+
+// ------------------------------------------------------------------ M03 operator: stats (numbers only) + import queue
+function M03Screen({ onAuthError }: { onAuthError: (e: unknown) => void }) {
+  const [days, setDays] = useState<number | undefined>(30);
+  const [st, setSt] = useState<M03Stats | null>(null);
+  const [items, setItems] = useState<M03Pending[] | null>(null);
+  const [err, setErr] = useState("");
+  useEffect(() => {
+    reviewApi.m03Stats(days).then(setSt).catch((e) => { onAuthError(e); setErr(e instanceof Error ? e.message : "불러올 수 없습니다."); });
+  }, [days, onAuthError]);
+  useEffect(() => {
+    reviewApi.m03Pending().then((r) => setItems(r.items)).catch(onAuthError);
+  }, [onAuthError]);
+  const n = (v: number | null | undefined, unit = "") => (v === null || v === undefined ? "-" : `${v}${unit}`);
+  return (
+    <section aria-labelledby="m03-title">
+      <h1 id="m03-title" className="rv-h1">M03 현황 <small className="help">숫자만 표시 · 질문 본문 없음</small></h1>
+      <div className="rv-filters" role="group" aria-label="기간">
+        {[7, 30, 90, undefined].map((d) => (
+          <button key={String(d)} className="chip" aria-pressed={days === d} onClick={() => setDays(d)}>{d ? `최근 ${d}일` : "전체"}</button>
+        ))}
+      </div>
+      {err && <p className="error-text" role="alert">{err}</p>}
+      {st && (
+        <div className="rv-stats">
+          <div className="card rv-card"><h2 className="rv-h2">연결</h2>
+            <p>요청 {st.links.requested} · 수락 {st.links.accepted} · 거절 {st.links.declined} · 취소 {st.links.cancelled} · 해제 {st.links.ended}</p></div>
+          <div className="card rv-card"><h2 className="rv-h2">질문</h2>
+            <p>회신 대기 {st.questions.sent} · 회신 완료 {st.questions.answered} · 취소 {st.questions.cancelled}</p></div>
+          <div className="card rv-card"><h2 className="rv-h2">회신까지 걸린 시간</h2>
+            <p>중앙값 {n(st.reply_hours.median, "시간")} · 최대 {n(st.reply_hours.max, "시간")} ({st.reply_hours.count}건)</p></div>
+          <div className="card rv-card"><h2 className="rv-h2">품질 개선 동의</h2>
+            <p>{st.consent.yes}/{st.consent.total}건 {st.consent.rate === null ? "" : `(${Math.round(st.consent.rate * 100)}%)`}</p></div>
+          <div className="card rv-card"><h2 className="rv-h2">HITL 이관</h2>
+            <p>대기 {st.import.pending} · 이관 {st.import.imported} · 재확인 필요 {st.import.needs_recheck}</p></div>
+        </div>
+      )}
+      <h1 className="rv-h1" style={{ marginTop: 28 }}>이관 대기 <small className="help">품질 개선에 동의했고 수의사 회신이 있는 질문만</small></h1>
+      {items && items.length === 0 && <p className="help">이관할 질문이 없습니다.</p>}
+      <ul className="rv-list">
+        {items?.map((p) => (
+          <li key={p.id + p.revision_id}>
+            <a className="card rv-row" href={`#/m03/${p.id}`}>
+              <span className="rv-row-badges">{p.corrected ? <Badge tone="warn">정정된 회신</Badge> : <Badge>새 회신</Badge>}{p.earlier_imports > 0 && <Badge>이전 이관 {p.earlier_imports}</Badge>}</span>
+              <span className="rv-row-q">{p.question_preview}</span>
+              <span className="rv-row-mine">{p.replied_at ? new Date(p.replied_at).toLocaleString("ko-KR") : ""}</span>
+            </a>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
+function M03ImportScreen({ id, onAuthError }: { id: string; onAuthError: (e: unknown) => void }) {
+  const [d, setD] = useState<M03PendingDetail | null>(null);
+  const [f, setF] = useState({ question: "", ai_answer: "", note_to_vet: "", vet_reply: "" });
+  const [checked, setChecked] = useState(false);
+  const [err, setErr] = useState("");
+  const [done, setDone] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  useEffect(() => {
+    reviewApi.m03PendingDetail(id).then((x) => {
+      setD(x);
+      setF({ question: x.question, ai_answer: x.ai_answer, note_to_vet: x.note_to_vet ?? "", vet_reply: x.vet_reply });
+    }).catch((e) => { onAuthError(e); setErr(e instanceof Error ? e.message : "불러올 수 없습니다."); });
+  }, [id, onAuthError]);
+  const submit = async () => {
+    if (!d) return;
+    setBusy(true);
+    setErr("");
+    try {
+      const r = await reviewApi.m03Import(id, { revision_id: d.revision_id, question: f.question, ai_answer: f.ai_answer,
+        note_to_vet: f.note_to_vet.trim() || null, vet_reply: f.vet_reply });
+      setDone(r.item_id);
+    } catch (e) {
+      onAuthError(e);
+      setErr(e instanceof Error ? e.message : "이관할 수 없습니다.");
+    } finally {
+      setBusy(false);
+    }
+  };
+  const field = (k: keyof typeof f, label: string, rows: number) => (
+    <div className="field" style={{ marginBottom: 12 }}>
+      <label htmlFor={"m03-" + k}>{label}</label>
+      <textarea id={"m03-" + k} className="textarea rv-textarea" rows={rows} maxLength={4000} value={f[k]}
+        onChange={(e) => setF({ ...f, [k]: e.target.value })} />
+    </div>
+  );
+  return (
+    <section aria-labelledby="m03-imp-title">
+      <p><a href="#/m03">← M03 현황</a></p>
+      <h1 id="m03-imp-title" className="rv-h1">검토 묶음으로 이관 {d?.corrected && <Badge tone="warn">정정된 회신</Badge>}</h1>
+      {err && <p className="error-text" role="alert">{err}</p>}
+      {done ? (
+        <p className="ok-text">이관했습니다. <a href={`#/items/${done}`}>검토 묶음 열기</a></p>
+      ) : d && (
+        <div className="card rv-card">
+          <p className="rv-banner" role="note">본문을 모두 읽고 이름·연락처·주소·병원명 등 개인을 알아볼 수 있는 내용을 지운 뒤 이관하세요. 정리해도 비식별이 보장되지는 않습니다. 보호자가 동의를 철회하거나 질문을 지우면 이 사본도 삭제됩니다.</p>
+          <p className="help">함께 넘어가는 반려견 정보: {Object.entries(d.dog).map(([k, v]) => `${k} ${v}`).join(" · ") || "없음"} (이름·건강 메모는 넘어가지 않음)</p>
+          {field("question", "보호자 질문", 3)}
+          {field("note_to_vet", "보호자가 덧붙인 설명 (비우면 넘기지 않음)", 3)}
+          {field("ai_answer", "AI 답변", 6)}
+          {field("vet_reply", "수의사 회신 (참고 답변, 라벨 아님)", 6)}
+          <label className="rv-check"><input type="checkbox" checked={checked} onChange={(e) => setChecked(e.target.checked)} /> 본문을 모두 읽고 식별 정보를 정리했습니다</label>
+          <button className="btn btn-primary" disabled={busy || !checked || !f.question.trim() || !f.ai_answer.trim() || !f.vet_reply.trim()} onClick={submit}>검토 묶음으로 이관</button>
+        </div>
+      )}
     </section>
   );
 }

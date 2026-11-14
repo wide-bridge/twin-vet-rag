@@ -90,8 +90,9 @@ def _label_data(body: LabelIn) -> tuple[dict, int]:
 
 
 def _item(db, item_id: uuid.UUID) -> ReviewItem:
+    from ..services.m03_hitl import is_live_copy
     item = db.get(ReviewItem, item_id)
-    if item is None:
+    if item is None or not is_live_copy(db, item):  # expired guardian copies are hidden before cleanup
         raise ApiError(404, "not_found")
     return item
 
@@ -229,3 +230,51 @@ def approve_candidate(cand_id: uuid.UUID, reviewer: ReviewerDep, db: DBDep, sett
     except svc.ReviewError as e:
         _raise(e)
     return svc.candidate_view(c)
+
+
+# ------------------------------------------------------------------ M03 operator: stats + import (docs/04 §7-1)
+def m03_operator(reviewer: ReviewerDep, settings: SettingsDep) -> Reviewer:
+    from ..services import m03
+    m03.require_enabled(settings)  # 404 while M03 is off
+    if reviewer.role != "operator":
+        raise ApiError(403, "operator_only", "운영자만 볼 수 있어요.")
+    return reviewer
+
+
+OperatorDep = Annotated[Reviewer, Depends(m03_operator)]
+
+
+class M03ImportIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    revision_id: uuid.UUID
+    question: str = Field(max_length=4000)
+    ai_answer: str = Field(max_length=4000)
+    note_to_vet: str | None = Field(default=None, max_length=4000)
+    vet_reply: str = Field(max_length=4000)
+
+
+@router.get("/m03/stats")
+def m03_stats(op: OperatorDep, db: DBDep, days: int | None = None):
+    from ..services import m03_hitl
+    if days is not None and not 1 <= days <= 3650:
+        raise ApiError(422, "invalid_input", extra={"fields": ["days"]})
+    return m03_hitl.stats(db, days)
+
+
+@router.get("/m03/pending")
+def m03_pending(op: OperatorDep, db: DBDep):
+    from ..services import m03_hitl
+    return {"items": m03_hitl.pending(db)}
+
+
+@router.get("/m03/pending/{qid}")
+def m03_pending_detail(qid: uuid.UUID, op: OperatorDep, db: DBDep):
+    from ..services import m03_hitl
+    return m03_hitl.pending_detail(db, qid)
+
+
+@router.post("/m03/pending/{qid}/import", status_code=201, dependencies=Guard)
+def m03_import(qid: uuid.UUID, body: M03ImportIn, op: OperatorDep, db: DBDep):
+    from ..services import m03_hitl
+    return m03_hitl.import_question(db, op, qid, revision_id=body.revision_id, question=body.question,
+                                    ai_answer=body.ai_answer, note=body.note_to_vet, vet_reply=body.vet_reply)

@@ -120,6 +120,8 @@ def main() -> int:
     p.add_argument("--item", required=True)
     p.add_argument("--yes", action="store_true")
     sub.add_parser("issues")
+    p = sub.add_parser("m03-stats", help="M03 numbers only (same function as the hitl-review screen), read-only")
+    p.add_argument("--days", type=int)
     sub.add_parser("status")
     a = ap.parse_args()
 
@@ -128,6 +130,9 @@ def main() -> int:
     with session_factory(s.database_url)() as db:
         if a.cmd == "seed-ontology":
             print(svc.seed_ontology(db))
+        elif a.cmd == "m03-stats":
+            from backend.app.services import m03_hitl
+            print(json.dumps(m03_hitl.stats(db, a.days), ensure_ascii=False, indent=1))
         elif a.cmd == "create-reviewer":
             r, key = svc.create_reviewer(db, a.role, a.name, a.email)
             print(f"reviewer {r.id} ({r.role}) created. Access key (shown once, store it safely):\n{key}")

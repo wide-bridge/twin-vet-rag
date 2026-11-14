@@ -37,6 +37,7 @@ from ..rag.embeddings import Embedder, cosine
 from ..rag.retrieval import search
 
 VET_DATASET_CODE = "vetreview"
+WITHDRAWN = "근거가 된 검토 사본이 보호자 요청으로 삭제된 후보입니다. 남은 근거로 내용을 다시 작성한 뒤 승인할 수 있습니다"
 VET_SOURCE_NAME = "TwinVet 수의사 검토 지식"
 VET_USAGE_NOTE = "수의사 검토·독립 재검증 후 발행"
 
@@ -144,7 +145,8 @@ def bundle_hash(question: str, history: list, dog: dict, ai_answer: str, citatio
 
 def create_item(db: Session, *, origin: str, source_ref: str, question: str, ai_answer: str, history: list | None = None,
                 dog: dict | None = None, response_type: str | None = None, citations: list | None = None,
-                versions: dict | None = None, show_ai_suggestion: bool = True) -> tuple[ReviewItem, bool]:
+                versions: dict | None = None, show_ai_suggestion: bool = True,
+                link: dict | None = None) -> tuple[ReviewItem, bool]:
     """Idempotent by (origin, source_ref). Returns (item, created)."""
     found = db.execute(select(ReviewItem).where(ReviewItem.origin == origin, ReviewItem.source_ref == source_ref)).scalar_one_or_none()
     if found:
@@ -153,7 +155,7 @@ def create_item(db: Session, *, origin: str, source_ref: str, question: str, ai_
     item = ReviewItem(origin=origin, is_mock=origin == "mock", source_ref=source_ref, question=question, history=history,
                       dog=dog, ai_answer=ai_answer, response_type=response_type, citations=citations, versions=versions,
                       content_hash=bundle_hash(question, history, dog, ai_answer, citations, versions),
-                      show_ai_suggestion=show_ai_suggestion)
+                      show_ai_suggestion=show_ai_suggestion, **(link or {}))  # link: M03 copy columns
     db.add(item)
     db.flush()
     _event(db, actor=None, event="item_created", item=item, origin=origin)
@@ -312,11 +314,13 @@ def _label_concepts(db: Session, label_ids: list) -> dict:
 def item_summary(item: ReviewItem, mine: ReviewLabel | None) -> dict:
     return {"id": str(item.id), "origin": item.origin, "is_mock": item.is_mock, "question": item.question[:120],
             "review_status": item.review_status, "dispute_type": item.dispute_type,
-            "my_label": mine.state if mine else None, "created_at": item.created_at.isoformat()}
+            "my_label": mine.state if mine else None, "created_at": item.created_at.isoformat(),
+            "needs_recheck": item.needs_recheck}
 
 
 def list_items(db: Session, reviewer: Reviewer, status: str | None = None, origin: str | None = None) -> list[dict]:
-    q = select(ReviewItem).order_by(ReviewItem.created_at, ReviewItem.source_ref)
+    from .m03_hitl import live_copy_condition
+    q = select(ReviewItem).where(live_copy_condition()).order_by(ReviewItem.created_at, ReviewItem.source_ref)
     if status:
         q = q.where(ReviewItem.review_status == status)
     if origin:
@@ -355,6 +359,8 @@ def item_detail(db: Session, item: ReviewItem, reviewer: Reviewer) -> dict:
             **item_summary(item, mine), "question": item.question, "history": item.history, "dog": item.dog,
             "ai_answer": item.ai_answer, "response_type": item.response_type, "citations": item.citations,
             "versions": item.versions, "show_ai_suggestion": item.show_ai_suggestion,
+            # M03 copy: the vet's reply is a reference answer (never a label); a later correction only flags the copy
+            "vet_reference": item.vet_reference,
         },
         "my_label": view(mine) if mine else None,
         # AI suggestion: only on items chosen to show it, or after my own submit (for comparison)
@@ -416,6 +422,9 @@ def update_candidate(db: Session, cand: KnowledgeCandidate, reviewer: Reviewer, 
         setattr(cand, k, val)
     if new_hash != cand.content_hash:
         cand.content_hash = new_hash
+        if cand.source_withdrawn_at is not None:  # rewritten from what remains: may go through approval again
+            cand.source_withdrawn_at = None
+            _event(db, actor=reviewer, event="rewritten_after_withdrawal", candidate=cand)
         if cand.publish_status in ("approved", "active"):
             # approval binds to the exact content: an edit needs a new approval and a new evaluation.
             # An active document stays as published until the new version is activated.
@@ -449,6 +458,8 @@ def candidate_authors(db: Session, cand: KnowledgeCandidate) -> set[str]:
 def approve_candidate(db: Session, cand: KnowledgeCandidate, reviewer: Reviewer, production: bool) -> KnowledgeCandidate:
     if cand.publish_status not in ("unapproved",):
         raise ReviewError(409, "candidate_not_unapproved", "승인 대기 상태의 후보만 승인할 수 있습니다")
+    if cand.source_withdrawn_at is not None:
+        raise ReviewError(409, "source_withdrawn", WITHDRAWN)
     item = db.get(ReviewItem, cand.item_id) if cand.item_id else None
     reason = rules.approval_block_reason(
         approver_role=reviewer.role, approver_id=str(reviewer.id), production=production, is_mock=cand.is_mock,
@@ -468,7 +479,8 @@ def candidate_view(c: KnowledgeCandidate) -> dict:
             "publish_status": c.publish_status, "approved": c.approved_hash is not None and c.approved_hash == c.content_hash,
             "approved_at": c.approved_at.isoformat() if c.approved_at else None, "eval_result": c.eval_result,
             "eval_passed": c.eval_passed, "document_id": str(c.document_id) if c.document_id else None,
-            "updated_at": c.updated_at.isoformat() if c.updated_at else None}
+            "updated_at": c.updated_at.isoformat() if c.updated_at else None,
+            "source_withdrawn_at": c.source_withdrawn_at.isoformat() if c.source_withdrawn_at else None}
 
 
 def list_candidates(db: Session) -> list[dict]:
@@ -564,6 +576,8 @@ def activate_candidate(db: Session, cand: KnowledgeCandidate, embedder: Embedder
                                            production=production)
     if reason:
         raise ReviewError(409, "activation_blocked", reason)
+    if cand.source_withdrawn_at is not None:
+        raise ReviewError(409, "source_withdrawn", WITHDRAWN)
     source_id = f"candidate-{cand.id}"
     doc = db.execute(select(Document).where(Document.dataset_code == VET_DATASET_CODE,
                                             Document.source_record_id == source_id)).scalar_one_or_none()

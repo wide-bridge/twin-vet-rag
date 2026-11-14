@@ -1,5 +1,5 @@
 """Local M03 demo server for tests/e2e/m03_smoke.py: LOCAL dev DB only, M03 on, vet host vet.localhost, FAKE LLM and
-embedder (no API cost). Creates one test vet and writes its key to data_output/e2e/m03_vet_key.txt (git-ignored).
+embedder (no API cost). Creates one test vet and one operator and writes their keys to data_output/e2e/ (git-ignored).
 
     python tests/e2e/m03_server.py      # then, in another shell: python tests/e2e/m03_smoke.py
 """
@@ -29,4 +29,8 @@ OUT = ROOT / "data_output" / "e2e"
 OUT.mkdir(parents=True, exist_ok=True)
 (OUT / "m03_vet_key.txt").write_text(key, encoding="utf-8")
 (OUT / "m03_vet_name.txt").write_text(name, encoding="utf-8")
+from backend.app.services import review as review_svc  # noqa: E402  operator for the HITL import smoke
+with app.state.Session() as db:
+    _, op_key = review_svc.create_reviewer(db, "operator", "운영자" + name[-6:])
+(OUT / "m03_operator_key.txt").write_text(op_key, encoding="utf-8")
 uvicorn.run(app, host="127.0.0.1", port=8011, log_level="warning")

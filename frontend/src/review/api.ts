@@ -11,6 +11,21 @@ export type ItemSummary = {
   dispute_type: string | null;
   my_label: "draft" | "submitted" | null;
   created_at: string;
+  needs_recheck?: boolean;
+};
+// M03 operator views (numbers only / consented + answered questions only)
+export type M03Stats = {
+  days: number | null;
+  links: Record<string, number>;
+  questions: Record<string, number>;
+  reply_hours: { count: number; median: number | null; max: number | null };
+  consent: { yes: number; total: number; rate: number | null };
+  import: { pending: number; imported: number; needs_recheck: number };
+};
+export type M03Pending = { id: string; replied_at: string | null; revision_id: string; corrected: boolean; earlier_imports: number; question_preview: string };
+export type M03PendingDetail = {
+  id: string; revision_id: string; corrected: boolean; question: string; ai_answer: string; note_to_vet: string | null;
+  vet_reply: string; dog: Record<string, string | number>; sources: string[]; ai_response_type: string | null;
 };
 export type ConceptTag = { code: string; assertion: string };
 export type Label = {
@@ -57,6 +72,7 @@ export type ItemDetail = {
     citations: { n?: number; title: string; department?: string | null; excerpt?: string }[];
     versions: Record<string, string>;
     show_ai_suggestion: boolean;
+    vet_reference?: string | null;
   };
   my_label: Label | null;
   ai_suggestion: Label | null;
@@ -79,6 +95,7 @@ export type Candidate = {
   publish_status: "unapproved" | "approved" | "active" | "rejected" | "retired";
   approved: boolean;
   approved_at: string | null;
+  source_withdrawn_at?: string | null;
   eval_result: Record<string, unknown> | null;
   eval_passed: boolean | null;
   document_id: string | null;
@@ -142,4 +159,10 @@ export const reviewApi = {
   createCandidate: (b: CandidateBody) => call<Candidate>("POST", "/candidates", b),
   updateCandidate: (id: string, b: CandidateBody) => call<Candidate>("PUT", `/candidates/${id}`, b),
   approve: (id: string) => call<Candidate>("POST", `/candidates/${id}/approve`),
+  m03Stats: (days?: number) => call<M03Stats>("GET", "/m03/stats" + (days ? `?days=${days}` : "")),
+  m03Pending: () => call<{ items: M03Pending[] }>("GET", "/m03/pending"),
+  m03PendingDetail: (id: string) => call<M03PendingDetail>("GET", `/m03/pending/${id}`),
+  m03Import: (id: string, b: { revision_id: string; question: string; ai_answer: string; note_to_vet: string | null; vet_reply: string }) =>
+    call<{ item_id: string; revision_id: string }>("POST", `/m03/pending/${id}/import`, b),
+  m03Availability: () => fetch("/api/v1/m03/availability").then((r) => r.json() as Promise<{ enabled: boolean }>).catch(() => ({ enabled: false })),
 };

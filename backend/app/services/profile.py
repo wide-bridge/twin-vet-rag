@@ -94,11 +94,16 @@ def view(db: DB, row: DogProfile) -> dict:
 
 
 def remove(db: DB, row: DogProfile) -> None:
+    from . import m03_hitl  # M03: HITL copies + derived knowledge are handled before the cascade deletes them
+    m03_hitl.release_for_profiles(db, [row.id], "profile_deleted")
     db.execute(delete(DogProfile).where(DogProfile.id == row.id))  # consultations keep their snapshot (SET NULL)
     db.commit()
 
 
 def purge_expired_profiles(db: DB) -> int:
-    n = db.execute(text("DELETE FROM dog_profile WHERE expires_at IS NOT NULL AND expires_at < now()")).rowcount
+    from . import m03_hitl
+    expired = list(db.execute(text("SELECT id FROM dog_profile WHERE expires_at IS NOT NULL AND expires_at < now() FOR UPDATE")).scalars())
+    m03_hitl.release_for_profiles(db, expired, "profile_expired")
+    n = db.execute(text("DELETE FROM dog_profile WHERE id = ANY(:ids)"), {"ids": expired}).rowcount if expired else 0
     db.commit()
     return n

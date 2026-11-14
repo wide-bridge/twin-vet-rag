@@ -22,6 +22,7 @@ from ..api.errors import ApiError
 from ..config import Settings
 from ..db.models import AnswerRun, Consultation, DogProfile, Message, Session as SessionRow
 from ..db.models_m03 import VetAccount, VetLink, VetQuestion, VetReplyRevision, VetSession
+from . import m03_hitl
 from . import profile as profile_svc
 from .consult import citation_list, now, sha256
 
@@ -263,6 +264,7 @@ def cancel_question(db: DB, settings: Settings, prof: DogProfile, qid: uuid.UUID
 def delete_question(db: DB, settings: Settings, prof: DogProfile, qid: uuid.UUID) -> None:
     """Permanent: the question, its reply history and the access link disappear for both sides."""
     q = _own_question(db, prof, qid, lock=True)
+    m03_hitl.release(db, [q.id], "question_deleted")  # HITL copy + derived knowledge handled first
     db.delete(q)
     profile_svc.touch(db, settings, prof)
     db.commit()
@@ -273,6 +275,8 @@ def set_consent(db: DB, settings: Settings, prof: DogProfile, qid: uuid.UUID, co
     q = _own_question(db, prof, qid, lock=True)
     if q.quality_use_consent != consent:
         q.quality_use_consent, q.consent_changed_at = consent, now()
+        if not consent:
+            m03_hitl.release(db, [q.id], "consent_withdrawn")
     profile_svc.touch(db, settings, prof)
     db.commit()
     return guardian_question_view(db, q)
@@ -429,5 +433,6 @@ def correct_reply(db: DB, vet: VetAccount, qid: uuid.UUID, text: str | None) -> 
         raise ApiError(409, "question_not_answered")
     db.add(VetReplyRevision(question_id=q.id, kind="correction", body=_body(text), created_at=now()))
     q.guardian_seen_at = None  # the guardian has not seen the correction yet
+    m03_hitl.flag_correction(db, q)  # imported copies -> 'needs_recheck'; labels untouched
     db.commit()
     return vet_question_view(db, q, full=True)

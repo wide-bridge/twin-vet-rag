@@ -102,10 +102,17 @@ class ReviewItem(Base):
     show_ai_suggestion: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="true")
     review_status: Mapped[str] = mapped_column(String(24), nullable=False, server_default="draft")
     dispute_type: Mapped[str | None] = mapped_column(String(24))
+    # M03 import (origin=consultation, docs/01 §4-1): the operator-cleaned copy stays linked to the shared question and
+    # is deleted with it (withdrawal / deletion / expiry); the vet reply used is recorded, a later correction only flags it
+    vet_question_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("vet_question.id", ondelete="CASCADE"), index=True)
+    vet_reply_revision_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("vet_reply_revision.id", ondelete="SET NULL"))
+    vet_reference: Mapped[str | None] = mapped_column(Text)  # cleaned vet reply: reference answer, never a label
+    needs_recheck: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="false")
     created_at: Mapped[datetime] = _now()
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now())
     __table_args__ = (
         UniqueConstraint("origin", "source_ref", name="uq_review_item_source"),
+        CheckConstraint("(origin = 'consultation') = (vet_question_id IS NOT NULL)", name="ck_review_item_consultation_link"),
         CheckConstraint("origin IN ('dataset','mock','consultation')", name="ck_review_item_origin"),
         CheckConstraint("(origin = 'mock') = is_mock", name="ck_review_item_mock"),
         CheckConstraint("review_status IN ('draft','vet_reviewed','independently_verified','disputed')",
@@ -181,6 +188,8 @@ class KnowledgeCandidate(Base):
     eval_result: Mapped[dict | None] = mapped_column(JSONB)
     eval_passed: Mapped[bool | None] = mapped_column(Boolean)
     document_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("document.id", ondelete="SET NULL"))
+    # the review copy it came from was deleted (guardian withdrew / deleted): blocked until rewritten from what remains
+    source_withdrawn_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("reviewer.id", ondelete="SET NULL"))
     created_at: Mapped[datetime] = _now()
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now())

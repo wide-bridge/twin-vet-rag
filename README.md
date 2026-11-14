@@ -78,9 +78,12 @@ python -m scripts.vet_admin list
 python -m scripts.vet_admin deactivate-vet --id <uuid>                                # 로그인도 즉시 무효
 python tests/e2e/m03_server.py      # 로컬 DB + 가짜 LLM(비용 없음), M03 켬, 수의사 주소 vet.localhost:8011
 python tests/e2e/m03_smoke.py       # 브라우저 왕복: 연결 요청 → 수락 → 고른 질문만 전달 → 회신·정정 → 보호자 확인, 다른 보호자 차단
+python tests/e2e/m03_hitl_smoke.py  # 동의 질문 → 회신 → 운영자 숫자 현황·정리 후 이관 → 정정 시 재확인 → 철회 시 사본 삭제 (각 스모크는 서버를 새로 띄운 뒤 실행)
+python -m scripts.hitl_admin m03-stats --days 30                                # M03 숫자 현황(화면과 같은 집계, 본문 없음)
 ```
 - 시험은 로컬 DB에서만 한다. Vercel 미리보기는 운영 Neon을 함께 쓴다.
-- 운영 반영 전: Neon에 마이그레이션 `2691bef2596c` 적용(사용자 실행). 배포 후에도 `M03_ENABLED`를 넣지 않으면 꺼진 상태다. 배포하면 `vet.pawcheck.ai`는 hitl-review로 이동하지 않고 '준비 중'을 보인다.
+- HITL 이관: hitl-review의 'M03 현황·이관'(운영자만). 품질 개선에 동의하고 회신이 끝난 질문만 본문이 보이며, 운영자가 식별 정보를 정리한 뒤 이관한다. 철회·삭제·만료 시 사본과 라벨이 지워지고, 그 사본의 지식 후보는 승인 해제·차단, 발행된 지식은 검색에서 빠진다. 이관 후 정정되면 '재확인 필요'.
+- 운영 반영 전: Neon에 마이그레이션 `2691bef2596c`, `518a4b3d59e1` 적용(사용자 실행). 배포 후에도 `M03_ENABLED`를 넣지 않으면 꺼진 상태다. 배포하면 `vet.pawcheck.ai`는 hitl-review로 이동하지 않고 '준비 중'을 보인다.
 
 ## MVP1 수의사 HITL (docs/01 4절, docs/04 7절)
 HITL 검토 화면: 운영 `https://hitl-review.pawcheck.ai`, 로컬·미리보기 `/review` (보호자 화면과 별개, 링크 없음, 접근 키 로그인). A단계(참여 수의사 0명)에는 운영자만 접근한다.
