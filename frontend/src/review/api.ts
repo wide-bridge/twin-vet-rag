@@ -33,6 +33,21 @@ export type Label = {
   submitted_at: string | null;
   active_seconds: number;
 };
+export type AutoCheck = {
+  retrieval: "relevant" | "partial" | "irrelevant";
+  claims: { claim: string; support: "supported" | "partial" | "unsupported"; sources: number[] }[];
+  citation_mismatch: number[];
+  missing_conditions: string[];
+  forbidden_content: string[];
+  reference_agreement: "agree" | "partial" | "conflict" | "none";
+  reference_answer?: string | null;
+  needs_medical_judgment: boolean;
+  summary: string;
+  issues: string[];
+  top1_score: number | null;
+  retrieved: { rank: number; title: string; department: string | null; score: number; cited: boolean }[];
+};
+
 export type ItemDetail = {
   item: ItemSummary & {
     history: { role: string; content: string }[];
@@ -47,6 +62,7 @@ export type ItemDetail = {
   ai_suggestion: Label | null;
   other_labels: Label[];
   other_label_count: number;
+  auto_check: AutoCheck | null;
 };
 export type GuideField = { label: string; help: string; options?: Record<string, [string, string]>; assertions?: Record<string, string> };
 export type Guide = { version: string; fields: Record<string, GuideField>; dispute_types: Record<string, string> };

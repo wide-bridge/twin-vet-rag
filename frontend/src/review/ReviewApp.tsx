@@ -11,6 +11,7 @@ import {
   type Guide,
   type ItemDetail,
   type ItemSummary,
+  type AutoCheck,
   type Label,
   type LabelBody,
   type Me,
@@ -293,6 +294,7 @@ function ItemScreen({ id, me, guide, concepts, onAuthError }: { id: string; me: 
               ))}
             </ol>
           )}
+          {d.auto_check && <AutoCheckView c={d.auto_check} />}
           <p className="help">버전: {Object.entries(it.versions).map(([k, v]) => `${k}=${v}`).join(", ") || "-"}</p>
           {d.ai_suggestion && !submitted && (
             <div className="rv-ai">
@@ -324,6 +326,59 @@ function ItemScreen({ id, me, guide, concepts, onAuthError }: { id: string; me: 
         </div>
       </div>
     </section>
+  );
+}
+
+const ISSUE: Record<string, string> = {
+  not_answered: "답변하지 않음",
+  retrieval_miss: "검색 실패",
+  unsupported_claim: "근거 없는 주장",
+  citation_mismatch: "출처 연결 오류",
+  condition_missing: "조건·주의사항 누락",
+  forbidden_content: "금지 내용 포함",
+  reference_conflict: "원천 답변과 충돌",
+  medical_hold: "의학적 판단 필요(보류)",
+};
+const SUPPORT: Record<string, string> = { supported: "근거 있음", partial: "일부", unsupported: "근거 없음" };
+const REFERENCE: Record<string, string> = { agree: "일치", partial: "일부 누락", conflict: "충돌", none: "비교 없음" };
+const RETRIEVAL: Record<string, string> = { relevant: "질문과 맞음", partial: "일부만 맞음", irrelevant: "맞지 않음" };
+
+function AutoCheckView({ c }: { c: AutoCheck }) {
+  return (
+    <div className="rv-check-box">
+      <h2 className="rv-h2"><Badge tone="ai">자동 점검 결과</Badge> <small>AI가 출처와 대조한 점검 · 안전성·수의학적 검증 아님</small></h2>
+      <p className="rv-row-badges">
+        {c.issues.length === 0 ? <Badge tone="ok">발견된 문제 없음</Badge> : c.issues.map((t) => <Badge key={t} tone="warn">{ISSUE[t] ?? t}</Badge>)}
+      </p>
+      <p>{c.summary}</p>
+      <dl className="rv-dl">
+        <div><dt>검색 근거</dt><dd>{RETRIEVAL[c.retrieval]}{c.top1_score != null ? ` (1위 유사도 ${c.top1_score.toFixed(3)})` : ""}</dd></div>
+        {c.missing_conditions.length > 0 && <div><dt>빠진 조건</dt><dd>{c.missing_conditions.join(" / ")}</dd></div>}
+        {c.citation_mismatch.length > 0 && <div><dt>연결 오류 근거</dt><dd>{c.citation_mismatch.map((n) => `[${n}]`).join(" ")}</dd></div>}
+        {c.forbidden_content.length > 0 && <div><dt>금지 내용</dt><dd>{c.forbidden_content.join(" / ")}</dd></div>}
+        <div><dt>원천 답변과</dt><dd>{REFERENCE[c.reference_agreement]}</dd></div>
+      </dl>
+      {c.claims.length > 0 && (
+        <details className="rv-excerpt">
+          <summary>주장별 근거 대조 ({c.claims.length})</summary>
+          <ul className="rv-history">
+            {c.claims.map((x, i) => <li key={i}><b>{SUPPORT[x.support]}</b> {x.claim}{x.sources.length ? ` [${x.sources.join(", ")}]` : ""}</li>)}
+          </ul>
+        </details>
+      )}
+      {c.reference_answer && (
+        <details className="rv-excerpt">
+          <summary>원천 수의사 답변 보기 (AI Hub, 참고 비교용)</summary>
+          <p>{c.reference_answer}</p>
+        </details>
+      )}
+      <details className="rv-excerpt">
+        <summary>검색된 근거 {c.retrieved.length}건 (번호는 검색 순위)</summary>
+        <ol className="rv-cites">
+          {c.retrieved.map((h) => <li key={h.rank}>{h.title}{h.department ? ` (${h.department})` : ""} · {h.score.toFixed(3)}{h.cited ? " · 인용함" : ""}</li>)}
+        </ol>
+      </details>
+    </div>
   );
 }
 

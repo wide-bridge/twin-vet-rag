@@ -246,12 +246,19 @@ def test_dataset_bundles_with_prelabels(db, test_db_url):
     llm = FakeLLM({"classify": {"scope": "in_scope", "search_query": "구토", "question_age_text": "",
                                 "question_unclear": False, "clarification_question": ""},
                    "answer": {"response_type": "grounded", "answer": "탈수를 확인하세요.", "used_sources": [1]},
-                   "prelabel": prelabel})
+                   "prelabel": prelabel,
+                   "auto_check": {"retrieval": "relevant",
+                                  "claims": [{"claim": "탈수를 확인", "support": "supported", "sources": [1]},
+                                             {"claim": "약을 먹이세요", "support": "unsupported", "sources": []}],
+                                  "citation_mismatch": [], "missing_conditions": ["노령견이면 바로 내원"],
+                                  "forbidden_content": [], "reference_agreement": "partial",
+                                  "needs_medical_judgment": False, "summary": "근거 없는 주장 1개"}})
     settings = Settings(database_url=test_db_url, retrieval_min_score=-1.0, app_env="test")
     rows = [{"eval_id": f"aihub59-dev-{i}", "subset": "dev", "department": "내과", "life_stages": ["adult"],
              "question": f"3살 강아지가 구토를 해요 {i}"} for i in range(12)]
-    rep = ds.build_dataset_items(db, rows, settings=settings, llm=llm, embedder=E, n=10, hide_pct=30)
-    assert rep.created == 10 and rep.prelabeled == 10 and rep.failed == 0
+    rep = ds.build_dataset_items(db, rows, settings=settings, llm=llm, embedder=E, n=10, prelabel=True, hide_pct=30)
+    assert rep.created == 10 and rep.prelabeled == 10 and rep.failed == 0 and rep.checked == 10
+    assert rep.issue_counts == {"unsupported_claim": 10, "condition_missing": 10}
     assert 0 < rep.hidden < 10  # stable hash share
     items = db.execute(select(ReviewItem).where(ReviewItem.origin == "dataset")).scalars().all()
     it = items[0]
@@ -262,11 +269,23 @@ def test_dataset_bundles_with_prelabels(db, test_db_url):
     lab = db.execute(select(ReviewLabel).where(ReviewLabel.item_id == it.id)).scalar_one()
     assert lab.author_kind == "ai" and lab.revision_evidence == ["1"]
     assert db.query(LabelConcept).filter(LabelConcept.label_id == lab.id).count() == 1
+    chk = svc.latest_auto_check(db, it)
+    assert chk["issues"] == ["unsupported_claim", "condition_missing"] and chk["retrieved"][0]["cited"] is True
+    assert "excerpt" not in chk["retrieved"][0] and chk["cited_department_match"] is True
+    assert it.review_status == "draft"  # an automatic check never verifies anything
+
+    # re-check after a fix: the bundle is unchanged, the new answer + check go to history
+    h0 = it.content_hash
+    out = ds.recheck_item(db, it, settings=settings, llm=llm, embedder=E)
+    assert out["issues_before"] == out["issues_after"] == ["unsupported_claim", "condition_missing"]
+    db.refresh(it)
+    assert it.content_hash == h0
 
     # idempotent: a second run skips existing rows without model calls
     calls = len(llm.calls)
-    rep2 = ds.build_dataset_items(db, rows, settings=settings, llm=llm, embedder=E, n=10)
+    rep2 = ds.build_dataset_items(db, rows, settings=settings, llm=llm, embedder=E, n=10)  # default: no pre-label
     assert rep2.created == 2 and rep2.skipped_existing == 10 and len(llm.calls) == calls + 2 * 3
+    assert rep2.prelabeled == 0 and rep2.checked == 2
 
     # an invalid pre-label (appropriate + safety) is rejected, the bundle is still created
     bad, errs = ds.clean_prelabel({**prelabel, "accuracy": "appropriate", "safety_issue": True}, 1,

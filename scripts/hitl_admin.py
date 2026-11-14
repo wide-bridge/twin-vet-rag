@@ -4,8 +4,10 @@
     python -m scripts.hitl_admin create-reviewer --role operator --name "운영자"   # prints the access key ONCE
     python -m scripts.hitl_admin deactivate-reviewer --id <uuid>
     python -m scripts.hitl_admin mock-items                     # stage-A mock bundles (+ AI suggestions)
-    python -m scripts.hitl_admin dataset-items --n 20 [--subset dev] [--no-prelabel] [--hide-pct 30] [--max-usd 1] --yes
-                                       # real bundles: AI Hub held-out questions answered by the app pipeline (paid)
+    python -m scripts.hitl_admin dataset-items --n 5 [--subset dev] [--prelabel] [--hide-pct 30] [--max-usd 1] --yes
+                                       # real bundles: held-out questions answered by the app pipeline + automatic check (paid)
+    python -m scripts.hitl_admin recheck --item <uuid> --yes  # same question again after a fix (paid)
+    python -m scripts.hitl_admin issues                         # automatic check issue counts (free)
     python -m scripts.hitl_admin evaluate --candidate <uuid> --embedder {fake|openai} [--version v2 --fold 0 --n 50]
     python -m scripts.hitl_admin activate --candidate <uuid> --embedder {fake|openai} --yes
     python -m scripts.hitl_admin status
@@ -99,7 +101,7 @@ def main() -> int:
     p.add_argument("--n", type=int, default=20)
     p.add_argument("--subset", choices=["dev", "final"], default="dev")
     p.add_argument("--version", default="v2")
-    p.add_argument("--no-prelabel", action="store_true")
+    p.add_argument("--prelabel", action="store_true", help="also fill the vet label form (vet stage)")
     p.add_argument("--hide-pct", type=int, default=30)
     p.add_argument("--max-usd", type=float, default=1.0, help="stop before the next bundle once spending reaches this")
     p.add_argument("--yes", action="store_true")
@@ -113,6 +115,10 @@ def main() -> int:
             p.add_argument("--n", type=int, default=50)
         else:
             p.add_argument("--yes", action="store_true")
+    p = sub.add_parser("recheck")
+    p.add_argument("--item", required=True)
+    p.add_argument("--yes", action="store_true")
+    sub.add_parser("issues")
     sub.add_parser("status")
     a = ap.parse_args()
 
@@ -137,7 +143,7 @@ def main() -> int:
             print(svc.create_mock_items(db))
         elif a.cmd == "dataset-items":
             if not a.yes:
-                print(f"add --yes to run (paid: about ${a.n * 0.008:.2f} for {a.n} bundles with pre-labels)")
+                print(f"add --yes to run (paid: about ${a.n * (0.012 if a.prelabel else 0.008):.2f} for {a.n} bundles)")
                 return 2
             if not s.openai_api_key:
                 raise SystemExit("OPENAI_API_KEY is not set")
@@ -148,10 +154,34 @@ def main() -> int:
                 r.setdefault("subset", a.subset)
             rep = ds.build_dataset_items(
                 db, rows, settings=s, llm=OpenAILLM(key, timeout=s.llm_timeout_seconds),
-                embedder=OpenAIEmbedder(key, s.embedding_model), n=a.n, prelabel=not a.no_prelabel,
+                embedder=OpenAIEmbedder(key, s.embedding_model), n=a.n, prelabel=a.prelabel,
                 hide_pct=a.hide_pct, on_progress=lambda rep, t: print(f"[{rep.created}/{a.n}] {t}", flush=True),
                 should_stop=lambda rep: _usd(rep.usage) >= a.max_usd)
             print(json.dumps({**rep.as_dict(), "usd": round(_usd(rep.usage), 4)}, ensure_ascii=False))
+        elif a.cmd == "recheck":
+            item = db.get(svc.ReviewItem, uuid.UUID(a.item))
+            if item is None:
+                print("item not found")
+                return 1
+            if not a.yes:
+                print("add --yes to run (paid: about $0.008)")
+                return 2
+            key = s.openai_api_key.get_secret_value()
+            out = ds.recheck_item(db, item, settings=s, llm=OpenAILLM(key, timeout=s.llm_timeout_seconds),
+                                  embedder=OpenAIEmbedder(key, s.embedding_model))
+            print(json.dumps({"issues_before": out["issues_before"], "issues_after": out["issues_after"],
+                              "response_type": out["response_type"], "usd": round(_usd([out["usage"]]), 4)},
+                             ensure_ascii=False))
+        elif a.cmd == "issues":
+            from collections import Counter
+            from backend.app.db.models_review import ReviewEvent
+            evs = db.execute(select(ReviewEvent).where(ReviewEvent.event == "auto_checked")).scalars().all()
+            latest = {}
+            for e in sorted(evs, key=lambda e: e.created_at):
+                latest[e.item_id] = e.detail
+            c = Counter(t for d in latest.values() for t in d.get("issues", []))
+            print(json.dumps({"checked_items": len(latest), "with_issues": sum(bool(d.get("issues")) for d in latest.values()),
+                              "issues": {f"{k} ({ds.ISSUE_TYPES[k]})": v for k, v in c.most_common()}}, ensure_ascii=False))
         elif a.cmd in ("evaluate", "activate"):
             cand = db.get(KnowledgeCandidate, uuid.UUID(a.candidate))
             if cand is None:

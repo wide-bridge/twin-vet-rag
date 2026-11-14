@@ -326,6 +326,17 @@ def list_items(db: Session, reviewer: Reviewer, status: str | None = None, origi
     return [item_summary(i, mine.get(i.id)) for i in items]
 
 
+def record_auto_check(db: Session, item: ReviewItem, check: dict) -> None:
+    """Automatic answer check (AI). History only; never changes review status or labels."""
+    _event(db, actor=None, actor_kind="ai", event="auto_checked", item=item, **check)
+
+
+def latest_auto_check(db: Session, item: ReviewItem) -> dict | None:
+    ev = db.execute(select(ReviewEvent).where(ReviewEvent.item_id == item.id, ReviewEvent.event == "auto_checked")
+                    .order_by(ReviewEvent.created_at.desc()).limit(1)).scalar_one_or_none()
+    return ev.detail if ev else None
+
+
 def item_detail(db: Session, item: ReviewItem, reviewer: Reviewer) -> dict:
     labels = list(db.execute(select(ReviewLabel).where(ReviewLabel.item_id == item.id)).scalars())
     tags = _label_concepts(db, [l.id for l in labels])
@@ -350,6 +361,8 @@ def item_detail(db: Session, item: ReviewItem, reviewer: Reviewer) -> dict:
         "ai_suggestion": view(ai) if ai and (item.show_ai_suggestion or submitted) else None,
         "other_labels": others,  # hidden until my label is submitted (independent labeling)
         "other_label_count": sum(1 for l in labels if l.state == "submitted" and l.author_kind != "ai" and l is not mine),
+        # technical check against the retrieved sources (AI); not a label and not veterinary verification
+        "auto_check": latest_auto_check(db, item),
     }
 
 
