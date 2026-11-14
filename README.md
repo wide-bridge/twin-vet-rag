@@ -70,7 +70,9 @@ python -m scripts.eval_answers --subset dev --n 30 --judge              # 답변
 python -m scripts.hitl_admin seed-ontology                                  # 온톨로지 0.1 초안(draft) 적재
 python -m scripts.hitl_admin create-reviewer --role operator --name "운영자"  # 접근 키는 한 번만 표시(해시만 저장)
 python -m scripts.hitl_admin mock-items                                     # 모의 검토 묶음 + AI 제안
-python -m scripts.hitl_admin dataset-items --n 5 --max-usd 0.1 --yes        # 실제 질문 묶음 + AI 라벨 초안(유료, 묶음당 약 $0.008)
+python -m scripts.hitl_admin dataset-items --n 5 --max-usd 0.1 --yes        # 실제 질문 묶음 + 자동 점검(유료, 묶음당 약 $0.008)
+python -m scripts.hitl_admin recheck --item <id> --yes                     # 같은 질문 재답변·재점검(유료)
+python -m scripts.hitl_admin issues                                         # 자동 점검 문제 유형 집계
 python -m scripts.hitl_admin evaluate --candidate <id> --embedder openai    # 검색 영향 점검(참고 지표, 품질 판정 아님)
 python -m scripts.hitl_admin activate --candidate <id> --embedder openai --yes
 python -m scripts.hitl_admin status
