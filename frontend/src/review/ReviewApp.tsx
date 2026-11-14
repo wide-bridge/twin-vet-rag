@@ -87,7 +87,7 @@ export function ReviewApp() {
           <nav className="rv-nav" aria-label="작업 메뉴">
             <a href="#/" aria-current={route.name === "list" || route.name === "item" ? "page" : undefined}>검토 목록</a>
             <a href="#/candidates" aria-current={route.name === "candidates" ? "page" : undefined}>지식 후보</a>
-            {m03On && <a href="#/m03" aria-current={route.name === "m03" ? "page" : undefined}>M03 현황·이관</a>}
+            {m03On && <a href="#/m03" aria-current={route.name === "m03" ? "page" : undefined}>운영자 현황</a>}
           </nav>
           <div className="rv-me">
             <span>{me.display_name}</span>
@@ -718,7 +718,7 @@ function M03Screen({ onAuthError }: { onAuthError: (e: unknown) => void }) {
   const n = (v: number | null | undefined, unit = "") => (v === null || v === undefined ? "-" : `${v}${unit}`);
   return (
     <section aria-labelledby="m03-title">
-      <h1 id="m03-title" className="rv-h1">M03 현황 <small className="help">숫자만 표시 · 질문 본문 없음</small></h1>
+      <h1 id="m03-title" className="rv-h1">운영자 현황 <small className="help">숫자만 표시 · 질문 본문 없음</small></h1>
       <div className="rv-filters" role="group" aria-label="기간">
         {[7, 30, 90, undefined].map((d) => (
           <button key={String(d)} className="chip" aria-pressed={days === d} onClick={() => setDays(d)}>{d ? `최근 ${d}일` : "전체"}</button>
@@ -793,7 +793,7 @@ function M03ImportScreen({ id, onAuthError }: { id: string; onAuthError: (e: unk
   );
   return (
     <section aria-labelledby="m03-imp-title">
-      <p><a href="#/m03">← M03 현황</a></p>
+      <p><a href="#/m03">← 운영자 현황</a></p>
       <h1 id="m03-imp-title" className="rv-h1">검토 묶음으로 이관 {d?.corrected && <Badge tone="warn">정정된 회신</Badge>}</h1>
       {err && <p className="error-text" role="alert">{err}</p>}
       {done ? (

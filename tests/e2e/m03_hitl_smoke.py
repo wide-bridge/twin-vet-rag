@@ -64,8 +64,8 @@ with sync_playwright() as pw:
     op.goto(G + "/review")
     op.get_by_label("접근 키").fill(OP_KEY)
     op.get_by_role("button", name="로그인").click()
-    op.get_by_role("link", name="M03 현황·이관").click()
-    expect(op.get_by_role("heading", name="M03 현황")).to_be_visible()
+    op.get_by_role("link", name="운영자 현황").click()
+    expect(op.get_by_role("heading", name="운영자 현황")).to_be_visible()
     stats_text = op.locator(".rv-stats").inner_text()
     assert "설사" not in stats_text and SECRET not in stats_text
     op.screenshot(path=str(SP / "m03_hitl_1_stats.png"), full_page=True)
