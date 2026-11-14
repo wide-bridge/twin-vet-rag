@@ -70,13 +70,15 @@ python -m scripts.eval_answers --subset dev --n 30 --judge              # 답변
 python -m scripts.hitl_admin seed-ontology                                  # 온톨로지 0.1 초안(draft) 적재
 python -m scripts.hitl_admin create-reviewer --role operator --name "운영자"  # 접근 키는 한 번만 표시(해시만 저장)
 python -m scripts.hitl_admin mock-items                                     # 모의 검토 묶음 + AI 제안
-python -m scripts.hitl_admin evaluate --candidate <id> --embedder openai    # 회귀 평가(개발·회귀용, 독립 평가 아님)
+python -m scripts.hitl_admin dataset-items --n 5 --max-usd 0.1 --yes        # 실제 질문 묶음 + AI 라벨 초안(유료, 묶음당 약 $0.008)
+python -m scripts.hitl_admin evaluate --candidate <id> --embedder openai    # 검색 영향 점검(참고 지표, 품질 판정 아님)
 python -m scripts.hitl_admin activate --candidate <id> --embedder openai --yes
 python -m scripts.hitl_admin status
 python -m scripts.make_split_table --version v2                             # 분할표(seed 20261113, 진료과 층화, 중복 그룹 같은 fold)
 ```
 - 운영 규칙(`hitl_production`): Vercel(APP_ENV=production) 또는 로컬이 아닌 DB(Neon)에 연결하면 운영 환경으로 본다. 운영 환경에서는 운영자가 발행 승인할 수 없고, 모의 지식은 활성화되지 않으며, 검색도 모의 지식을 반환하지 않는다.
-- 활성화 조건: 독립 재검증 완료 사례 + 라벨링하지 않은 수의사의 승인(내용 해시 고정) + 같은 내용·같은 임베딩 모델의 회귀 평가 통과. 발행 문서는 dataset_code=vetreview, document_type=vet_knowledge.
+- 재검증: 수의사 2명의 선택 항목(정확성·근거·충분성·안내·안전 문제·재사용 범위)이 모두 같아야 독립 재검증 완료, 하나라도 다르면 이견.
+- 활성화 조건: 독립 재검증 완료 사례 + 후보를 작성·수정하지 않은 수의사의 승인(내용 해시 고정) + 같은 내용·같은 임베딩 모델의 유효한 검색 영향 점검 통과(실제 후보는 비교 가능한 질문 30개 이상). 적용 조건은 발행 본문에 들어간다. 발행 문서는 dataset_code=vetreview, document_type=vet_knowledge.
 - 검토 기록·지식 후보는 RAG 검색 대상이 아니다. 상담 원문을 지식으로 직접 넣지 않는다.
 
 ## 검사·빌드·테스트

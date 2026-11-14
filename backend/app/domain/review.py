@@ -22,8 +22,10 @@ CONCEPT_SCHEMES = ("topic", "body_part", "symptom", "condition", "test", "observ
 CONCEPT_STATUSES = ("draft", "approved", "retired")
 PREDICATES = ("is_a", "part_of", "located_in", "associated_with", "red_flag_for", "recommends")
 
-# fields compared when deciding whether two independent vet labels agree
-AGREEMENT_FIELDS = ("accuracy", "guidance", "reuse_scope")
+# fields compared when deciding whether two independent vet labels agree. Any difference -> disputed.
+# Free text (revised answer, reason) and concept tags are not compared here; the candidate author and the approver
+# reconcile them when the knowledge candidate is written and approved (docs/04 §7).
+AGREEMENT_FIELDS = ("accuracy", "evidence_support", "sufficiency", "guidance", "safety_issue", "reuse_scope")
 
 REQUIRED_FIELDS = {
     "accuracy": ACCURACY,
@@ -114,6 +116,9 @@ class SubmittedLabel:
     accuracy: str
     guidance: str
     reuse_scope: str
+    evidence_support: str = ""
+    sufficiency: str = ""
+    safety_issue: bool = False
 
 
 def review_status(labels: Iterable[SubmittedLabel]) -> str:
@@ -134,13 +139,13 @@ def review_status(labels: Iterable[SubmittedLabel]) -> str:
     return "independently_verified" if len(signatures) == 1 else "disputed"
 
 
-def labelers(labels: Iterable[SubmittedLabel]) -> set[str]:
-    return {lab.reviewer_id for lab in labels if lab.reviewer_id}
-
-
 def approval_block_reason(*, approver_role: str, approver_id: str, production: bool, is_mock: bool,
-                          item_status: str | None, reuse_scope_ok: bool, item_labelers: set[str]) -> str | None:
-    """Why a knowledge candidate cannot be approved now (None = can approve)."""
+                          item_status: str | None, reuse_scope_ok: bool, candidate_authors: set[str]) -> str | None:
+    """Why a knowledge candidate cannot be approved now (None = can approve).
+
+    Two-vet model (stage C = 2+ vets): the item needs two independent vet labels; the approver must not be anyone who
+    wrote or edited the candidate. Labeling the item does not block approval, so the second labeler can approve.
+    """
     if approver_role == "operator":
         if production:
             return "운영 환경에서는 운영자가 발행 승인할 수 없습니다(수의사만)"
@@ -153,8 +158,8 @@ def approval_block_reason(*, approver_role: str, approver_id: str, production: b
         return "독립 재검증이 끝난 사례만 발행 승인할 수 있습니다"
     if not reuse_scope_ok:
         return "재사용 범위가 '조건부' 또는 '일반 지식 후보'인 사례만 발행할 수 있습니다"
-    if approver_id in item_labelers:
-        return "직접 라벨링한 사례는 다른 수의사가 승인해야 합니다"
+    if approver_id in candidate_authors:
+        return "후보를 작성·수정한 사람은 승인할 수 없습니다. 다른 수의사가 승인해야 합니다"
     return None
 
 
@@ -168,5 +173,5 @@ def activation_block_reason(*, publish_status: str, approved_hash: str | None, c
     if approved_hash != content_hash:
         return "승인 후 내용이 바뀌었습니다. 다시 승인해야 합니다"
     if eval_passed is not True:
-        return "회귀 평가를 통과해야 활성화할 수 있습니다"
+        return "검색 영향 점검을 통과해야 활성화할 수 있습니다"
     return None

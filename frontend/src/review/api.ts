@@ -39,7 +39,7 @@ export type ItemDetail = {
     dog: Record<string, unknown>;
     ai_answer: string;
     response_type: string | null;
-    citations: { n?: number; title: string }[];
+    citations: { n?: number; title: string; department?: string | null; excerpt?: string }[];
     versions: Record<string, string>;
     show_ai_suggestion: boolean;
   };

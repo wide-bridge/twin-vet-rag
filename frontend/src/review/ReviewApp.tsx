@@ -26,8 +26,10 @@ const STATUS: Record<string, string> = {
 const PUBLISH: Record<string, string> = { unapproved: "미승인", approved: "발행 승인", active: "활성화", rejected: "반려", retired: "종료" };
 const AUTHOR: Record<string, string> = { vet: "수의사", operator: "운영자(시험)", ai: "AI 제안" };
 const ORIGIN: Record<string, string> = { mock: "모의", dataset: "데이터셋", consultation: "실제 상담" };
-const COMPARE_FIELDS = ["accuracy", "evidence_support", "sufficiency", "guidance", "reuse_scope"] as const;
-const AGREEMENT = ["accuracy", "guidance", "reuse_scope"];
+// all compared fields decide independent re-verification (same list as backend AGREEMENT_FIELDS)
+const COMPARE_FIELDS = ["accuracy", "evidence_support", "sufficiency", "guidance", "safety_issue", "reuse_scope"] as const;
+const SUMMARY_FIELDS = ["accuracy", "evidence_support", "sufficiency", "guidance", "reuse_scope"] as const;
+const AGREEMENT: readonly string[] = COMPARE_FIELDS;
 
 type Route = { name: "list" } | { name: "item"; id: string } | { name: "candidates"; itemId?: string };
 
@@ -259,7 +261,7 @@ function ItemScreen({ id, me, guide, concepts, onAuthError }: { id: string; me: 
       </h1>
       <div className="rv-split">
         <article className="card rv-pane" aria-label="검토 묶음">
-          <h2 className="rv-h2">반려견 정보 <small>(보호자 입력)</small></h2>
+          <h2 className="rv-h2">반려견 정보 <small>({it.origin === "dataset" ? "질문 내용에서 추정" : "보호자 입력"})</small></h2>
           <p className="rv-dog">{Object.entries(it.dog).map(([k, v]) => `${DOG_LABEL[k] ?? k}: ${String(v)}`).join(" · ") || "없음"}</p>
           {it.history.length > 0 && (
             <>
@@ -274,7 +276,23 @@ function ItemScreen({ id, me, guide, concepts, onAuthError }: { id: string; me: 
           <h2 className="rv-h2">AI 답변 <Badge>{it.response_type ?? "-"}</Badge></h2>
           <p className="rv-quote rv-answer">{it.ai_answer}</p>
           <h2 className="rv-h2">인용 근거</h2>
-          <ol className="rv-cites">{it.citations.map((c, i) => <li key={i}>{c.title}</li>)}</ol>
+          {it.citations.length === 0 ? (
+            <p className="help">인용 근거 없음</p>
+          ) : (
+            <ol className="rv-cites">
+              {it.citations.map((c, i) => (
+                <li key={i}>
+                  {c.title}{c.department ? ` (${c.department})` : ""}
+                  {c.excerpt && (
+                    <details className="rv-excerpt">
+                      <summary>근거 내용 보기</summary>
+                      <p>{c.excerpt}{c.excerpt.length >= 600 ? "…" : ""}</p>
+                    </details>
+                  )}
+                </li>
+              ))}
+            </ol>
+          )}
           <p className="help">버전: {Object.entries(it.versions).map(([k, v]) => `${k}=${v}`).join(", ") || "-"}</p>
           {d.ai_suggestion && !submitted && (
             <div className="rv-ai">
@@ -309,7 +327,7 @@ function ItemScreen({ id, me, guide, concepts, onAuthError }: { id: string; me: 
   );
 }
 
-const DOG_LABEL: Record<string, string> = { breed: "품종", age_months: "나이(개월)", weight_kg: "체중(kg)", neutered: "중성화", health_notes: "건강 메모", name: "이름" };
+const DOG_LABEL: Record<string, string> = { breed: "품종", age_months: "나이(개월)", weight_kg: "체중(kg)", neutered: "중성화", health_notes: "건강 메모", name: "이름", age_basis: "나이 기준" };
 
 function Choice({ name, form, setForm, guide, error }: { name: keyof LabelBody; form: LabelBody; setForm: (f: LabelBody) => void; guide: Guide; error?: string }) {
   const g = guide.fields[name as string];
@@ -432,7 +450,7 @@ function LabelSummary({ l, guide, concepts }: { l: Label; guide: Guide; concepts
   const byCode = Object.fromEntries(concepts.map((c) => [c.code, c.label]));
   return (
     <dl className="rv-dl">
-      {COMPARE_FIELDS.map((f) => (
+      {SUMMARY_FIELDS.map((f) => (
         <div key={f}><dt>{guide.fields[f].label}</dt><dd>{optLabel(guide, f, l[f])}</dd></div>
       ))}
       <div><dt>안전 문제</dt><dd>{l.safety_issue ? "있음" : "없음"}</dd></div>
@@ -465,13 +483,13 @@ function Compare({ d, me, guide, concepts, onChange, onAuthError }: { d: ItemDet
             {COMPARE_FIELDS.map((f) => (
               <tr key={f}>
                 <th scope="row">{guide.fields[f].label}{AGREEMENT.includes(f) && mismatch(f) && <> <Badge tone="warn">불일치</Badge></>}</th>
-                {labels.map((l) => <td key={l.id}>{optLabel(guide, f, l[f])}</td>)}
+                {labels.map((l) => <td key={l.id}>{f === "safety_issue" ? (l.safety_issue ? "있음" : "없음") : optLabel(guide, f, l[f])}</td>)}
               </tr>
             ))}
           </tbody>
         </table>
       </div>
-      <p className="help">독립 재검증 판정은 수의사 라벨의 {AGREEMENT.map((f) => guide.fields[f].label).join("·")}만 비교합니다. 운영자·AI 라벨은 세지 않습니다.</p>
+      <p className="help">독립 재검증 판정은 수의사 라벨의 {AGREEMENT.map((f) => guide.fields[f].label).join("·")}을 비교하고, 하나라도 다르면 이견입니다. 수정안·개념 태그 차이는 지식 후보를 작성·승인할 때 맞춥니다. 운영자·AI 라벨은 세지 않습니다.</p>
       {d.item.review_status === "disputed" && (
         <form className="rv-field" onSubmit={async (e) => {
           e.preventDefault();
@@ -534,7 +552,7 @@ function CandidateScreen({ me, itemId, onAuthError }: { me: Me; itemId?: string;
   const approve = async (c: Candidate) => {
     try {
       await reviewApi.approve(c.id);
-      setMsg({ ...msg, [c.id]: "발행 승인했습니다. 회귀 평가와 활성화는 운영자가 진행합니다." });
+      setMsg({ ...msg, [c.id]: "발행 승인했습니다. 검색 영향 점검과 활성화는 운영자가 진행합니다." });
       refresh();
     } catch (e) {
       onAuthError(e);
@@ -545,7 +563,7 @@ function CandidateScreen({ me, itemId, onAuthError }: { me: Me; itemId?: string;
   return (
     <section aria-labelledby="rv-cand-title">
       <h1 id="rv-cand-title" className="rv-h1">지식 후보</h1>
-      <p className="help">승인은 지금 내용에 묶입니다. 승인 뒤 내용을 고치면 다시 승인해야 합니다. 활성화는 회귀 평가를 통과한 뒤 운영자 스크립트로 합니다.</p>
+      <p className="help">승인은 지금 내용에 묶입니다. 승인 뒤 내용을 고치면 다시 승인해야 합니다. 후보를 작성·수정한 사람은 승인할 수 없습니다. 적용 조건은 발행되는 지식 본문에 함께 들어갑니다. 활성화는 검색 영향 점검(품질 판정 아님)을 통과한 뒤 운영자 스크립트로 합니다.</p>
       {!editing && <button className="btn" onClick={() => setEditing({ id: null, body: emptyCandidate() })}>새 후보</button>}
       {editing && (
         <form className="card rv-card" onSubmit={(e) => { e.preventDefault(); save(); }} aria-label="지식 후보 양식">
@@ -582,7 +600,11 @@ function CandidateScreen({ me, itemId, onAuthError }: { me: Me; itemId?: string;
               {c.is_mock && <Badge tone="mock">모의</Badge>}
               <Badge>{c.kind === "case" ? "사례" : "일반 지식"}</Badge>
               <Badge tone={c.publish_status === "active" ? "ok" : c.publish_status === "approved" ? "ok" : "draft"}>{PUBLISH[c.publish_status]}</Badge>
-              {c.eval_passed != null && <Badge tone={c.eval_passed ? "ok" : "warn"}>회귀 평가 {c.eval_passed ? "통과" : "실패"}</Badge>}
+              {c.eval_passed != null && (
+                <Badge tone={c.eval_passed ? "ok" : "warn"}>
+                  검색 영향 점검 {c.eval_result?.valid === false ? "평가 불가" : c.eval_passed ? "통과" : "실패"}
+                </Badge>
+              )}
             </p>
             <h2 className="rv-h2">{c.title}</h2>
             <p>{c.content}</p>

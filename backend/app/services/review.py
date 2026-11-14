@@ -260,7 +260,8 @@ def submitted_labels(db: Session, item: ReviewItem) -> list[ReviewLabel]:
 
 def _as_submitted(labs: Sequence[ReviewLabel]) -> list[rules.SubmittedLabel]:
     return [rules.SubmittedLabel(l.author_kind, str(l.reviewer_id) if l.reviewer_id else None, l.accuracy or "",
-                                 l.guidance or "", l.reuse_scope or "") for l in labs]
+                                 l.guidance or "", l.reuse_scope or "", l.evidence_support or "", l.sufficiency or "",
+                                 bool(l.safety_issue)) for l in labs]
 
 
 def recompute_status(db: Session, item: ReviewItem, actor: Reviewer | None = None) -> str:
@@ -423,15 +424,23 @@ def _reuse_scope_ok(db: Session, cand: KnowledgeCandidate) -> bool:
     return any(l.author_kind == "vet" and l.reuse_scope in ok for l in submitted_labels(db, db.get(ReviewItem, cand.item_id)))
 
 
+def candidate_authors(db: Session, cand: KnowledgeCandidate) -> set[str]:
+    """Everyone who wrote or edited the candidate (creator + candidate_updated events)."""
+    ids = {str(cand.created_by)} if cand.created_by else set()
+    rows = db.execute(select(ReviewEvent.reviewer_id).where(
+        ReviewEvent.candidate_id == cand.id, ReviewEvent.event.in_(("candidate_created", "candidate_updated")),
+        ReviewEvent.reviewer_id.is_not(None))).scalars()
+    return ids | {str(r) for r in rows}
+
+
 def approve_candidate(db: Session, cand: KnowledgeCandidate, reviewer: Reviewer, production: bool) -> KnowledgeCandidate:
     if cand.publish_status not in ("unapproved",):
         raise ReviewError(409, "candidate_not_unapproved", "승인 대기 상태의 후보만 승인할 수 있습니다")
     item = db.get(ReviewItem, cand.item_id) if cand.item_id else None
-    labs = submitted_labels(db, item) if item else []
     reason = rules.approval_block_reason(
         approver_role=reviewer.role, approver_id=str(reviewer.id), production=production, is_mock=cand.is_mock,
         item_status=item.review_status if item else None, reuse_scope_ok=_reuse_scope_ok(db, cand),
-        item_labelers=rules.labelers(_as_submitted([l for l in labs if l.author_kind == "vet"])))
+        candidate_authors=candidate_authors(db, cand))
     if reason:
         raise ReviewError(409, "approval_blocked", reason)
     cand.publish_status, cand.approved_hash, cand.approved_by, cand.approved_at = "approved", cand.content_hash, reviewer.id, _now()
@@ -454,47 +463,89 @@ def list_candidates(db: Session) -> list[dict]:
 
 
 # ---------------------------------------------------------------- regression gate and activation
+CONDITION_LABELS = {"breed_size": "견 크기", "breeds": "품종", "life_stages": "생애 단계", "sex": "성별",
+                    "neutered": "중성화", "situation": "상황", "exclusions": "적용 제외"}
+LIFE_STAGE_KO = {"puppy": "어린 강아지", "adult": "성견", "senior": "노령견"}
+
+
+def conditions_text(conditions: dict | None) -> str:
+    """'적용 조건: 견 크기 소형견; 생애 단계 노령견. ...' — empty when there are no conditions."""
+    parts = []
+    for k, v in (conditions or {}).items():
+        vals = v if isinstance(v, list) else [v]
+        vals = [LIFE_STAGE_KO.get(str(x), str(x)) if k == "life_stages" else str(x) for x in vals if str(x).strip()]
+        if vals:
+            parts.append(f"{CONDITION_LABELS.get(k, k)} {', '.join(vals)}")
+    return f"적용 조건: {'; '.join(parts)}. 이 조건에 해당할 때만 적용한다." if parts else ""
+
+
+def knowledge_body(c: KnowledgeCandidate) -> str:
+    """Published chunk text. The application conditions travel inside the text, so the answer model sees them in the
+    source block (search results carry no other structured field)."""
+    cond = conditions_text(c.conditions)
+    return f"{c.content}\n{cond}" if cond else c.content
+
+
 def _doc_text(c: KnowledgeCandidate) -> str:
-    return load.embedding_text("vet_knowledge", c.title, None, None, c.content)
+    return load.embedding_text("vet_knowledge", c.title, None, None, knowledge_body(c))
 
 
 def evaluate_candidate(db: Session, cand: KnowledgeCandidate, embedder: Embedder, questions: Sequence[str],
-                       *, top_k: int, max_spillover: float) -> dict:
-    """Dev/regression gate (not an independent evaluation, docs/01 §7).
+                       *, top_k: int, max_spillover: float, min_questions: int = 30) -> dict:
+    """Search-impact check before activation (dev/regression only, docs/01 §7). NOT a quality or safety verdict:
+    displacing old results can be an improvement, and a wrong candidate that is rarely retrieved scores low.
 
     self_found: a query made of the candidate title would rank the candidate within the current top_k.
-    spillover: share of regression questions whose current top_k would be displaced by this candidate.
-    Passes when self_found and spillover <= max_spillover.
+    spillover: share of comparable questions (current top_k full) whose top_k this candidate would displace.
+    Validity (real candidates only): at least min_questions questions, at least min_questions comparable, and a
+    full top_k for the title query; otherwise the result is invalid and never passes. Mock candidates run as a
+    flow test (kind=search_impact(mock_flow)) without the validity rule; that result never counts for real knowledge.
     """
     vecs = embedder.embed([_doc_text(cand), cand.title, *questions])
     cvec, tvec, qvecs = vecs[0], vecs[1], vecs[2:]
 
     def kth(vec) -> float | None:
-        """Score of the current top_k-th hit; None when fewer than top_k hits exist (joining displaces nothing)."""
-        hits = search(db, vec, model=embedder.model, life_stage=None, top_k=top_k)
+        """Score of the current top_k-th hit; None when fewer than top_k hits exist (nothing to compare)."""
+        hits = search(db, vec, model=embedder.model, life_stage=None, top_k=top_k, allow_mock=cand.is_mock)
         return hits[-1].score if len(hits) >= top_k else None
 
     t_k = kth(tvec)
     self_found = t_k is None or cosine(tvec, cvec) >= t_k
-    displaced = 0
+    displaced = comparable = 0
     for q in qvecs:
         q_k = kth(q)
-        displaced += int(q_k is not None and cosine(q, cvec) > q_k)
-    rate = displaced / len(qvecs) if qvecs else 0.0
-    passed = bool(self_found and rate <= max_spillover)
-    result = {"kind": "regression(dev)", "model": embedder.model, "questions": len(qvecs), "top_k": top_k,
-              "self_found": bool(self_found), "spillover": round(rate, 4), "max_spillover": max_spillover,
-              "evaluated_hash": cand.content_hash, "at": _now().isoformat()}
+        if q_k is not None:
+            comparable += 1
+            displaced += int(cosine(q, cvec) > q_k)
+    rate = displaced / comparable if comparable else None
+    invalid = None
+    if not cand.is_mock:
+        if len(qvecs) < min_questions:
+            invalid = f"점검 질문이 {len(qvecs)}개로 최소 {min_questions}개보다 적습니다"
+        elif comparable < min_questions:
+            invalid = f"비교 가능한 질문이 {comparable}개뿐입니다(같은 임베딩 모델의 색인 문서 부족)"
+        elif t_k is None:
+            invalid = "제목 검색 결과가 상위 개수보다 적어 비교할 수 없습니다"
+    passed = invalid is None and bool(self_found) and (rate or 0.0) <= max_spillover
+    result = {"kind": "search_impact(mock_flow)" if cand.is_mock else "search_impact", "valid": invalid is None,
+              "invalid_reason": invalid, "model": embedder.model, "questions": len(qvecs), "comparable": comparable,
+              "top_k": top_k, "self_found": bool(self_found), "spillover": round(rate, 4) if rate is not None else None,
+              "max_spillover": max_spillover, "evaluated_hash": cand.content_hash, "at": _now().isoformat(),
+              "note": "검색 영향 점검 - 품질·안전 합격 판정이 아님"}
     cand.eval_result, cand.eval_passed = result, passed
-    _event(db, actor=None, event="candidate_evaluated", candidate=cand, passed=passed, spillover=result["spillover"])
+    _event(db, actor=None, event="candidate_evaluated", candidate=cand, passed=passed, valid=invalid is None,
+           spillover=result["spillover"])
     db.commit()
     return {**result, "passed": passed}
 
 
 def activate_candidate(db: Session, cand: KnowledgeCandidate, embedder: Embedder, production: bool,
                        actor: Reviewer | None = None) -> dict:
-    eval_ok = bool(cand.eval_passed) and (cand.eval_result or {}).get("evaluated_hash") == cand.content_hash \
-        and (cand.eval_result or {}).get("model") == embedder.model
+    ev = cand.eval_result or {}
+    # a mock-flow result never counts for real knowledge
+    eval_ok = (bool(cand.eval_passed) and ev.get("evaluated_hash") == cand.content_hash
+               and ev.get("model") == embedder.model and bool(ev.get("valid"))
+               and (cand.is_mock or ev.get("kind") == "search_impact"))
     reason = rules.activation_block_reason(publish_status=cand.publish_status, approved_hash=cand.approved_hash,
                                            content_hash=cand.content_hash, eval_passed=eval_ok, is_mock=cand.is_mock,
                                            production=production)
@@ -510,14 +561,15 @@ def activate_candidate(db: Session, cand: KnowledgeCandidate, embedder: Embedder
                        meta={"candidate_id": str(cand.id), "is_mock": cand.is_mock, "conditions": cand.conditions})
         db.add(doc)
         db.commit()
+    body = knowledge_body(cand)
     run = load.start_run(db, VET_DATASET_CODE, "hitl", embedder.model)
     try:
         d = load.DocInput(source_record_id=source_id, document_type="vet_knowledge", title=cand.title, department=None,
                           disease_names=[], life_stages=life_stages, content_hash=cand.content_hash,
                           storage_ref=f"knowledge_candidate/{cand.id}",
                           meta={"candidate_id": str(cand.id), "is_mock": cand.is_mock, "conditions": cand.conditions},
-                          chunks=[{"ordinal": 0, "content": cand.content, "content_hash": _sha(cand.content),
-                                   "tokens": max(1, len(cand.content) // 2), "locator": None}])
+                          chunks=[{"ordinal": 0, "content": body, "content_hash": _sha(body),
+                                   "tokens": max(1, len(body) // 2), "locator": None}])
         load.stage(db, run, [d])
         load.embed_pending(db, run, embedder)
         v = load.validate(db, run, embedder.model, sample=1)

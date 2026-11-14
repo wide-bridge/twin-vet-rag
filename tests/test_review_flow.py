@@ -97,7 +97,7 @@ def test_full_stage_a_flow(hitl):
     assert d2["item"]["review_status"] == "independently_verified"
     assert len(d2["other_labels"]) == 2  # vet1 + operator, visible after own submit
 
-    # candidate: vet1 writes it, vet1 cannot approve own case, vet3 (did not label) approves
+    # candidate: vet1 writes it and cannot approve it; vet2 (second labeler, not an author) approves
     cand = v1.post(f"{B}/candidates", json={"item_id": iid, "kind": "general", "title": "거위 소리 기침 안내",
                                             "content": "흥분할 때 심해지는 거위 소리 기침은 소형견에서 기관 허탈과 관련될 수 있다. 호흡이 가쁘면 즉시 내원.",
                                             "conditions": {"breed_size": "소형견"}, "evidence": ["[모의] 호흡기 교재"]}, headers=H)
@@ -106,22 +106,25 @@ def test_full_stage_a_flow(hitl):
     assert cand["is_mock"] and cand["title"].startswith("[모의]") and cand["publish_status"] == "unapproved"
     r = v1.post(f"{B}/candidates/{cand['id']}/approve", headers=H)
     assert r.status_code == 409 and "다른 수의사" in r.json()["error"]["message"]
-    assert v3.post(f"{B}/candidates/{cand['id']}/approve", headers=H).json()["publish_status"] == "approved"
+    assert v2.post(f"{B}/candidates/{cand['id']}/approve", headers=H).json()["publish_status"] == "approved"
 
     # editing after approval clears it; re-approve
     body = {"item_id": iid, "kind": "general", "title": "거위 소리 기침 안내", "evidence": ["[모의] 호흡기 교재"],
+            "conditions": {"breed_size": "소형견"},
             "content": "흥분할 때 심해지는 거위 소리 기침은 소형견에서 기관 허탈과 관련될 수 있다. 가슴줄을 쓰고 호흡이 가쁘면 즉시 내원."}
-    assert v1.put(f"{B}/candidates/{cand['id']}", json=body, headers=H).json()["publish_status"] == "unapproved"
-    assert v3.post(f"{B}/candidates/{cand['id']}/approve", headers=H).json()["publish_status"] == "approved"
+    assert v3.put(f"{B}/candidates/{cand['id']}", json=body, headers=H).json()["publish_status"] == "unapproved"
+    # vet3 edited it, so vet3 can no longer approve; vet2 re-approves
+    assert v3.post(f"{B}/candidates/{cand['id']}/approve", headers=H).status_code == 409
+    assert v2.post(f"{B}/candidates/{cand['id']}/approve", headers=H).json()["publish_status"] == "approved"
 
     emb = FakeEmbedder()
     with hitl.app.state.Session() as s:
         c = s.get(KnowledgeCandidate, __import__("uuid").UUID(cand["id"]))
         # no regression evaluation yet -> refused
-        with pytest.raises(svc.ReviewError, match="회귀 평가"):
+        with pytest.raises(svc.ReviewError, match="검색 영향 점검"):
             svc.activate_candidate(s, c, emb, production=False)
         res = svc.evaluate_candidate(s, c, emb, ["강아지가 토해요", "귀를 긁어요"], top_k=6, max_spillover=0.5)
-        assert res["passed"] and res["kind"] == "regression(dev)"
+        assert res["passed"] and res["kind"] == "search_impact(mock_flow)"
         # mock knowledge is never activated in production
         with pytest.raises(svc.ReviewError, match="모의"):
             svc.activate_candidate(s, c, emb, production=True)
@@ -129,6 +132,9 @@ def test_full_stage_a_flow(hitl):
         assert out["activated"] == 1
         doc = s.execute(select(Document).where(Document.dataset_code == "vetreview")).scalar_one()
         assert doc.document_type == "vet_knowledge" and doc.meta["is_mock"] is True
+        # application conditions are inside the searchable text, so the answer model sees them
+        hit = search(s, emb.embed([svc._doc_text(c)])[0], model=emb.model, life_stage=None, allow_mock=True)
+        assert any("적용 조건: 견 크기 소형견" in h.content for h in hit if h.document_id == doc.id)
         # searchable in the test environment, hidden by the production filter
         qv = emb.embed([svc._doc_text(c)])[0]
         assert any(h.document_id == doc.id for h in search(s, qv, model=emb.model, life_stage=None, allow_mock=True))
@@ -213,3 +219,76 @@ def test_seed_is_idempotent_and_split_table(db, tmp_path):
          "content": f"보호자 질문: {r['question']}\n수의사 답변: 답"}, ensure_ascii=False) for r in recs), encoding="utf-8")
     rep = write_split_table(tmp_path, 5, 1)
     assert rep["rows"] == 40 and rep["dup_groups"] == 7
+
+
+# ---------------------------------------------------------------- dataset bundles + AI pre-labels (no network)
+def test_dataset_bundles_with_prelabels(db, test_db_url):
+    from backend.app.ingest import load
+    from backend.app.ingest.load import DocInput
+    from backend.app.services import review_dataset as ds
+
+    E = FakeEmbedder()
+    run = load.start_run(db, "synthetic", "v1", E.model)
+    load.stage(db, run, [DocInput("q1", "qa_case", "내과 상담 사례", "내과", [], ["adult"], "h-q1", "s/q1.json", {},
+                                  [{"ordinal": 0, "content": "보호자 질문: 구토\n수의사 답변: 탈수를 확인하세요", "content_hash": "c",
+                                    "tokens": 10, "locator": None}])])
+    load.embed_pending(db, run, E)
+    load.activate(db, run)
+    svc.seed_ontology(db)
+
+    prelabel = {"accuracy": "minor_edit", "evidence_support": "supported", "sufficiency": "answerable",
+                "guidance": "missing_important", "safety_issue": False, "revised_answer": "탈수가 보이면 내원하세요.",
+                "revision_reason": "내원 기준 누락", "revision_evidence": ["1", "9", "x"], "reuse_scope": "conditional",
+                "concepts": [{"code": "symptom:vomiting", "assertion": "owner_reported"},
+                             {"code": "symptom:vomiting", "assertion": "owner_reported"},
+                             {"code": "condition:nope", "assertion": "ai_inferred"},
+                             {"code": "action:vet_visit_soon", "assertion": "vet_assessed"}]}
+    llm = FakeLLM({"classify": {"scope": "in_scope", "search_query": "구토", "question_age_text": "",
+                                "question_unclear": False, "clarification_question": ""},
+                   "answer": {"response_type": "grounded", "answer": "탈수를 확인하세요.", "used_sources": [1]},
+                   "prelabel": prelabel})
+    settings = Settings(database_url=test_db_url, retrieval_min_score=-1.0, app_env="test")
+    rows = [{"eval_id": f"aihub59-dev-{i}", "subset": "dev", "department": "내과", "life_stages": ["adult"],
+             "question": f"3살 강아지가 구토를 해요 {i}"} for i in range(12)]
+    rep = ds.build_dataset_items(db, rows, settings=settings, llm=llm, embedder=E, n=10, hide_pct=30)
+    assert rep.created == 10 and rep.prelabeled == 10 and rep.failed == 0
+    assert 0 < rep.hidden < 10  # stable hash share
+    items = db.execute(select(ReviewItem).where(ReviewItem.origin == "dataset")).scalars().all()
+    it = items[0]
+    assert not it.is_mock and it.review_status == "draft" and it.citations[0]["excerpt"].startswith("보호자 질문")
+    assert it.versions["prompt_version"] and it.dog["breed"] == "모름" and it.dog["age_months"] == 36
+    # the cleaned AI label: bad evidence numbers, duplicate/unknown/vet_assessed concepts dropped
+    from backend.app.db.models_review import ReviewLabel, LabelConcept
+    lab = db.execute(select(ReviewLabel).where(ReviewLabel.item_id == it.id)).scalar_one()
+    assert lab.author_kind == "ai" and lab.revision_evidence == ["1"]
+    assert db.query(LabelConcept).filter(LabelConcept.label_id == lab.id).count() == 1
+
+    # idempotent: a second run skips existing rows without model calls
+    calls = len(llm.calls)
+    rep2 = ds.build_dataset_items(db, rows, settings=settings, llm=llm, embedder=E, n=10)
+    assert rep2.created == 2 and rep2.skipped_existing == 10 and len(llm.calls) == calls + 2 * 3
+
+    # an invalid pre-label (appropriate + safety) is rejected, the bundle is still created
+    bad, errs = ds.clean_prelabel({**prelabel, "accuracy": "appropriate", "safety_issue": True}, 1,
+                                  {k: c.status for k, c in svc.concept_index(db).items()})
+    assert bad is None and "safety_issue" in errs
+
+
+def test_real_candidate_search_impact_check_must_be_valid(hitl):
+    """A real (non-mock) candidate: too few or non-comparable questions make the check invalid, never passed."""
+    emb = FakeEmbedder()
+    with hitl.app.state.Session() as s:
+        vet = s.execute(select(svc.Reviewer).where(svc.Reviewer.display_name == "vet1")).scalar_one()
+        c = svc.create_candidate(s, vet, {"kind": "general", "title": "실제 후보", "content": "실제 후보의 내용입니다. 충분히 길게.",
+                                          "conditions": {"life_stages": ["senior"]}, "evidence": ["x"]})
+        assert not c.is_mock and "생애 단계 노령견" in svc.knowledge_body(c)
+        r = svc.evaluate_candidate(s, c, emb, ["강아지가 토해요"] * 3, top_k=6, max_spillover=0.5, min_questions=30)
+        assert r["valid"] is False and r["passed"] is False and "최소 30" in r["invalid_reason"]
+        r = svc.evaluate_candidate(s, c, emb, ["강아지가 토해요"] * 30, top_k=6, max_spillover=0.5, min_questions=30)
+        assert r["valid"] is False and r["comparable"] == 0  # empty index: nothing to compare
+        # even a forged passed flag on a mock-flow result does not count for real knowledge
+        c.publish_status, c.approved_hash = "approved", c.content_hash
+        c.eval_passed, c.eval_result = True, {**r, "valid": True, "kind": "search_impact(mock_flow)"}
+        s.commit()
+        with pytest.raises(svc.ReviewError, match="검색 영향 점검"):
+            svc.activate_candidate(s, c, emb, production=False)

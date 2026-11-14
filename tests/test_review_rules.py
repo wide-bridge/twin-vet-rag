@@ -60,8 +60,9 @@ def test_contradictions_and_concepts():
     assert "concepts" in check_label(ok_label(concepts=dup), CONCEPTS)
 
 
-def sub(kind, rid, acc="appropriate", gui="appropriate", reuse="case_only"):
-    return SubmittedLabel(kind, rid, acc, gui, reuse)
+def sub(kind, rid, acc="appropriate", gui="appropriate", reuse="case_only", ev="supported", suf="answerable",
+        safety=False):
+    return SubmittedLabel(kind, rid, acc, gui, reuse, ev, suf, safety)
 
 
 def test_review_status_counts_only_vets():
@@ -70,20 +71,26 @@ def test_review_status_counts_only_vets():
     assert review_status([sub("vet", "v1"), sub("operator", "op", acc="inappropriate")]) == "vet_reviewed"
     assert review_status([sub("vet", "v1"), sub("vet", "v2")]) == "independently_verified"
     assert review_status([sub("vet", "v1"), sub("vet", "v2", reuse="excluded")]) == "disputed"
+    # safety, evidence and sufficiency differences are disputes too (Codex review 2026-11-14)
+    both_edit = dict(acc="minor_edit", gui="missing_important")
+    assert review_status([sub("vet", "v1", **both_edit, safety=True), sub("vet", "v2", **both_edit)]) == "disputed"
+    assert review_status([sub("vet", "v1", ev="partial"), sub("vet", "v2")]) == "disputed"
+    assert review_status([sub("vet", "v1", suf="needs_more_info"), sub("vet", "v2")]) == "disputed"
     # the same vet twice is still one reviewer (self-check is not independent)
     assert review_status([sub("vet", "v1"), sub("vet", "v1")]) == "vet_reviewed"
 
 
 def approve(**kw):
-    base = dict(approver_role="vet", approver_id="v3", production=True, is_mock=False,
-                item_status="independently_verified", reuse_scope_ok=True, item_labelers={"v1", "v2"})
+    base = dict(approver_role="vet", approver_id="v2", production=True, is_mock=False,
+                item_status="independently_verified", reuse_scope_ok=True, candidate_authors={"v1"})
     base.update(kw)
     return approval_block_reason(**base)
 
 
 def test_approval_rules():
-    assert approve() is None
-    assert approve(approver_id="v1") is not None            # labeled it
+    assert approve() is None                                # the second labeler may approve (two-vet model)
+    assert approve(approver_id="v1") is not None            # wrote the candidate
+    assert approve(candidate_authors={"v1", "v2"}) is not None  # edited the candidate
     assert approve(item_status="vet_reviewed") is not None  # not independently verified
     assert approve(reuse_scope_ok=False) is not None
     assert approve(approver_role="operator") is not None    # production

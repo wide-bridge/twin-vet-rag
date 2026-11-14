@@ -74,3 +74,5 @@ div.rv-pane { padding: 0; display: flex; flex-direction: column; gap: 14px; }
 .rv-login-card { width: min(420px, 100%); padding: 24px; display: flex; flex-direction: column; gap: 14px; }
 .rv-login-card h1 { margin: 0; font-size: 22px; }
 .rv-main section > .btn { margin-bottom: 12px; }
+.rv-excerpt summary { cursor: pointer; color: var(--color-primary); font-size: 14px; min-height: 32px; display: inline-flex; align-items: center; }
+.rv-excerpt p { margin: 4px 0 8px; padding: 8px 10px; background: var(--color-surface-muted); border-radius: 8px; font-size: 14px; white-space: pre-wrap; }

@@ -4,6 +4,8 @@
     python -m scripts.hitl_admin create-reviewer --role operator --name "운영자"   # prints the access key ONCE
     python -m scripts.hitl_admin deactivate-reviewer --id <uuid>
     python -m scripts.hitl_admin mock-items                     # stage-A mock bundles (+ AI suggestions)
+    python -m scripts.hitl_admin dataset-items --n 20 [--subset dev] [--no-prelabel] [--hide-pct 30] [--max-usd 1] --yes
+                                       # real bundles: AI Hub held-out questions answered by the app pipeline (paid)
     python -m scripts.hitl_admin evaluate --candidate <uuid> --embedder {fake|openai} [--version v2 --fold 0 --n 50]
     python -m scripts.hitl_admin activate --candidate <uuid> --embedder {fake|openai} --yes
     python -m scripts.hitl_admin status
@@ -29,7 +31,22 @@ from backend.app.db.engine import session_factory  # noqa: E402
 from backend.app.db.models_review import KnowledgeCandidate, Reviewer  # noqa: E402
 from backend.app.ingest.split import qa_question  # noqa: E402
 from backend.app.rag.embeddings import FakeEmbedder, OpenAIEmbedder  # noqa: E402
+from backend.app.rag.llm import OpenAILLM  # noqa: E402
 from backend.app.services import review as svc  # noqa: E402
+from backend.app.services import review_dataset as ds  # noqa: E402
+
+# USD per 1M tokens (input, output); same list as scripts/eval_answers (checked 2026-11-09)
+PRICES = {"gpt-5-nano": (0.05, 0.40), "gpt-5-mini": (0.25, 2.00), "gpt-5.4-mini": (0.75, 4.50)}
+
+
+def _usd(usages: list[dict]) -> float:
+    total = 0.0
+    for u in usages:
+        for v in u.values():
+            if isinstance(v, dict) and v.get("model") in PRICES:
+                pi, po = PRICES[v["model"]]
+                total += v["input"] / 1e6 * pi + v["output"] / 1e6 * po
+    return total
 
 
 def _embedder(kind: str):
@@ -78,6 +95,14 @@ def main() -> int:
     p = sub.add_parser("deactivate-reviewer")
     p.add_argument("--id", required=True)
     sub.add_parser("mock-items")
+    p = sub.add_parser("dataset-items")
+    p.add_argument("--n", type=int, default=20)
+    p.add_argument("--subset", choices=["dev", "final"], default="dev")
+    p.add_argument("--version", default="v2")
+    p.add_argument("--no-prelabel", action="store_true")
+    p.add_argument("--hide-pct", type=int, default=30)
+    p.add_argument("--max-usd", type=float, default=1.0, help="stop before the next bundle once spending reaches this")
+    p.add_argument("--yes", action="store_true")
     for name in ("evaluate", "activate"):
         p = sub.add_parser(name)
         p.add_argument("--candidate", required=True)
@@ -110,6 +135,23 @@ def main() -> int:
         elif a.cmd == "mock-items":
             print(svc.seed_ontology(db))
             print(svc.create_mock_items(db))
+        elif a.cmd == "dataset-items":
+            if not a.yes:
+                print(f"add --yes to run (paid: about ${a.n * 0.008:.2f} for {a.n} bundles with pre-labels)")
+                return 2
+            if not s.openai_api_key:
+                raise SystemExit("OPENAI_API_KEY is not set")
+            key = s.openai_api_key.get_secret_value()
+            print(svc.seed_ontology(db))
+            rows = ds.load_rows(s.data_output_dir / "prepared" / a.version / f"eval_{a.subset}.jsonl")
+            for r in rows:
+                r.setdefault("subset", a.subset)
+            rep = ds.build_dataset_items(
+                db, rows, settings=s, llm=OpenAILLM(key, timeout=s.llm_timeout_seconds),
+                embedder=OpenAIEmbedder(key, s.embedding_model), n=a.n, prelabel=not a.no_prelabel,
+                hide_pct=a.hide_pct, on_progress=lambda rep, t: print(f"[{rep.created}/{a.n}] {t}", flush=True),
+                should_stop=lambda rep: _usd(rep.usage) >= a.max_usd)
+            print(json.dumps({**rep.as_dict(), "usd": round(_usd(rep.usage), 4)}, ensure_ascii=False))
         elif a.cmd in ("evaluate", "activate"):
             cand = db.get(KnowledgeCandidate, uuid.UUID(a.candidate))
             if cand is None:
@@ -118,7 +160,8 @@ def main() -> int:
             emb = _embedder(a.embedder)
             if a.cmd == "evaluate":
                 qs = regression_questions(a.version, a.fold, a.n)
-                print(svc.evaluate_candidate(db, cand, emb, qs, top_k=s.retrieval_top_k, max_spillover=s.hitl_max_spillover))
+                print(svc.evaluate_candidate(db, cand, emb, qs, top_k=s.retrieval_top_k, max_spillover=s.hitl_max_spillover,
+                                             min_questions=s.hitl_min_eval_questions))
             else:
                 if not a.yes:
                     print("add --yes to activate (this changes what RAG search returns)")

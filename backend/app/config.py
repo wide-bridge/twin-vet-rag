@@ -79,7 +79,8 @@ class Settings(BaseSettings):
                          pattern="^(production|development|test)$")
     reviewer_session_hours: int = Field(default=12, ge=1, le=168)
     review_logins_per_minute: int = Field(default=10, ge=1)
-    hitl_max_spillover: float = Field(default=0.10, ge=0.0, le=1.0)  # regression gate before activation
+    hitl_max_spillover: float = Field(default=0.10, ge=0.0, le=1.0)  # search-impact check (not a quality verdict)
+    hitl_min_eval_questions: int = Field(default=30, ge=1)  # fewer comparable questions -> check is invalid
 
     @property
     def hitl_production(self) -> bool:
