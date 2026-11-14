@@ -1,6 +1,7 @@
 // PC (>= 1024px): service introduction on the left, the real mobile app in a phone frame on the right
 // (2026-11-12). The app runs inside a same-origin iframe, so it gets a phone-sized viewport and its mobile
 // layout, and shares the session/profile cookies with a phone-width browser.
+import { useState } from "react";
 import { BrandLockup } from "./Common";
 
 const FEATURES: [string, string, string][] = [
@@ -12,7 +13,23 @@ const FEATURES: [string, string, string][] = [
   ["🩺", "병원에 보여주기", "진료 때 바로 보여줄 요약"],
 ];
 
+// 관리자 상담 스위치 link (/?pilot=<code>) on PC: hand the code to the app inside the frame, then clean the address bar.
+// Runs only when the showcase renders (phones read the code in the app itself).
+function frameSrc(): string {
+  try {
+    const url = new URL(window.location.href);
+    const code = url.searchParams.get("pilot");
+    if (!code) return "/?frame=1";
+    url.searchParams.delete("pilot");
+    window.history.replaceState(null, "", url.pathname + url.search + url.hash);
+    return "/?frame=1&pilot=" + encodeURIComponent(code);
+  } catch {
+    return "/?frame=1";
+  }
+}
+
 export function Showcase() {
+  const [src] = useState(frameSrc);
   return (
     <div className="showcase">
       <section className="showcase-info" aria-labelledby="showcase-h">
@@ -46,7 +63,7 @@ export function Showcase() {
       </section>
       <div className="phone" aria-label="모바일 화면 미리보기">
         <span className="phone-notch" aria-hidden="true" />
-        <iframe className="phone-app" src="/?frame=1" title="TwinVet Care 모바일 앱" allow="geolocation" />
+        <iframe className="phone-app" src={src} title="TwinVet Care 모바일 앱" allow="geolocation" />
       </div>
     </div>
   );
