@@ -427,3 +427,7 @@ a.btn-primary { color: var(--color-on-primary); }
 .vet-state.is-requested { color: var(--color-primary); }
 .vet-sub { font-size: 13px; color: var(--color-text-muted); line-height: 1.45; }
 .vet-row .btn { flex: none; }
+.vet-card-head { display: flex; flex-direction: column; gap: 4px; }
+.vet-card-status { font-weight: 700; font-size: 15px; color: var(--color-primary); }
+.vet-card-status.is-answered { color: #116b3a; }
+.vet-card-status.is-cancelled { color: var(--color-text-muted); }

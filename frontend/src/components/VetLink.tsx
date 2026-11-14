@@ -314,9 +314,9 @@ function VetQuestionCard({ q, standalone }: { q: VetQuestion; standalone?: boole
     : q.cancelled_reason === "link_ended" ? "연결 해제로 취소됨" : "보내기 취소됨");
   return (
     <section className={"vet-card is-" + q.status} aria-label="수의사 질문">
-      <div className="answer-head">
-        <span className="vet-tag">{who} 질문 · {vetName(q.vet)}</span>
-        <span>{q.is_test && <span className="vet-badge">시험</span>}<span className={"vet-badge is-" + q.status}>{status}</span></span>
+      <div className="vet-card-head">
+        <span className="vet-tag">{who} 질문 · {vetName(q.vet)}{q.is_test && <span className="vet-badge">시험</span>}</span>
+        <span className={"vet-card-status is-" + q.status}>{status}</span>
       </div>
       {standalone && <p className="quote">{q.snapshot.question}</p>}
       {q.reply && (
