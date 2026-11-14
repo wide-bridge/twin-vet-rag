@@ -87,5 +87,11 @@
         }
       ]
     }
+  ],
+  "crons": [
+    {
+      "path": "/api/v1/internal/cleanup",
+      "schedule": "0 19 * * *"
+    }
   ]
 }

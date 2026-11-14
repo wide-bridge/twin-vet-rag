@@ -9,13 +9,14 @@
 |---|---|---|
 | https://twinvet.pawcheck.ai | 보호자 상담 (PoC) | 2026-11-11 배포. 예비 주소 https://twin-vet-rag.vercel.app |
 | https://hitl-review.pawcheck.ai | MVP1 HITL 검토 도구 (화면 제목 'TwinVet HITL Review') | 2026-11-14 배포. 접근 키 로그인, 보호자 화면에서 링크 없음. 운영자 메뉴: 검토 목록 / 지식 후보 / HITL 통계 / 서비스 이용통계 |
-| https://vet.pawcheck.ai | 병원·수의사 응대 화면 (M03, 다음 개발 단계) | 2026-11-14 배포(M03 꺼짐): '준비 중' 안내만 보임. 개방 조건은 아래 '현재 상태' |
+| https://vet.pawcheck.ai | 병원·수의사 응대 화면 (M03, 다음 개발 단계) | 2026-11-14 배포(수의사 상담 스위치 꺼짐): '준비 중' 안내만 보임. 개방 조건은 아래 '현재 상태' |
 
 ## 현재 상태 (2026-11-14 밤)
 - 운영: main `c43a01d` (Vercel 자동 배포). Neon DB 버전 `9386107d035a`. 테스트 207개 통과.
 - 운영 중: 보호자 상담(twinvet), HITL 검토 도구(hitl-review, 운영자 계정 1개, 검토 묶음 0건), HITL 통계·서비스 이용통계.
-- 만들었지만 꺼 둔 것: **M03 보호자·수의사 연결**(`M03_ENABLED` 미설정). 켜는 순서: 실제 수의사 확보·비대면 상담 법률 검토 → `python -m scripts.vet_admin create-vet`으로 운영 DB에 수의사 계정 등록(접근 키 1회 표시) → Vercel 환경변수 `M03_ENABLED=true`, `VET_HOST=vet.pawcheck.ai`, `ALLOWED_ORIGINS`에 `https://vet.pawcheck.ai` 추가 → 재배포.
-- 미해결: **정리 작업 예약 없음**(`cleanup_sessions`가 하루 1회 돌지 않아 만료된 세션·상담·반려견 정보가 남아 있음), 정기 백업 정책, 원천 자료 이용 조건 확인, 출처 근거 갈래의 정제 비교(4단계 보류).
+- 만들었지만 꺼 둔 것: **M03 보호자·수의사 연결**. 켜고 끄는 것을 **'수의사 상담 스위치'**라고 부른다(현재 구현: 환경변수 `M03_ENABLED`, 미설정=꺼짐). 운영 방식은 논의 중. 켜는 순서: 실제 수의사 확보·비대면 상담 법률 검토 → `python -m scripts.vet_admin create-vet`으로 운영 DB에 수의사 계정 등록(접근 키 1회 표시) → Vercel 환경변수 `M03_ENABLED=true`, `VET_HOST=vet.pawcheck.ai`, `ALLOWED_ORIGINS`에 `https://vet.pawcheck.ai` 추가 → 재배포.
+- 정리 작업: Vercel Cron이 매일 04:00(KST, `vercel.json`의 `crons`, UTC 19:00)에 `GET /api/v1/internal/cleanup`을 호출 → 서비스 이용통계 숫자 저장 후 만료 데이터 삭제. Vercel 환경변수 `CRON_SECRET`이 있어야 동작(없거나 틀리면 404). 로컬·수동 실행은 `python -m scripts.cleanup_sessions`(같은 함수).
+- 미해결: 정기 백업 정책, 원천 자료 이용 조건 확인, 출처 근거 갈래의 정제 비교(4단계 보류).
 - 도메인: whois 네임서버 ns1·ns2에 hitl-review CNAME 미반영(19:58 조회 기준) — 재조회 필요.
 
 ## 환경
@@ -91,7 +92,7 @@ python -m scripts.hitl_admin usage-stats --days 7                               
 ```
 - 시험은 로컬 DB에서만 한다. Vercel 미리보기는 운영 Neon을 함께 쓴다.
 - hitl-review 운영자 메뉴: 검토 목록 / 지식 후보 / **HITL 통계**(보호자 → 수의사 → HITL 흐름 숫자·이관) / **서비스 이용통계**(Flow: 기간 동안 상담·질문·답변 유형·실패·답변 시간·평가 / Stock: 보관 상담·세션·반려견 정보·주치병원·수의사 연결·검토 묶음·검색 문서). 날짜별 숫자는 `usage_daily`에 저장해 상담 원본이 7일 뒤 지워져도 추이가 남는다(개인정보·질문 내용 없음). 화면을 열 때와 `cleanup_sessions`(삭제 전에 먼저 기록) 실행 때 기록.
-- HITL 이관: hitl-review의 'HITL 통계'(운영자만, M03 개방 전에도 보임). 품질 개선에 동의하고 회신이 끝난 질문만 본문이 보이며, 운영자가 식별 정보를 정리한 뒤 이관한다. 철회·삭제·만료 시 사본과 라벨이 지워지고, 그 사본의 지식 후보는 승인 해제·차단, 발행된 지식은 검색에서 빠진다. 이관 후 정정되면 '재확인 필요'.
+- HITL 이관: hitl-review의 'HITL 통계'(운영자만, 수의사 상담 스위치가 꺼져 있어도 보임). 품질 개선에 동의하고 회신이 끝난 질문만 본문이 보이며, 운영자가 식별 정보를 정리한 뒤 이관한다. 철회·삭제·만료 시 사본과 라벨이 지워지고, 그 사본의 지식 후보는 승인 해제·차단, 발행된 지식은 검색에서 빠진다. 이관 후 정정되면 '재확인 필요'.
 - Neon 마이그레이션 `2691bef2596c`, `518a4b3d59e1`, `9386107d035a` 모두 적용 완료(2026-11-14, 사용자 실행). 배포 main `c43a01d`. 배포 후에도 `M03_ENABLED`를 넣지 않으면 꺼진 상태다. 배포하면 `vet.pawcheck.ai`는 hitl-review로 이동하지 않고 '준비 중'을 보인다.
 
 ## MVP1 수의사 HITL (docs/01 4절, docs/04 7절)
@@ -148,7 +149,7 @@ python tests/e2e/ui_smoke.py --widths 320,390,768,1280   # 실행 중인 서버 
 
 ## 운영 작업
 ```powershell
-python -m scripts.cleanup_sessions      # (1) 서비스 이용통계 날짜별 숫자 저장 → (2) 만료 24시간 지난 세션·상담 + 보관 기한 지난 반려견 프로필(M03 질문·HITL 사본 포함) 영구 삭제. 2026-11-14 현재 예약 안 됨. 하루 1회 예약 실행
+python -m scripts.cleanup_sessions      # (1) 서비스 이용통계 날짜별 숫자 저장 → (2) 만료 24시간 지난 세션·상담 + 보관 기한 지난 반려견 프로필(M03 질문·HITL 사본 포함) 영구 삭제. 운영은 Vercel Cron이 매일 04:00 KST 호출. 하루 1회 예약 실행
 python -m scripts.load_clinics          # 동물병원 목록 갱신(개업·폐업·주소·전화). 원천은 매일 갱신, 주 1회 권장
 ```
 

@@ -882,7 +882,7 @@ function UsageScreen({ onAuthError }: { onAuthError: (e: unknown) => void }) {
               </tbody>
             </table>
           </div>
-          <p className="help">상담 원본은 {r.retention_days}일 뒤 삭제됩니다. 그 전에 날짜별 숫자를 저장해 두므로 이후에도 추이가 남습니다(최근 {r.retention_days + 1}일은 원본으로 다시 계산).</p>
+          <p className="help">상담 원본은 {r.retention_days}일 뒤 삭제됩니다. 그 전에 날짜별 숫자를 저장해 두므로 이후에도 추이가 남습니다(최근 {r.retention_days}일은 원본으로 다시 계산).</p>
 
           <h2 className="rv-h2" style={{ marginTop: 24 }}>Stock <small>지금 쌓여 있는 양</small></h2>
           <div className="rv-stats">

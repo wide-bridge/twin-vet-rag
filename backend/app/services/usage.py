@@ -1,6 +1,6 @@
 """서비스 이용통계 (operator, hitl-review): Flow per KST day and Stock levels, counts only.
 
-- Flow of a day is computed from the raw records while they are still kept (session_ttl_days + 1 day margin) and
+- Flow of a day is computed from the raw records while they are still kept (session_ttl_days) and
   stored in usage_daily; after that the stored numbers are frozen (raw consultations get deleted by retention).
 - Stock is measured now; today's row keeps the latest stock, so past days show the last level written that day.
 - fill() is idempotent: run it from the page (lazy) and from the daily cleanup job BEFORE purging.
@@ -88,7 +88,8 @@ def fill(db: DB, settings: Settings) -> dict:
     """Store flow for every day whose raw records are still complete (and any missing earlier day once), and today's
     stock. Days older than the retention window keep their stored flow unchanged."""
     today = today_kst()
-    keep_from = today - timedelta(days=settings.session_ttl_days + 1)
+    # raw records of day d start to be purged on d + ttl + 1 (expiry + 24h grace): recompute only while complete
+    keep_from = today - timedelta(days=settings.session_ttl_days)
     stored = {r.day: r for r in db.query(UsageDaily).all()}
     first = _earliest_raw_day(db) or today
     written = 0

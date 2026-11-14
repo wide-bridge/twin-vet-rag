@@ -34,7 +34,7 @@ def _default_ai(settings: Settings):
 REVIEW_API = "/api/v1/review"
 VET_API = "/api/v1/vet"
 # answer on every host (liveness, DB check, and the M03 switch both apps read)
-ALWAYS_OPEN = ("/api/v1/live", "/api/v1/health", "/api/v1/m03/availability")
+ALWAYS_OPEN = ("/api/v1/live", "/api/v1/health", "/api/v1/m03/availability", "/api/v1/internal/cleanup")
 
 
 def _request_host(request: Request) -> str:
@@ -115,6 +115,22 @@ def create_app(settings: Settings | None = None, *, llm=None, embedder=None, pla
     app.include_router(m03_routes.public)
     app.include_router(m03_routes.guardian)
     app.include_router(m03_routes.vet)
+
+    @app.get("/api/v1/internal/cleanup")
+    def scheduled_cleanup(request: Request) -> JSONResponse:
+        """Daily retention job for Vercel Cron. Answers 404 unless CRON_SECRET is set and the bearer token matches."""
+        import hmac
+
+        from .services.maintenance import run_cleanup
+
+        secret = settings.cron_secret.get_secret_value() if settings.cron_secret else ""
+        got = request.headers.get("authorization", "")
+        if not secret or not hmac.compare_digest(got.encode(), f"Bearer {secret}".encode()):
+            return JSONResponse({"error": {"code": "not_found", "message": "찾을 수 없어요."}}, status_code=404)
+        with app.state.Session() as db:
+            out = run_cleanup(db, settings)
+        log.info("scheduled cleanup: %s", out)  # counts only
+        return JSONResponse({"ok": True, **out})
 
     @app.get("/api/v1/live")
     def live() -> dict:
