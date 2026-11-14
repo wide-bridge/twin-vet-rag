@@ -55,7 +55,7 @@ export function ReviewApp() {
   const [concepts, setConcepts] = useState<Concept[]>([]);
 
   useEffect(() => {
-    document.title = "TwinVet 검토 작업";
+    document.title = "TwinVet HITL Review";
     const on = () => setRoute(parseHash());
     window.addEventListener("hashchange", on);
     reviewApi.me().then(setMe).catch(() => setMe(null));
@@ -77,7 +77,7 @@ export function ReviewApp() {
     <div className="rv">
       <header className="rv-header">
         <div className="rv-header-inner">
-          <a className="rv-brand" href="#/">TwinVet 검토 작업</a>
+          <a className="rv-brand" href="#/">TwinVet HITL Review</a>
           <nav className="rv-nav" aria-label="작업 메뉴">
             <a href="#/" aria-current={route.name !== "candidates" ? "page" : undefined}>검토 목록</a>
             <a href="#/candidates" aria-current={route.name === "candidates" ? "page" : undefined}>지식 후보</a>
@@ -122,7 +122,7 @@ function LoginScreen({ onLogin }: { onLogin: (m: Me) => void }) {
   return (
     <div className="rv rv-login">
       <form className="card rv-login-card" onSubmit={submit}>
-        <h1>TwinVet 검토 작업</h1>
+        <h1>TwinVet HITL Review</h1>
         <p className="help">운영자에게 받은 접근 키를 입력하세요. 보호자용 화면과는 별개입니다.</p>
         <div className="field">
           <label htmlFor="rv-key">접근 키</label>

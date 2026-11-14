@@ -25,7 +25,7 @@ if (isReview) {
   robots.name = "robots";
   robots.content = "noindex, nofollow";
   document.head.appendChild(robots);
-  document.title = "TwinVet 검토";
+  document.title = "TwinVet HITL Review";
 }
 
 function Root() {
