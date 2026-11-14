@@ -9,7 +9,7 @@
 |---|---|---|
 | https://twinvet.pawcheck.ai | 보호자 상담 (PoC) | 2026-11-11 배포. 예비 주소 https://twin-vet-rag.vercel.app |
 | https://hitl-review.pawcheck.ai | MVP1 HITL 검토 도구 (M02, 화면 제목 'TwinVet HITL Review') | 2026-11-14 배포 완료. 접근 키 로그인, 보호자 화면에서 링크 없음 |
-| https://vet.pawcheck.ai | 병원·수의사 응대 화면 (M03, 다음 개발 단계) | 연결만 됨. 개발 전까지 hitl-review로 이동 |
+| https://vet.pawcheck.ai | 병원·수의사 응대 화면 (M03, 다음 개발 단계) | 운영: hitl-review로 이동 중. 작업 브랜치에 M03 구현(꺼진 채), 배포하면 '준비 중' 안내로 바뀜 |
 
 ## 환경
 - Python: 기존 conda 환경 `smart_tour` (Python 3.12). 새 가상환경을 만들지 않는다.
@@ -69,6 +69,18 @@ python -m scripts.eval_answers --subset dev --n 30 --judge              # 답변
 2026-11-10 dev 표본 결과: 검색 dept@6 0.96(200문항) / 답변 30문항 grounded 83%, 인용 진료과 일치 100%,
 채점 일치도 4.88·안전성 5.0(5점 만점, LLM 채점은 참고 지표), 질문당 약 $0.002, 지연 중앙값 약 14초.
 최종 검증군(final)은 확정 직전에만 쓴다.
+
+## M03 보호자·수의사 질문·답변 연결 (docs/01 4-1절, docs/04 7-1절)
+`M03_ENABLED`(기본 false) 하나로 화면·API를 켠다. 꺼져 있으면 `/api/v1/m03/availability`만 응답하고 나머지 M03 API는 404, 보호자 화면에 진입점이 없고 수의사 화면(`vet.pawcheck.ai`, 로컬 `/vet`)은 '준비 중'만 보인다. 운영은 실서비스 개방 전까지 false.
+```powershell
+python -m scripts.vet_admin create-vet --name "김수의" --clinic "튼튼동물병원" --test   # 접근 키는 한 번만 표시(해시만 저장)
+python -m scripts.vet_admin list
+python -m scripts.vet_admin deactivate-vet --id <uuid>                                # 로그인도 즉시 무효
+python tests/e2e/m03_server.py      # 로컬 DB + 가짜 LLM(비용 없음), M03 켬, 수의사 주소 vet.localhost:8011
+python tests/e2e/m03_smoke.py       # 브라우저 왕복: 연결 요청 → 수락 → 고른 질문만 전달 → 회신·정정 → 보호자 확인, 다른 보호자 차단
+```
+- 시험은 로컬 DB에서만 한다. Vercel 미리보기는 운영 Neon을 함께 쓴다.
+- 운영 반영 전: Neon에 마이그레이션 `2691bef2596c` 적용(사용자 실행). 배포 후에도 `M03_ENABLED`를 넣지 않으면 꺼진 상태다. 배포하면 `vet.pawcheck.ai`는 hitl-review로 이동하지 않고 '준비 중'을 보인다.
 
 ## MVP1 수의사 HITL (docs/01 4절, docs/04 7절)
 HITL 검토 화면: 운영 `https://hitl-review.pawcheck.ai`, 로컬·미리보기 `/review` (보호자 화면과 별개, 링크 없음, 접근 키 로그인). A단계(참여 수의사 0명)에는 운영자만 접근한다.

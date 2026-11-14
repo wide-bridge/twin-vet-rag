@@ -2,6 +2,7 @@ import { lazy, StrictMode, Suspense, useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { App } from "./App";
 import { Showcase } from "./components/Showcase";
+import { VetQuestionPage } from "./components/VetLink";
 import "./styles.css";
 
 // PC shows the introduction + the app in a phone frame (an iframe of this same page). Inside that iframe,
@@ -18,17 +19,30 @@ const framed = (() => {
 // MVP1 HITL review screens are a separate app: on the review host (hitl-review.pawcheck.ai, any path) or on /review
 // (local and preview deployments)
 const ReviewApp = lazy(() => import("./review/ReviewApp").then((m) => ({ default: m.ReviewApp })));
-const isReview =
-  window.location.hostname.startsWith("hitl-review.") || window.location.pathname.replace(/\/+$/, "") === "/review";
-if (isReview) {
+const path = window.location.pathname.replace(/\/+$/, "");
+const isReview = window.location.hostname.startsWith("hitl-review.") || path === "/review";
+// M03 vet screens: on the vet host (vet.pawcheck.ai, any path) or on /vet (local and preview deployments)
+const VetApp = lazy(() => import("./vet/VetApp").then((m) => ({ default: m.VetApp })));
+const isVet = !isReview && (window.location.hostname.startsWith("vet.") || path === "/vet");
+// M03 confirmation link for a guardian's question: /q/<token>
+const questionToken = path.startsWith("/q/") ? decodeURIComponent(path.slice(3)) : null;
+if (isReview || isVet || questionToken) {
   const robots = document.createElement("meta");
   robots.name = "robots";
   robots.content = "noindex, nofollow";
   document.head.appendChild(robots);
-  document.title = "TwinVet HITL Review";
+  document.title = isReview ? "TwinVet HITL Review" : isVet ? "TwinVet 수의사" : "수의사 질문 확인";
 }
 
 function Root() {
+  if (questionToken) return <VetQuestionPage token={questionToken} />;
+  if (isVet) {
+    return (
+      <Suspense fallback={null}>
+        <VetApp />
+      </Suspense>
+    );
+  }
   if (isReview) {
     return (
       <Suspense fallback={null}>

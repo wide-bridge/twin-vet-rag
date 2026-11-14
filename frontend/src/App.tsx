@@ -6,6 +6,7 @@ import { ConsultScreen } from "./components/ConsultScreen";
 import { SettingsScreen } from "./components/SettingsScreen";
 import { ExpiredScreen, StartScreen } from "./components/StartScreen";
 import { TabNav, TabsContext, type Tab } from "./components/Tabs";
+import { M03Provider } from "./components/VetLink";
 import { store } from "./lib/store";
 
 type View = "boot" | "start" | "main" | "expired";
@@ -48,6 +49,7 @@ export function App() {
   if (view === "expired") return <ExpiredScreen onRestart={restart} />;
   return (
     <TabsContext.Provider value={{ tab, go }}>
+      <M03Provider hasProfile={Boolean(profile)}>
       <div className="app-shell">
         <div className="app-main">
           {tab === "consult" && <ConsultScreen maxChars={config.question_max_chars} onExpired={expired} profile={profile} onProfile={setProfile} />}
@@ -56,6 +58,7 @@ export function App() {
         </div>
         <TabNav place="bottom" />
       </div>
+      </M03Provider>
     </TabsContext.Provider>
   );
 }

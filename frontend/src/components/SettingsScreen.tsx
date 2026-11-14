@@ -9,6 +9,7 @@ import { store } from "../lib/store";
 import { Dialog, Header } from "./Common";
 import { DogCard } from "./DogCard";
 import { IconError, IconInfo } from "./Icons";
+import { VetConnectSection } from "./VetLink";
 
 const PHONE = /^[0-9-]{7,20}$/;
 const phoneValid = (p: string) => p === "" || (PHONE.test(p) && p.replace(/\D/g, "").length >= 7);
@@ -222,6 +223,8 @@ export function SettingsScreen({ profile, onProfile, ttlDays }: {
           )}
           {searching && hasClinic && <button type="button" className="link" onClick={() => setSearching(false)}>검색 닫기</button>}
         </section>
+
+        <VetConnectSection hasProfile={Boolean(profile)} />
 
         {error && <p className="error-text" role="alert"><IconError small /> {error}</p>}
         {message && <p className="ok-text" role="status">{message}</p>}

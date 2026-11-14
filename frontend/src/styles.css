@@ -391,3 +391,28 @@ a.btn-primary { color: var(--color-on-primary); }
   .composer .textarea { padding-left: 10px; padding-right: 10px; }
   .composer .textarea::placeholder { font-size: 12px; }
 }
+
+/* ---------- M03 guardian–vet link (docs/05 §6 M03): vet replies look different from AI answers ---------- */
+.vet-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.vet-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 12px; border: 1px solid var(--color-divider); border-radius: 10px; flex-wrap: wrap; }
+.vet-row > div { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.vet-badge { display: inline-block; margin-left: 6px; padding: 2px 8px; border-radius: 999px; font-size: 12px; font-weight: 600; background: var(--color-surface-muted); color: var(--color-text-muted); }
+.vet-badge.is-accepted, .vet-badge.is-answered { background: #e7f6ec; color: #116b3a; }
+.vet-badge.is-requested, .vet-badge.is-sent { background: var(--color-primary-container); color: var(--color-primary); }
+.vet-ask { display: flex; flex-direction: column; gap: 8px; align-items: flex-start; }
+.vet-card { width: 100%; background: var(--color-purple-container); border: 2px solid var(--brand-purple); border-radius: var(--radius); padding: 14px; display: flex; flex-direction: column; gap: 10px; }
+.vet-card.is-cancelled { border-style: dashed; border-color: var(--color-input-border); background: var(--color-surface-muted); }
+.vet-tag { font-size: 13px; font-weight: 700; color: var(--brand-purple); overflow-wrap: anywhere; }
+.vet-reply { display: flex; flex-direction: column; gap: 6px; }
+.vet-reply-head { margin: 0; font-weight: 700; color: var(--brand-purple); display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
+.vet-reply-body { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.vet-history { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 6px; }
+.vet-history p { margin: 2px 0 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.share-preview { display: flex; flex-direction: column; gap: 4px; margin: 4px 0 12px; }
+.share-preview .label { margin: 6px 0 0; font-size: 13px; font-weight: 600; color: var(--color-text-muted); }
+.quote { margin: 0; padding: 8px 10px; border-left: 3px solid var(--color-divider); background: var(--color-surface-muted); border-radius: 6px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.quote.clamp { display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
+.share-fields { border: 0; padding: 0; margin: 10px 0; display: flex; flex-direction: row; flex-wrap: wrap; gap: 8px 14px; }
+.share-fields legend { width: 100%; margin-bottom: 4px; }
+.check { display: inline-flex; align-items: center; gap: 6px; min-height: 36px; font-size: 15px; }
+.check input { width: 20px; height: 20px; }

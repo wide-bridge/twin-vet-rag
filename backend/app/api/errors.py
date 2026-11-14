@@ -27,6 +27,18 @@ MESSAGES = {
     "invalid_location": "위치 정보를 확인할 수 없어요.",
     "query_too_long": "검색어가 너무 길어요.",
     "summary_unavailable": "지금은 요약을 만들 수 없어요. 잠시 후 다시 시도해 주세요.",
+    # M03 guardian–vet link
+    "profile_required": "반려견 정보를 먼저 저장해 주세요.",
+    "link_exists": "이미 연결 요청했거나 연결된 수의사예요.",
+    "link_closed": "이미 처리된 연결이에요.",
+    "link_not_accepted": "수의사가 연결을 수락한 뒤에 질문을 보낼 수 있어요.",
+    "question_exists": "이 답변은 이미 이 수의사에게 보냈어요.",
+    "question_closed": "이미 답변했거나 취소된 질문이에요.",
+    "question_not_answered": "아직 회신하지 않은 질문이에요.",
+    "empty_reply": "답변을 입력해 주세요.",
+    "reply_too_long": "답변이 너무 길어요.",
+    "vet_login_required": "수의사 화면에 다시 로그인해 주세요.",
+    "vet_login_failed": "접근 키를 확인해 주세요.",
 }
 
 

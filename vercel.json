@@ -1,7 +1,9 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "buildCommand": "cd frontend && npm ci && npm run build",
-  "regions": ["sin1"],
+  "regions": [
+    "sin1"
+  ],
   "functions": {
     "index.py": {
       "maxDuration": 300
@@ -10,27 +12,80 @@
   "redirects": [
     {
       "source": "/review",
-      "has": [{ "type": "host", "value": "twinvet.pawcheck.ai" }],
+      "has": [
+        {
+          "type": "host",
+          "value": "twinvet.pawcheck.ai"
+        }
+      ],
       "destination": "https://hitl-review.pawcheck.ai/",
       "permanent": false
     },
     {
-      "source": "/(.*)",
-      "has": [{ "type": "host", "value": "vet.pawcheck.ai" }],
-      "destination": "https://hitl-review.pawcheck.ai/",
+      "source": "/vet",
+      "has": [
+        {
+          "type": "host",
+          "value": "twinvet.pawcheck.ai"
+        }
+      ],
+      "destination": "https://vet.pawcheck.ai/",
       "permanent": false
     }
   ],
-  "rewrites": [{ "source": "/review", "destination": "/index.html" }],
+  "rewrites": [
+    {
+      "source": "/review",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/vet",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/q/:token",
+      "destination": "/index.html"
+    }
+  ],
   "headers": [
     {
       "source": "/(.*)",
-      "has": [{ "type": "host", "value": "hitl-review.pawcheck.ai" }],
-      "headers": [{ "key": "X-Robots-Tag", "value": "noindex, nofollow" }]
+      "has": [
+        {
+          "type": "host",
+          "value": "hitl-review.pawcheck.ai"
+        }
+      ],
+      "headers": [
+        {
+          "key": "X-Robots-Tag",
+          "value": "noindex, nofollow"
+        }
+      ]
     },
     {
-      "source": "/review",
-      "headers": [{ "key": "X-Robots-Tag", "value": "noindex, nofollow" }]
+      "source": "/(.*)",
+      "has": [
+        {
+          "type": "host",
+          "value": "vet.pawcheck.ai"
+        }
+      ],
+      "headers": [
+        {
+          "key": "X-Robots-Tag",
+          "value": "noindex, nofollow"
+        }
+      ]
+    },
+    {
+      "source": "/(review|vet|q/.*)",
+      "headers": [
+        {
+          "key": "X-Robots-Tag",
+          "value": "noindex, nofollow"
+        }
+      ]
     }
   ]
 }

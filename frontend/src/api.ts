@@ -83,6 +83,20 @@ export type CareCard = {
   topic: Topic | null; topics: Topic[]; summary: string | null; vet_advised: boolean | null; summary_fresh: boolean; tags: CareTag[];
 };
 
+// M03 guardian–vet link (docs/04 §7-1)
+export type VetInfo = { id: string; display_name: string; clinic_name: string | null; intro: string | null; is_test: boolean };
+export type VetLinkStatus = "requested" | "accepted" | "declined" | "cancelled" | "ended";
+export type VetLink = { id: string; status: VetLinkStatus; vet: VetInfo | null; requested_at: string; decided_at: string | null; ended_at: string | null; ended_by: string | null };
+export type ShareField = "name" | "breed" | "age" | "weight" | "neutered" | "health_notes";
+export type VetReply = { body: string; sent_at: string; corrected: boolean; corrected_at: string | null; history: { kind: "original" | "correction"; body: string; created_at: string }[] };
+export type VetQuestion = {
+  id: string; link_id: string; status: "sent" | "answered" | "cancelled"; cancelled_reason: "guardian" | "link_ended" | null;
+  vet: VetInfo | null; answer_message_id: string | null; shared_fields: ShareField[]; quality_use_consent: boolean; created_at: string;
+  snapshot: { question: string; ai_answer: string; note_to_vet: string | null; dog: Partial<Record<ShareField, string | number>>; shared_at: string; sources: string[] };
+  reply: VetReply | null;
+};
+export type VetQuestionIn = { link_id: string; answer_message_id: string; note_to_vet: string | null; shared_fields: ShareField[]; quality_use_consent: boolean };
+
 export class ApiError extends Error {
   constructor(public status: number, public code: string, message: string) {
     super(message);
@@ -91,7 +105,7 @@ export class ApiError extends Error {
 
 const BASE = "/api/v1";
 
-async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
+export async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
   let res: Response;
   try {
     res = await fetch(BASE + path, {
@@ -154,6 +168,19 @@ export const api = {
     { name: p.name, road_address: p.road_address || null, address: p.address || null }),
   care: () => request<{ items: CareCard[] }>("GET", "/care/consultations"),
   summarize: (cid: string) => request<CareCard>("POST", `/consultations/${cid}/summary`),
+  // M03
+  m03Availability: () => request<{ enabled: boolean }>("GET", "/m03/availability"),
+  vets: () => request<{ items: VetInfo[] }>("GET", "/vets"),
+  vetLinks: () => request<{ items: VetLink[] }>("GET", "/vet-links"),
+  requestVetLink: (vetId: string) => request<VetLink>("POST", "/vet-links", { vet_id: vetId }),
+  closeVetLink: (id: string) => request<VetLink>("DELETE", `/vet-links/${id}`),
+  vetQuestions: () => request<{ items: VetQuestion[] }>("GET", "/vet-questions"),
+  sendVetQuestion: (body: VetQuestionIn) => request<VetQuestion & { access_token: string }>("POST", "/vet-questions", body),
+  cancelVetQuestion: (id: string) => request<VetQuestion>("POST", `/vet-questions/${id}/cancel`),
+  setVetConsent: (id: string, consent: boolean) => request<VetQuestion>("PATCH", `/vet-questions/${id}`, { quality_use_consent: consent }),
+  reissueVetLink: (id: string) => request<{ access_token: string }>("POST", `/vet-questions/${id}/link`),
+  deleteVetQuestion: (id: string) => request<void>("DELETE", `/vet-questions/${id}`),
+  vetQuestionByToken: (token: string) => request<VetQuestion>("GET", `/vet-questions/by-token/${encodeURIComponent(token)}`),
 };
 
 export function newRequestId(): string {

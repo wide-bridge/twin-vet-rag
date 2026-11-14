@@ -80,6 +80,12 @@ class Settings(BaseSettings):
     # Review screens on their own host (e.g. hitl-review.pawcheck.ai, docs/05 S10; vet.pawcheck.ai is kept for the clinic screens of M03). Empty: /review on any host (local,
     # previews). Set: that host serves only the review screens + review API, other hosts do not serve the review API.
     review_host: str = ""
+    # M03 guardian–vet link (docs/04 §7-1): one switch for screens and API; off until the real service opens.
+    # VET_HOST (e.g. vet.pawcheck.ai) answers only the vet API, like REVIEW_HOST.
+    m03_enabled: bool = False
+    vet_host: str = ""
+    vet_session_hours: int = Field(default=12, ge=1, le=168)
+    vet_logins_per_minute: int = Field(default=10, ge=1)
     reviewer_session_hours: int = Field(default=12, ge=1, le=168)
     review_logins_per_minute: int = Field(default=10, ge=1)
     hitl_max_spillover: float = Field(default=0.10, ge=0.0, le=1.0)  # search-impact check (not a quality verdict)

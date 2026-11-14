@@ -12,6 +12,7 @@ from sqlalchemy import text
 from .api import errors
 from .api.routes import router
 from .api.review_routes import router as review_router
+from .api import m03_routes
 from .config import PROJECT_ROOT, Settings, get_settings
 from .db.engine import session_factory
 from .services.consult import RateLimiter
@@ -31,7 +32,9 @@ def _default_ai(settings: Settings):
 
 
 REVIEW_API = "/api/v1/review"
-ALWAYS_OPEN = ("/api/v1/live", "/api/v1/health")
+VET_API = "/api/v1/vet"
+# answer on every host (liveness, DB check, and the M03 switch both apps read)
+ALWAYS_OPEN = ("/api/v1/live", "/api/v1/health", "/api/v1/m03/availability")
 
 
 def _request_host(request: Request) -> str:
@@ -39,24 +42,35 @@ def _request_host(request: Request) -> str:
     return host.split(",")[0].strip().split(":")[0].lower()
 
 
-def _install_review_host(app: FastAPI, settings: Settings) -> None:
-    """Separate host for the review screens (docs/05 S10): the review host answers only the review API, other hosts
-    do not answer it; every response on the review host is marked noindex. Static pages are served by the CDN on
-    Vercel, so the /review redirect and page headers live in vercel.json."""
-    review_host = settings.review_host.strip().lower()
-    if not review_host:
+def _under(path: str, prefix: str) -> bool:
+    return path == prefix or path.startswith(prefix + "/")
+
+
+def _install_host_split(app: FastAPI, settings: Settings) -> None:
+    """Separate hosts (docs/05 S10, docs/04 §7-1): REVIEW_HOST answers only the review API, VET_HOST only the vet
+    API; other hosts answer neither of those. Responses on those hosts are marked noindex. Static pages are served by
+    the CDN on Vercel, so redirects and page headers live in vercel.json."""
+    hosts = {h: p for h, p in ((settings.review_host.strip().lower(), REVIEW_API),
+                               (settings.vet_host.strip().lower(), VET_API)) if h}
+    if not hosts:
         return
 
     @app.middleware("http")
-    async def review_host_split(request: Request, call_next):
+    async def host_split(request: Request, call_next):
         path = request.url.path
-        on_review = _request_host(request) == review_host
-        is_review_api = path == REVIEW_API or path.startswith(REVIEW_API + "/")
-        if path.startswith("/api/") and path not in ALWAYS_OPEN and is_review_api != on_review:
-            out = JSONResponse({"error": {"code": "not_found", "message": "찾을 수 없어요."}}, status_code=404)
+        own = hosts.get(_request_host(request))  # this host's only API, or None for the guardian host
+        if path.startswith("/api/") and path not in ALWAYS_OPEN:
+            if own is not None:
+                allowed = _under(path, own)
+            else:
+                allowed = not any(_under(path, p) for p in hosts.values())
+            if not allowed:
+                out = JSONResponse({"error": {"code": "not_found", "message": "찾을 수 없어요."}}, status_code=404)
+            else:
+                out = await call_next(request)
         else:
             out = await call_next(request)
-        if on_review:
+        if own is not None:
             out.headers["X-Robots-Tag"] = "noindex, nofollow"
         return out
 
@@ -95,9 +109,12 @@ def create_app(settings: Settings | None = None, *, llm=None, embedder=None, pla
     app.state.places = places  # None: clinic search answers 503 (the rest of the app works)
     app.state.limiter = RateLimiter()
     errors.install(app)
-    _install_review_host(app, settings)
+    _install_host_split(app, settings)
     app.include_router(router)
     app.include_router(review_router)
+    app.include_router(m03_routes.public)
+    app.include_router(m03_routes.guardian)
+    app.include_router(m03_routes.vet)
 
     @app.get("/api/v1/live")
     def live() -> dict:

@@ -7,6 +7,7 @@ import { kstDay } from "../lib/care";
 import { emptyDogForm, formFromDog, validateDog, type DogForm } from "../lib/dogForm";
 import { store } from "../lib/store";
 import { AnswerCard, FailedCard, ProcessingCard, time } from "./AnswerCard";
+import { VetAsk } from "./VetLink";
 import { Dialog, Header } from "./Common";
 import { Composer } from "./Composer";
 import { DogCard } from "./DogCard";
@@ -295,8 +296,16 @@ export function ConsultScreen({ maxChars, onExpired, profile, onProfile }: {
                 </ul>
               </section>
             )}
-            {thread?.messages.map((m) => {
-              if (m.role === "assistant") return <AnswerCard key={m.id} msg={m} onOpenSource={openSource} />;
+            {thread?.messages.map((m, i) => {
+              if (m.role === "assistant") {
+                const asked = thread.messages[i - 1]?.role === "user" ? thread.messages[i - 1].content : "";
+                return (
+                  <Fragment key={m.id}>
+                    <AnswerCard msg={m} onOpenSource={openSource} />
+                    <VetAsk answer={m} question={asked} />
+                  </Fragment>
+                );
+              }
               const run = runsByQuestion.get(m.id);
               return (
                 <Fragment key={m.id}>
