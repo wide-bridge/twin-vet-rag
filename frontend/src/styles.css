@@ -416,3 +416,14 @@ a.btn-primary { color: var(--color-on-primary); }
 .share-fields legend { width: 100%; margin-bottom: 4px; }
 .check { display: inline-flex; align-items: center; gap: 6px; min-height: 36px; font-size: 15px; }
 .check input { width: 20px; height: 20px; }
+
+.vet-note { margin: 0 0 6px; font-size: 14.5px; line-height: 1.55; color: var(--color-text); }
+.vet-note.muted { color: var(--color-text-muted); font-size: 13.5px; }
+.vet-list { margin-top: 10px; }
+.vet-row-main { display: flex; flex-direction: column; gap: 4px; min-width: 0; flex: 1 1 160px; }
+.vet-row-main strong { overflow-wrap: anywhere; }
+.vet-state { font-size: 13px; font-weight: 600; color: var(--color-text-muted); }
+.vet-state.is-accepted { color: #116b3a; }
+.vet-state.is-requested { color: var(--color-primary); }
+.vet-sub { font-size: 13px; color: var(--color-text-muted); line-height: 1.45; }
+.vet-row .btn { flex: none; }

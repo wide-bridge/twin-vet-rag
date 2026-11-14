@@ -130,15 +130,18 @@ export function VetConnectSection({ hasProfile }: { hasProfile: boolean }) {
   return (
     <section className="card settings-card" aria-labelledby="vet-h">
       <h2 id="vet-h">수의사 연결 <small>(선택)</small>{pilot && <span className="vet-badge is-sent">관리자 시험 중</span>}</h2>
-      {pilot && <p className="help"><IconInfo small /> 관리자 상담 스위치로 이 브라우저에서만 열린 시험 화면이에요. 보내는 질문은 시험 데이터로 표시돼요.</p>}
-      <p className="help">수의사를 선택해 연결을 요청하세요. 수의사가 수락하면 수락일부터 {linkDays}일 동안 <b>주치수의사</b>가 돼요. 상담 중 고른 질문만 보낼 수 있고, 연결만으로는 상담 내용이 공유되지 않아요. 위의 주치동물병원 등록과는 별개예요.</p>
-      {!hasProfile && <p className="help"><IconInfo small /> 반려견 정보를 먼저 저장하면 연결할 수 있어요.</p>}
+      <p className="vet-note">수의사에게 연결을 요청하세요. 수락하면 {linkDays}일 동안 <b>주치수의사</b>로 질문을 보낼 수 있어요.</p>
+      <p className="vet-note muted">상담 중 고른 질문만 전달되고, 연결만으로는 상담 내용이 공유되지 않아요.</p>
+      {pilot && <p className="vet-note muted">시험 모드: 이 브라우저에서만 보이며, 보내는 질문은 시험 데이터로 남아요.</p>}
+      {!hasProfile && <p className="vet-note muted">반려견 정보를 먼저 저장하면 연결할 수 있어요.</p>}
       {mine.length > 0 && (
         <ul className="vet-list" aria-label="주치수의사">
           {mine.map((l) => (
             <li key={l.id} className="vet-row">
-              <div><strong>{vetName(l.vet)}</strong><span className="vet-badge is-accepted">주치수의사</span>
-                {l.expires_at && <span className="help">{day(l.expires_at)}까지</span>}</div>
+              <div className="vet-row-main">
+                <strong>{vetName(l.vet)}</strong>
+                <span className="vet-state is-accepted">주치수의사{l.expires_at ? ` · ${day(l.expires_at)}까지` : ""}</span>
+              </div>
               <button type="button" className="btn btn-ghost" disabled={busy} onClick={() => act(() => api.closeVetLink(l.id))}>연결 해제</button>
             </li>
           ))}
@@ -148,8 +151,11 @@ export function VetConnectSection({ hasProfile }: { hasProfile: boolean }) {
         <ul className="vet-list" aria-label="연결 요청한 수의사">
           {waiting.map((l) => (
             <li key={l.id} className="vet-row">
-              <div><strong>{vetName(l.vet)}</strong><span className="vet-badge is-requested">연결 요청함</span>
-                <span className="help">연결 수락을 기다리고 있어요. 수락 전에 보낸 질문은 수락되면 전달돼요.</span></div>
+              <div className="vet-row-main">
+                <strong>{vetName(l.vet)}</strong>
+                <span className="vet-state is-requested">연결 수락을 기다리고 있어요</span>
+                <span className="vet-sub">지금 보낸 질문은 수락되면 전달돼요.</span>
+              </div>
               <button type="button" className="btn btn-ghost" disabled={busy} onClick={() => act(() => api.closeVetLink(l.id))}>요청 취소</button>
             </li>
           ))}
@@ -159,12 +165,13 @@ export function VetConnectSection({ hasProfile }: { hasProfile: boolean }) {
         <ul className="vet-list" aria-label="수의사 선택">
           {vets.filter((v) => !openIds.has(v.id)).map((v) => (
             <li key={v.id} className="vet-row">
-              <div>
-                <strong>{vetName(v)}</strong>{v.is_test && <span className="vet-badge">시험 계정</span>}
-                {closed.has(v.id) && <span className="help">{REASON[closed.get(v.id)!.status]}</span>}
-                {v.intro && <span className="help">{v.intro}</span>}
+              <div className="vet-row-main">
+                <strong>{vetName(v)}</strong>
+                {v.is_test && <span className="vet-state">시험 계정</span>}
+                {v.intro && <span className="vet-sub">{v.intro}</span>}
+                {closed.has(v.id) && <span className="vet-sub">{REASON[closed.get(v.id)!.status]}</span>}
               </div>
-              <button type="button" className="btn" disabled={busy} onClick={() => act(() => api.requestVetLink(v.id))}>{closed.has(v.id) ? "다시 연결 요청" : "연결 요청"}</button>
+              <button type="button" className="btn" disabled={busy} onClick={() => act(() => api.requestVetLink(v.id))}>{closed.has(v.id) ? "다시 요청" : "연결 요청"}</button>
             </li>
           ))}
         </ul>
