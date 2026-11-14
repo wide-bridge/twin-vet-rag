@@ -15,11 +15,11 @@ const framed = (() => {
   }
 })();
 
-// MVP1 vet work screens are a separate app: on the review host (vet.pawcheck.ai, any path) or on /review
+// MVP1 HITL review screens are a separate app: on the review host (hitl-review.pawcheck.ai, any path) or on /review
 // (local and preview deployments)
 const ReviewApp = lazy(() => import("./review/ReviewApp").then((m) => ({ default: m.ReviewApp })));
 const isReview =
-  window.location.hostname.startsWith("vet.") || window.location.pathname.replace(/\/+$/, "") === "/review";
+  window.location.hostname.startsWith("hitl-review.") || window.location.pathname.replace(/\/+$/, "") === "/review";
 if (isReview) {
   const robots = document.createElement("meta");
   robots.name = "robots";

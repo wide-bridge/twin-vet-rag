@@ -16,8 +16,8 @@ def _app(review_host: str):
 
 
 def test_review_host_serves_only_the_review_api():
-    app = _app("vet.example.test")
-    vet = TestClient(app, base_url="https://vet.example.test")
+    app = _app("hitl-review.example.test")
+    vet = TestClient(app, base_url="https://hitl-review.example.test")
     guardian = TestClient(app, base_url="https://twinvet.example.test")
     h = {"x-twinvet-client": "web"}
 

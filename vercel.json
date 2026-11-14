@@ -11,7 +11,13 @@
     {
       "source": "/review",
       "has": [{ "type": "host", "value": "twinvet.pawcheck.ai" }],
-      "destination": "https://vet.pawcheck.ai/",
+      "destination": "https://hitl-review.pawcheck.ai/",
+      "permanent": false
+    },
+    {
+      "source": "/(.*)",
+      "has": [{ "type": "host", "value": "vet.pawcheck.ai" }],
+      "destination": "https://hitl-review.pawcheck.ai/",
       "permanent": false
     }
   ],
@@ -19,7 +25,7 @@
   "headers": [
     {
       "source": "/(.*)",
-      "has": [{ "type": "host", "value": "vet.pawcheck.ai" }],
+      "has": [{ "type": "host", "value": "hitl-review.pawcheck.ai" }],
       "headers": [{ "key": "X-Robots-Tag", "value": "noindex, nofollow" }]
     },
     {

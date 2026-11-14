@@ -77,7 +77,7 @@ class Settings(BaseSettings):
     # operators cannot approve and mock knowledge cannot be activated there.
     app_env: str = Field(default_factory=lambda: "production" if os.environ.get("VERCEL") else "development",
                          pattern="^(production|development|test)$")
-    # Review screens on their own host (e.g. vet.pawcheck.ai, docs/05 S10). Empty: /review on any host (local,
+    # Review screens on their own host (e.g. hitl-review.pawcheck.ai, docs/05 S10; vet.pawcheck.ai is kept for the clinic screens of M03). Empty: /review on any host (local,
     # previews). Set: that host serves only the review screens + review API, other hosts do not serve the review API.
     review_host: str = ""
     reviewer_session_hours: int = Field(default=12, ge=1, le=168)
