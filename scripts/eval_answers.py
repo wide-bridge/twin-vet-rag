@@ -170,7 +170,13 @@ def comparison(args, s, llm, emb) -> int:
         out = compare_run.rescore(run, settings=s, llm=llm)
     else:
         if args.inputs_from:
-            cases = compare_run.inputs_from(json.loads(Path(args.inputs_from).read_text(encoding="utf-8")))
+            prev = json.loads(Path(args.inputs_from).read_text(encoding="utf-8"))
+            diff = compare_run.config_mismatch(prev["config"], s, emb)
+            if diff:
+                print("refused: settings differ from the earlier run (only the prompt or the data may change):",
+                      json.dumps(diff, ensure_ascii=False), file=sys.stderr)
+                return 3
+            cases = compare_run.inputs_from(prev)
         else:
             spec = json.loads(Path(args.cases).read_text(encoding="utf-8"))
             prepared = Path(s.data_output_dir) / "prepared" / args.version

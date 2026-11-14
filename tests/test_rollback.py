@@ -57,16 +57,14 @@ def test_activate_records_previous_versions_and_keeps_other_counts(db):
     assert pv[str(a.id)]["previous_version_id"] == str(first_a) and pv[str(n.id)]["previous_version_id"] is None
 
 
-def test_rollback_restores_changed_and_unlinks_new_documents(db):
+def test_rollback_restores_a_content_only_run(db):
     load_run(db, [qa("a", "원래 A"), qa("b", "원래 B")])
-    r2 = load_run(db, [qa("a", "바뀐 A"), qa("b", "원래 B"), qa("n", "새 문서")], prepared="v2")
-    assert "바뀐 A" in contents(db, "바뀐 A") and "새 문서" in contents(db, "새 문서")
+    r2 = load_run(db, [qa("a", "바뀐 A"), qa("b", "원래 B")], prepared="v2", content_only=True)
+    assert "바뀐 A" in contents(db, "바뀐 A")
     out = load.rollback(db, r2.id)
-    assert out == {"ok": True, "run_id": str(r2.id), "restored": 1, "unlinked_new": 1}
+    assert out == {"ok": True, "run_id": str(r2.id), "restored": 1, "unlinked_new": 0}
     found = contents(db, "원래 A")
-    assert "원래 A" in found and "바뀐 A" not in found and "새 문서" not in found and "원래 B" in found
-    n = db.execute(select(Document).where(Document.source_record_id == "n")).scalar_one()
-    assert n.status == "active" and n.active_version_id is None  # document status untouched, only unlinked
+    assert "원래 A" in found and "바뀐 A" not in found and "원래 B" in found
     # a second rollback of the same run is refused and changes nothing
     before = snapshot(db)
     again = load.rollback(db, r2.id)
@@ -77,7 +75,7 @@ def test_rollback_restores_changed_and_unlinks_new_documents(db):
 def test_one_conflict_refuses_everything(db):
     """10 documents changed by a run; a later run changes 1 of them -> the other 9 must not move either."""
     load_run(db, [qa(f"d{i}", f"원래 {i}") for i in range(10)])
-    r2 = load_run(db, [qa(f"d{i}", f"바뀐 {i}") for i in range(10)], prepared="v2")
+    r2 = load_run(db, [qa(f"d{i}", f"바뀐 {i}") for i in range(10)], prepared="v2", content_only=True)
     load_run(db, [qa("d3", "또 바뀐 3")], prepared="v3")
     before = snapshot(db)
     out = load.rollback(db, r2.id)
@@ -95,7 +93,7 @@ def test_one_conflict_refuses_everything(db):
 ])
 def test_refusal_reasons_change_nothing(db, damage, reason):
     r1 = load_run(db, [qa("a", "원래 A"), qa("b", "원래 B")])
-    r2 = load_run(db, [qa("a", "바뀐 A"), qa("b", "바뀐 B")], prepared="v2")
+    r2 = load_run(db, [qa("a", "바뀐 A"), qa("b", "바뀐 B")], prepared="v2", content_only=True)
     prev_a = db.execute(select(DocumentVersion.id).join(Document, Document.id == DocumentVersion.document_id)
                         .where(DocumentVersion.ingestion_run_id == r1.id, Document.source_record_id == "a")).scalar_one()
     if damage == "delete_doc":
@@ -156,3 +154,16 @@ def test_content_only_guard_applies_to_the_cleaning_path_only(db):
 
 def test_rollback_unknown_run(db):
     assert load.rollback(db, uuid.uuid4())["conflicts"][0]["reason"] == "run_not_found"
+
+
+def test_ordinary_run_cannot_be_rolled_back(db):
+    """Codex P1: an ordinary load changes title / life stages at stage time; restoring only the version would mix
+    old text with new metadata, so the whole rollback is refused and nothing changes."""
+    load_run(db, [qa("a", "원래 A")])
+    r2 = load_run(db, [qa("a", "바뀐 A", title="바뀐 제목", stages=("senior",)), qa("n", "새 문서")], prepared="v2")
+    before = snapshot(db)
+    out = load.rollback(db, r2.id)
+    assert not out["ok"] and "not_content_only_run" in [c["reason"] for c in out["conflicts"]]
+    assert snapshot(db) == before
+    a = db.execute(select(Document).where(Document.source_record_id == "a")).scalar_one()
+    assert a.title == "바뀐 제목" and "바뀐 A" in contents(db, "바뀐 A")  # left exactly as the run made it

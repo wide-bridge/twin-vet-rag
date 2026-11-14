@@ -208,6 +208,8 @@ def stage(db: Session, run: IngestionRun, docs: list[DocInput], batch: int = 100
         if pending >= batch:
             db.commit()
             pending = 0
+    # rollback restores versions only; it is safe only when stage() changed no document metadata (docs/03 §4)
+    counts["content_only"] = bool(content_only)
     run.counts = {**(run.counts or {}), "stage": counts}
     run.stage = "embed"
     db.commit()
@@ -349,8 +351,8 @@ def activate(db: Session, run: IngestionRun) -> dict:
 def rollback(db: Session, run_id: uuid.UUID) -> dict:
     """Return every document this run activated to its recorded previous version, or change nothing.
 
-    Refused as a whole (ok=False, conflicts listed) when: the run has no previous-version record (older runs) or was
-    already rolled back; a document was changed again by a later run (its active version is no longer this run's);
+    Refused as a whole (ok=False, conflicts listed) when: the run was not a content-only load (metadata could not be
+    restored); the run has no previous-version record (older runs) or was already rolled back; a document was changed again by a later run (its active version is no longer this run's);
     a document was deleted afterwards; the previous version has no chunks or unembedded chunks (deletion removes
     chunks); or the previous version's embedding model differs from this run's. A document new in this run is
     unlinked (active_version_id = NULL) and its version set inactive; document.status is never changed.
@@ -367,6 +369,10 @@ def rollback(db: Session, run_id: uuid.UUID) -> dict:
         conflicts.append({"reason": "already_rolled_back"})
     if entries is None:
         conflicts.append({"reason": "no_previous_version_record"})
+    if not (counts.get("stage") or {}).get("content_only"):
+        # an ordinary load overwrote title/department/disease names/life stages/metadata at stage time; restoring the
+        # version alone would mix old text with new metadata
+        conflicts.append({"reason": "not_content_only_run"})
     entries = entries or []
     docs = {str(d.id): d for d in db.execute(
         select(Document).where(Document.id.in_([uuid.UUID(e["document_id"]) for e in entries]))).scalars()} if entries else {}

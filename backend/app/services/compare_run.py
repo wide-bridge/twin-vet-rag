@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import uuid
 from collections import Counter
 from datetime import datetime, timezone
 from pathlib import Path
@@ -147,11 +148,21 @@ def rescore(run: dict, *, settings: Settings, llm: LLM) -> dict:
                 r["check"] = None
                 r["rescore_error"] = str(e)
         out.append({**c, "result": r})
-    rec = {**run, "run_id": run["run_id"] + "-rescored-" + ds.CHECK_VERSION, "kind": "rescore",
+    stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ") + "-" + uuid.uuid4().hex[:6]  # clock alone can repeat
+    rec = {**run, "run_id": f"{run['run_id']}-rescored-{ds.CHECK_VERSION}-{stamp}", "kind": "rescore",
            "rescored_from": run["run_id"], "created_at": datetime.now(timezone.utc).isoformat(), "cases": out}
     rec["config"] = {**run["config"], "check_version": ds.CHECK_VERSION}
     rec["summary"] = _summary(out)
     return rec
+
+
+FIXED_CONFIG = ("answer_model", "classifier_model", "embedding_model", "top_k", "min_score", "check_version")
+
+
+def config_mismatch(previous: dict, settings: Settings, embedder: Embedder) -> dict:
+    """Settings that differ from an earlier run (prompt variant and data label may differ: they are what is compared)."""
+    now = _config(settings, embedder, "current", None)
+    return {k: {"before": previous.get(k), "now": now.get(k)} for k in FIXED_CONFIG if previous.get(k) != now.get(k)}
 
 
 def inputs_from(run: dict) -> list[dict]:
@@ -166,7 +177,8 @@ def _run_id(prompt: str) -> str:
 def write(run: dict, out_dir: Path) -> Path:
     out_dir.mkdir(parents=True, exist_ok=True)
     p = out_dir / f"{run['run_id']}.json"
-    p.write_text(json.dumps(run, ensure_ascii=False, indent=1, default=str), encoding="utf-8")
+    with p.open("x", encoding="utf-8") as f:  # never overwrite an earlier run record
+        f.write(json.dumps(run, ensure_ascii=False, indent=1, default=str))
     return p
 
 

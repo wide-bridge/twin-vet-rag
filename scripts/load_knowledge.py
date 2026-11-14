@@ -101,7 +101,10 @@ def main() -> int:
                 return 4
             if not args.no_activate:
                 print("activate:", load.activate(db, run))
-                print(f"ingestion run: {run.id}  (undo: --rollback-run {run.id})")
+                if args.content_only:
+                    print(f"ingestion run: {run.id}  (undo: --rollback-run {run.id})")
+                else:
+                    print(f"ingestion run: {run.id}  (not a --content-only load: --rollback-run will refuse it)")
         except Exception as e:  # keep the active index untouched
             load.fail_run(db, run, type(e).__name__)
             raise

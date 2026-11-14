@@ -123,3 +123,28 @@ def test_recheck_uses_the_stored_dog_not_the_question(db, env, monkeypatch):
     assert rep.created == 1
     it = db.execute(select(ReviewItem).where(ReviewItem.source_ref == "aihub59-dev-8")).scalar_one()
     assert it.dog["life_stage"] == "adult" and it.dog["age_months"] == 48
+
+
+def test_rerun_refuses_changed_search_settings(db, env):
+    """Codex P2: --inputs-from must not silently run with other search settings or models."""
+    run1 = compare_run.run_cases(db, compare_run.build_inputs(db, env, [{"id": "aihub59-dev-0", "role": "dev"}], ROWS),
+                                 settings=env, llm=_llm(), embedder=E)
+    assert compare_run.config_mismatch(run1["config"], env, E) == {}
+    other = env.model_copy(update={"retrieval_top_k": env.retrieval_top_k + 2, "llm_model": "other-model"})
+    diff = compare_run.config_mismatch(run1["config"], other, E)
+    assert set(diff) == {"top_k", "answer_model"}
+    assert diff["top_k"] == {"before": env.retrieval_top_k, "now": env.retrieval_top_k + 2} and "answer_model" in diff
+
+
+def test_rescore_never_overwrites(db, env, tmp_path):
+    """Codex P2: rescoring the same run twice keeps both records."""
+    run1 = compare_run.run_cases(db, compare_run.build_inputs(db, env, [{"id": "aihub59-dev-1", "role": "dev"}], ROWS),
+                                 settings=env, llm=_llm(), embedder=E)
+    run1 = json.loads(json.dumps(run1, default=str))
+    r1 = compare_run.rescore(run1, settings=env, llm=_llm())
+    r2 = compare_run.rescore(run1, settings=env, llm=_llm())
+    assert r1["run_id"] != r2["run_id"] and r1["rescored_from"] == r2["rescored_from"] == run1["run_id"]
+    p1, p2 = compare_run.write(r1, tmp_path), compare_run.write(r2, tmp_path)
+    assert p1 != p2 and p1.exists() and p2.exists()
+    with pytest.raises(FileExistsError):
+        compare_run.write(r1, tmp_path)
