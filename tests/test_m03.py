@@ -359,3 +359,23 @@ def test_declined_request_cancels_held_questions_and_link_expires(m3):
     assert r.status_code == 409 and r.json()["error"]["code"] == "link_expired"
     again = g.post("/api/v1/vet-links", json={"vet_id": m3.ids["v1"]}, headers=H)  # re-request after expiry
     assert again.status_code == 201 and again.json()["status"] == "requested"
+
+
+def test_question_delivered_before_expiry_can_still_be_answered(m3):
+    """Codex 2026-11-14: a question delivered while the vet was the 주치수의사 can be answered (and corrected) after the
+    link expires; only NEW questions need a new connection."""
+    g, cid, answer = m3.guardian()
+    v1 = m3.vet("v1")
+    lid = _connect(m3, g, v1)
+    q = g.post("/api/v1/vet-questions", json={"link_id": lid, "answer_message_id": answer}, headers=H).json()
+    with m3.app.state.Session() as s:
+        s.execute(text("UPDATE vet_link SET expires_at = now() - interval '1 day' WHERE id = :i"), {"i": lid})
+        s.commit()
+    assert v1.get(f"{V}/questions/{q['id']}").status_code == 200
+    r = v1.post(f"{V}/questions/{q['id']}/reply", json={"text": "만료 뒤 회신"}, headers=H)
+    assert r.status_code == 200 and r.json()["status"] == "answered"
+    assert v1.post(f"{V}/questions/{q['id']}/correction", json={"text": "만료 뒤 정정"}, headers=H).status_code == 200
+    mine = g.get(f"/api/v1/vet-questions/{q['id']}").json()
+    assert mine["stage"] == "answered" and mine["reply"]["body"] == "만료 뒤 정정" and mine["link_status"] == "expired"
+    second = m3.ask(g, cid, "물은 얼마나?")
+    assert g.post("/api/v1/vet-questions", json={"link_id": lid, "answer_message_id": second}, headers=H).status_code == 409
