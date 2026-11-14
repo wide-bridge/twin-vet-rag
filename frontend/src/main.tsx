@@ -15,9 +15,18 @@ const framed = (() => {
   }
 })();
 
-// MVP1 vet work screens (/review) are a separate app, loaded only on that path
+// MVP1 vet work screens are a separate app: on the review host (vet.pawcheck.ai, any path) or on /review
+// (local and preview deployments)
 const ReviewApp = lazy(() => import("./review/ReviewApp").then((m) => ({ default: m.ReviewApp })));
-const isReview = window.location.pathname.replace(/\/+$/, "") === "/review";
+const isReview =
+  window.location.hostname.startsWith("vet.") || window.location.pathname.replace(/\/+$/, "") === "/review";
+if (isReview) {
+  const robots = document.createElement("meta");
+  robots.name = "robots";
+  robots.content = "noindex, nofollow";
+  document.head.appendChild(robots);
+  document.title = "TwinVet 검토";
+}
 
 function Root() {
   if (isReview) {

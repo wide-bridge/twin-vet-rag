@@ -65,7 +65,7 @@ python -m scripts.eval_answers --subset dev --n 30 --judge              # 답변
 최종 검증군(final)은 확정 직전에만 쓴다.
 
 ## MVP1 수의사 HITL (docs/01 4절, docs/04 7절)
-작업 화면: `/review` (보호자 화면과 별개, 접근 키 로그인). A단계(참여 수의사 0명)에는 운영자만 접근한다.
+작업 화면: 운영 `https://vet.pawcheck.ai`, 로컬·미리보기 `/review` (보호자 화면과 별개, 링크 없음, 접근 키 로그인). A단계(참여 수의사 0명)에는 운영자만 접근한다.
 ```powershell
 python -m scripts.hitl_admin seed-ontology                                  # 온톨로지 0.1 초안(draft) 적재
 python -m scripts.hitl_admin create-reviewer --role operator --name "운영자"  # 접근 키는 한 번만 표시(해시만 저장)
@@ -164,8 +164,11 @@ docker compose --profile app up -d --build    # 이미지 = React 빌드 + FastA
   1. Codex 재검토 통과 확인(수정 3건, 커밋 3534357 이후).
   2. 병합: main이 브랜치의 조상이라 fast-forward로 합친다. `git checkout main && git merge --ff-only feat/mvp1-hitl && git push origin main`.
   3. 배포: Vercel 프로젝트 twin-vet-rag는 2026-11-11 대시보드에서 GitHub 저장소를 Import해 만들었고 Git 연결이 켜져 있다. **main push가 곧 운영 배포**다(main 커밋 bcfe761에 Vercel 상태 success 기록 확인, 2026-11-14). 작업 브랜치 push는 Preview 배포만 만든다.
+  - 병합 전 사용자 작업(작업 화면 주소 `vet.pawcheck.ai`):
+    a. Vercel twin-vet-rag → Domains → **Add Existing** → `vet.pawcheck.ai`(Production). 표시되는 CNAME 값을 whois 네임서버 고급설정에 호스트명 `vet`으로 추가.
+    b. Vercel 환경변수(Production만): `REVIEW_HOST`=`vet.pawcheck.ai` 추가, `ALLOWED_ORIGINS`=`https://twinvet.pawcheck.ai,https://vet.pawcheck.ai`로 수정. 환경변수는 다음 배포부터 적용되므로 병합 전에 넣는다.
   4. DB: 마이그레이션 없음(Neon은 e5b7d2a9c4f1 적용 상태, 2026-11-14 읽기 전용 확인). 검토자 계정은 만들지 않는다.
-  5. 배포 후 확인: `/api/v1/health`(db up, 활성 문서 19,417), `/review` 화면 열림, 로그인 없이 `/api/v1/review/me` → 401. 시험 상담은 `python tests/e2e/ui_smoke.py --base https://twinvet.pawcheck.ai --widths 390`(실제 상담 1건 약 $0.01, 운영 DB에 저장된 뒤 스크립트가 대화·저장 정보를 화면의 삭제 기능으로 지움. 익명 세션 1건은 만료 후 정리).
+  5. 배포 후 확인: `/api/v1/health`(db up, 활성 문서 19,417), `https://vet.pawcheck.ai` 작업 로그인 화면 열림, 로그인 없이 `https://vet.pawcheck.ai/api/v1/review/me` → 401, `https://twinvet.pawcheck.ai/api/v1/review/me` → 404, `https://twinvet.pawcheck.ai/review` → vet.pawcheck.ai로 이동, 작업 주소 응답에 `X-Robots-Tag: noindex`. 시험 상담은 `python tests/e2e/ui_smoke.py --base https://twinvet.pawcheck.ai --widths 390`(실제 상담 1건 약 $0.01, 운영 DB에 저장된 뒤 스크립트가 대화·저장 정보를 화면의 삭제 기능으로 지움. 익명 세션 1건은 만료 후 정리).
   6. 문제가 있으면 Vercel에서 직전 production 배포로 되돌리거나 main에 `git revert`. DB 변경이 없어 DB 복구는 필요 없다.
 - 요청 횟수 제한은 함수 인스턴스별 메모리 값이라 인스턴스가 여러 개면 느슨해진다(PoC 허용). 만료 세션 정리는 Vercel Cron으로 옮길 수 있다(미적용).
 

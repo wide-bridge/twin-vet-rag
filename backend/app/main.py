@@ -5,7 +5,7 @@ import logging
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from sqlalchemy import text
 
@@ -28,6 +28,37 @@ def _default_ai(settings: Settings):
 
     key = settings.openai_api_key.get_secret_value()
     return OpenAILLM(key, timeout=settings.llm_timeout_seconds), OpenAIEmbedder(key, settings.embedding_model)
+
+
+REVIEW_API = "/api/v1/review"
+ALWAYS_OPEN = ("/api/v1/live", "/api/v1/health")
+
+
+def _request_host(request: Request) -> str:
+    host = request.headers.get("x-forwarded-host") or request.headers.get("host") or ""
+    return host.split(",")[0].strip().split(":")[0].lower()
+
+
+def _install_review_host(app: FastAPI, settings: Settings) -> None:
+    """Separate host for the review screens (docs/05 S10): the review host answers only the review API, other hosts
+    do not answer it; every response on the review host is marked noindex. Static pages are served by the CDN on
+    Vercel, so the /review redirect and page headers live in vercel.json."""
+    review_host = settings.review_host.strip().lower()
+    if not review_host:
+        return
+
+    @app.middleware("http")
+    async def review_host_split(request: Request, call_next):
+        path = request.url.path
+        on_review = _request_host(request) == review_host
+        is_review_api = path == REVIEW_API or path.startswith(REVIEW_API + "/")
+        if path.startswith("/api/") and path not in ALWAYS_OPEN and is_review_api != on_review:
+            out = JSONResponse({"error": {"code": "not_found", "message": "찾을 수 없어요."}}, status_code=404)
+        else:
+            out = await call_next(request)
+        if on_review:
+            out.headers["X-Robots-Tag"] = "noindex, nofollow"
+        return out
 
 
 def create_app(settings: Settings | None = None, *, llm=None, embedder=None, places=None,
@@ -64,6 +95,7 @@ def create_app(settings: Settings | None = None, *, llm=None, embedder=None, pla
     app.state.places = places  # None: clinic search answers 503 (the rest of the app works)
     app.state.limiter = RateLimiter()
     errors.install(app)
+    _install_review_host(app, settings)
     app.include_router(router)
     app.include_router(review_router)
 
