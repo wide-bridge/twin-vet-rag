@@ -82,6 +82,7 @@ class VetQuestion(Base):
     replied_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     guardian_seen_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     access_token_hash: Mapped[str | None] = mapped_column(String(64))
+    is_test: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="false")  # pilot guardian or test vet
     created_at: Mapped[datetime] = _now()
     __table_args__ = (
         CheckConstraint(f"status IN {QUESTION_STATUSES}", name="ck_vet_question_status"),

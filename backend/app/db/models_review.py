@@ -108,6 +108,7 @@ class ReviewItem(Base):
     vet_reply_revision_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("vet_reply_revision.id", ondelete="SET NULL"))
     vet_reference: Mapped[str | None] = mapped_column(Text)  # cleaned vet reply: reference answer, never a label
     needs_recheck: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="false")
+    is_test: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="false")  # copy of a test M03 question
     created_at: Mapped[datetime] = _now()
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now())
     __table_args__ = (

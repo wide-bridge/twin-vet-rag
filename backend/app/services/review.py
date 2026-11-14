@@ -315,7 +315,7 @@ def item_summary(item: ReviewItem, mine: ReviewLabel | None) -> dict:
     return {"id": str(item.id), "origin": item.origin, "is_mock": item.is_mock, "question": item.question[:120],
             "review_status": item.review_status, "dispute_type": item.dispute_type,
             "my_label": mine.state if mine else None, "created_at": item.created_at.isoformat(),
-            "needs_recheck": item.needs_recheck}
+            "needs_recheck": item.needs_recheck, "is_test": item.is_test}
 
 
 def list_items(db: Session, reviewer: Reviewer, status: str | None = None, origin: str | None = None) -> list[dict]:
@@ -399,7 +399,8 @@ def create_candidate(db: Session, reviewer: Reviewer, data: dict) -> KnowledgeCa
     item = db.get(ReviewItem, uuid.UUID(str(data["item_id"]))) if data.get("item_id") else None
     if data.get("item_id") and item is None:
         raise ReviewError(404, "item_not_found", "검토 묶음을 찾을 수 없습니다")
-    is_mock = bool(item and item.is_mock)
+    # mock items, and test copies from the 수의사 상담 pilot, can never become production knowledge
+    is_mock = bool(item and (item.is_mock or item.is_test))
     if is_mock and not v["title"].startswith(MOCK_PREFIX):
         v["title"] = MOCK_PREFIX + v["title"]
     cand = KnowledgeCandidate(item_id=item.id if item else None, label_id=data.get("label_id"), **v,

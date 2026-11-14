@@ -26,15 +26,39 @@ def enabled(settings=Depends(settings_dep)) -> None:
     m03.require_enabled(settings)
 
 
+def guardian_enabled(request: Request, db: DBDep, settings=Depends(settings_dep)) -> None:
+    """'on': everyone; 'pilot': only this browser's profile if it opened the pilot link; 'off': nobody."""
+    if not m03.guardian_allowed(settings, profile_svc.resolve(db, request.cookies.get(PROFILE_COOKIE))):
+        raise ApiError(404, "not_found")
+
+
 On = [Depends(enabled)]
 public = APIRouter(prefix="/api/v1")
-guardian = APIRouter(prefix="/api/v1", dependencies=On)
+guardian = APIRouter(prefix="/api/v1", dependencies=[Depends(guardian_enabled)])
+by_link = APIRouter(prefix="/api/v1", dependencies=On)  # confirmation link: no cookie; checked per question
 vet = APIRouter(prefix=VET_API, dependencies=On)
 
 
 @public.get("/m03/availability")
-def availability(settings: SettingsDep):
-    return {"enabled": settings.m03_enabled}
+def availability(request: Request, db: DBDep, settings: SettingsDep):
+    """Read by every app: enabled = this guardian can use it, vets = the vet screens are open, mode = switch state."""
+    prof = profile_svc.resolve(db, request.cookies.get(PROFILE_COOKIE))
+    m = m03.mode(settings)
+    return {"enabled": m03.guardian_allowed(settings, prof), "vets": m != "off", "mode": m}
+
+
+class PilotIn(BaseModel):
+    code: str = Field(min_length=1, max_length=200)
+
+
+@public.post("/m03/pilot", dependencies=Guard)
+def join_pilot(body: PilotIn, request: Request, db: DBDep, settings: SettingsDep):
+    fwd = request.headers.get("x-forwarded-for", "")
+    ip = fwd.split(",")[0].strip() or (request.client.host if request.client else "?")
+    if not request.app.state.limiter.allow(uuid.uuid5(uuid.NAMESPACE_URL, "m03-pilot:" + ip), 5):
+        raise ApiError(429, "rate_limited")
+    m03.join_pilot(db, settings, profile_svc.resolve(db, request.cookies.get(PROFILE_COOKIE)), body.code)
+    return {"enabled": True, "mode": "pilot"}
 
 
 # ---------------------------------------------------------------- guardian
@@ -98,7 +122,7 @@ def questions(prof: ProfileDep, db: DBDep, settings: SettingsDep):
     return {"items": m03.my_questions(db, settings, prof)}
 
 
-@guardian.get("/vet-questions/by-token/{token}")
+@by_link.get("/vet-questions/by-token/{token}")
 def question_by_token(token: str, db: DBDep, settings: SettingsDep):
     return m03.question_by_token(db, settings, token)
 

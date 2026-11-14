@@ -32,9 +32,35 @@ NOTE_MAX = 500
 REPLY_MAX = 4000
 
 
+def mode(settings: Settings) -> str:
+    """수의사 상담 스위치: 'on' (everyone), 'pilot' (pilot guardians only, test data), 'off'."""
+    if settings.m03_enabled:
+        return "on"
+    return "pilot" if settings.m03_pilot else "off"
+
+
 def require_enabled(settings: Settings) -> None:
-    if not settings.m03_enabled:
+    """Vet side and HITL: open in 'on' and 'pilot'."""
+    if mode(settings) == "off":
         raise ApiError(404, "not_found")
+
+
+def guardian_allowed(settings: Settings, prof: DogProfile | None) -> bool:
+    m = mode(settings)
+    return m == "on" or (m == "pilot" and prof is not None and prof.m03_pilot)
+
+
+def join_pilot(db: DB, settings: Settings, prof: DogProfile | None, code: str) -> None:
+    """The pilot link marks this browser's dog profile as a test guardian."""
+    import hmac
+
+    secret = settings.m03_pilot_code.get_secret_value() if settings.m03_pilot_code else ""
+    if mode(settings) != "pilot" or not secret or not hmac.compare_digest(code.encode(), secret.encode()):
+        raise ApiError(404, "not_found")
+    if prof is None:
+        raise ApiError(409, "profile_required")
+    prof.m03_pilot = True
+    db.commit()
 
 
 # ---------------------------------------------------------------- vet accounts and login
@@ -81,7 +107,8 @@ def vet_view(v: VetAccount) -> dict:
 
 
 def _visible(settings: Settings, v: VetAccount | None) -> bool:
-    return v is not None and v.active and (not v.is_test or settings.app_env != "production")
+    """Test vets are listed outside production and in pilot mode (only pilot guardians get this far)."""
+    return v is not None and v.active and (not v.is_test or settings.app_env != "production" or mode(settings) == "pilot")
 
 
 # ---------------------------------------------------------------- guardian: vets and links
@@ -194,7 +221,8 @@ def send_question(db: DB, settings: Settings, prof: DogProfile, session: Session
     q = VetQuestion(link_id=link.id, profile_id=prof.id, vet_id=link.vet_id, source_consultation_id=cons.id,
                     source_answer_message_id=msg.id, snapshot=snapshot | {"shared_at": t.isoformat()},
                     shared_fields=list(dict.fromkeys(shared_fields)), quality_use_consent=bool(quality_use_consent),
-                    consent_changed_at=t, status="sent", access_token_hash=sha256(token))
+                    consent_changed_at=t, status="sent", access_token_hash=sha256(token),
+                    is_test=bool(prof.m03_pilot or db.get(VetAccount, link.vet_id).is_test))
     db.add(q)
     profile_svc.touch(db, settings, prof)
     try:
@@ -224,7 +252,7 @@ def guardian_question_view(db: DB, q: VetQuestion) -> dict:
     return {"id": str(q.id), "link_id": str(q.link_id), "status": q.status, "cancelled_reason": q.cancelled_reason,
             "vet": vet_view(v) if v else None, "answer_message_id": str(q.source_answer_message_id) if q.source_answer_message_id else None,
             "snapshot": q.snapshot, "shared_fields": q.shared_fields, "quality_use_consent": q.quality_use_consent,
-            "created_at": q.created_at.isoformat(), "reply": _reply_view(_revisions(db, q))}
+            "created_at": q.created_at.isoformat(), "reply": _reply_view(_revisions(db, q)), "is_test": q.is_test}
 
 
 def my_questions(db: DB, settings: Settings, prof: DogProfile) -> list[dict]:
@@ -301,6 +329,8 @@ def question_by_token(db: DB, settings: Settings, token: str) -> dict:
     prof = db.get(DogProfile, q.profile_id) if q else None
     if q is None or q.status == "cancelled" or prof is None or not _profile_alive(prof):
         raise ApiError(404, "not_found")
+    if not guardian_allowed(settings, prof):
+        raise ApiError(404, "not_found")
     if q.status == "answered" and q.guardian_seen_at is None:
         q.guardian_seen_at = now()
     profile_svc.touch(db, settings, prof)
@@ -369,7 +399,7 @@ def vet_end_link(db: DB, vet: VetAccount, link_id: uuid.UUID) -> dict:
 def vet_question_view(db: DB, q: VetQuestion, full: bool) -> dict:
     v = {"id": str(q.id), "link_id": str(q.link_id), "status": q.status, "cancelled_reason": q.cancelled_reason,
          "created_at": q.created_at.isoformat(), "replied_at": q.replied_at.isoformat() if q.replied_at else None,
-         "guardian_ref": str(q.profile_id)[:8]}
+         "guardian_ref": str(q.profile_id)[:8], "is_test": q.is_test}
     if q.status == "cancelled":
         return v  # a cancelled question shows no content
     v["question_preview"] = q.snapshot.get("question", "")[:80]

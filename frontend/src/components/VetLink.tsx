@@ -11,20 +11,48 @@ import { IconCheck, IconError, IconInfo } from "./Icons";
 
 type M03 = {
   enabled: boolean;
+  pilot: boolean;
   links: VetLink[];
   questions: VetQuestion[];
   refresh: () => Promise<void>;
 };
-const M03Context = createContext<M03>({ enabled: false, links: [], questions: [], refresh: async () => undefined });
+const M03Context = createContext<M03>({ enabled: false, pilot: false, links: [], questions: [], refresh: async () => undefined });
+const PILOT_KEY = "tvc_pilot_code";
+
+// 관리자 상담 스위치: /?pilot=<code> marks this browser's dog profile as the operator's test profile (once).
+function takePilotCode(): string | null {
+  try {
+    const url = new URL(window.location.href);
+    const code = url.searchParams.get("pilot");
+    if (code) {
+      sessionStorage.setItem(PILOT_KEY, code);
+      url.searchParams.delete("pilot");
+      window.history.replaceState(null, "", url.pathname + (url.search ? url.search : "") + url.hash);
+    }
+    return sessionStorage.getItem(PILOT_KEY);
+  } catch {
+    return null;
+  }
+}
 export const useM03 = () => useContext(M03Context);
 
 export function M03Provider({ hasProfile, children }: { hasProfile: boolean; children: ReactNode }) {
   const [enabled, setEnabled] = useState(false);
+  const [pilot, setPilot] = useState(false);
   const [links, setLinks] = useState<VetLink[]>([]);
   const [questions, setQuestions] = useState<VetQuestion[]>([]);
   useEffect(() => {
-    api.m03Availability().then((r) => setEnabled(r.enabled)).catch(() => setEnabled(false));
-  }, []);
+    const check = () => api.m03Availability().then((r) => { setEnabled(r.enabled); setPilot(r.mode === "pilot"); }).catch(() => setEnabled(false));
+    const code = takePilotCode();
+    if (code && hasProfile) {
+      api.joinPilot(code).catch(() => undefined).finally(() => {
+        try { sessionStorage.removeItem(PILOT_KEY); } catch { /* ignore */ }
+        check();
+      });
+    } else {
+      check();
+    }
+  }, [hasProfile]);
   const refresh = useCallback(async () => {
     if (!enabled || !hasProfile) {
       setLinks([]);
@@ -42,7 +70,7 @@ export function M03Provider({ hasProfile, children }: { hasProfile: boolean; chi
   useEffect(() => {
     refresh();
   }, [refresh]);
-  const value = useMemo(() => ({ enabled, links, questions, refresh }), [enabled, links, questions, refresh]);
+  const value = useMemo(() => ({ enabled, pilot, links, questions, refresh }), [enabled, pilot, links, questions, refresh]);
   return <M03Context.Provider value={value}>{children}</M03Context.Provider>;
 }
 
@@ -52,7 +80,7 @@ const at = (iso: string) => new Date(iso).toLocaleString("ko-KR", { month: "nume
 
 // ---------------------------------------------------------------- S04 수의사 연결 (inside 설정)
 export function VetConnectSection({ hasProfile }: { hasProfile: boolean }) {
-  const { enabled, links, refresh } = useM03();
+  const { enabled, pilot, links, refresh } = useM03();
   const [vets, setVets] = useState<VetInfo[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -76,7 +104,8 @@ export function VetConnectSection({ hasProfile }: { hasProfile: boolean }) {
   };
   return (
     <section className="card settings-card" aria-labelledby="vet-h">
-      <h2 id="vet-h">수의사 연결 <small>(선택)</small></h2>
+      <h2 id="vet-h">수의사 연결 <small>(선택)</small>{pilot && <span className="vet-badge is-sent">관리자 시험 중</span>}</h2>
+      {pilot && <p className="help"><IconInfo small /> 관리자 상담 스위치로 이 브라우저에서만 열린 시험 화면이에요. 보내는 질문은 시험 데이터로 표시돼요.</p>}
       <p className="help">연결된 수의사에게 상담 중 고른 질문만 보낼 수 있어요. 연결만으로는 상담 내용이 공유되지 않아요. 주치동물병원 등록과는 별개예요.</p>
       {!hasProfile && <p className="help"><IconInfo small /> 반려견 정보를 먼저 저장하면 연결할 수 있어요.</p>}
       {open.length > 0 && (
@@ -230,7 +259,7 @@ function VetQuestionCard({ q, standalone }: { q: VetQuestion; standalone?: boole
     <section className={"vet-card is-" + q.status} aria-label="수의사 질문">
       <div className="answer-head">
         <span className="vet-tag">수의사 질문 · {vetName(q.vet)}</span>
-        <span className={"vet-badge is-" + q.status}>{status}</span>
+        <span>{q.is_test && <span className="vet-badge">시험</span>}<span className={"vet-badge is-" + q.status}>{status}</span></span>
       </div>
       {standalone && <p className="quote">{q.snapshot.question}</p>}
       {q.reply && (

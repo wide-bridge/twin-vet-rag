@@ -12,6 +12,7 @@ export type ItemSummary = {
   my_label: "draft" | "submitted" | null;
   created_at: string;
   needs_recheck?: boolean;
+  is_test?: boolean;
 };
 // M03 operator views (numbers only / consented + answered questions only)
 export type M03Stats = {

@@ -85,6 +85,11 @@ class Settings(BaseSettings):
     # M03 guardian–vet link (docs/04 §7-1): one switch for screens and API; off until the real service opens.
     # VET_HOST (e.g. vet.pawcheck.ai) answers only the vet API, like REVIEW_HOST.
     m03_enabled: bool = False
+    # 수의사 상담 스위치 시험 모드: only guardians whose profile opened /?pilot=<M03_PILOT_CODE> can use it, and every
+    # question they send is test data (HITL copies stay test; knowledge from them cannot be published). Ignored when
+    # M03_ENABLED is true (fully open).
+    m03_pilot: bool = False
+    m03_pilot_code: SecretStr | None = None
     vet_host: str = ""
     vet_session_hours: int = Field(default=12, ge=1, le=168)
     vet_logins_per_minute: int = Field(default=10, ge=1)

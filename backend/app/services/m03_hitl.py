@@ -145,7 +145,7 @@ def import_question(db: DB, operator: Reviewer, qid: uuid.UUID, *, revision_id: 
         history=history, dog=dog, response_type=s.get("ai_response_type"),
         citations=[{"title": t} for t in s.get("sources", [])],
         versions={"source": "m03", "shared_at": s.get("shared_at", ""), "reply_version": rev.kind},
-        link={"vet_question_id": q.id, "vet_reply_revision_id": rev.id, "vet_reference": vet_reply})
+        link={"vet_question_id": q.id, "vet_reply_revision_id": rev.id, "vet_reference": vet_reply, "is_test": q.is_test})
     if not created:
         raise ApiError(409, "already_imported", "이미 이관한 회신 버전이에요.")
     db.add(ReviewEvent(item_id=item.id, actor_kind="operator", reviewer_id=operator.id, event="imported_from_m03",

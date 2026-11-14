@@ -1,7 +1,8 @@
 """Local M03 demo server for tests/e2e/m03_smoke.py: LOCAL dev DB only, M03 on, vet host vet.localhost, FAKE LLM and
 embedder (no API cost). Creates one test vet and one operator and writes their keys to data_output/e2e/ (git-ignored).
 
-    python tests/e2e/m03_server.py      # then, in another shell: python tests/e2e/m03_smoke.py
+    python tests/e2e/m03_server.py           # 수의사 상담 스위치 on; then: python tests/e2e/m03_smoke.py
+    python tests/e2e/m03_server.py --pilot   # 관리자 상담 스위치 only; then: python tests/e2e/m03_pilot_smoke.py
 """
 import sys
 from pathlib import Path
@@ -14,7 +15,10 @@ from backend.app.rag.embeddings import FakeEmbedder
 from backend.app.rag.llm import FakeLLM
 from backend.app.services import m03
 
-s = Settings(m03_enabled=True, vet_host="vet.localhost", cookie_secure=False, retrieval_min_score=-1.0, app_env="development")
+PILOT = "--pilot" in sys.argv  # 관리자 상담 스위치 only (수의사 상담 스위치 off), production-like visibility
+s = Settings(m03_enabled=not PILOT, m03_pilot=PILOT, m03_pilot_code="local-pilot-code" if PILOT else None,
+             vet_host="vet.localhost", cookie_secure=False, retrieval_min_score=-1.0,
+             app_env="production" if PILOT else "development")
 assert "127.0.0.1" in s.database_url or "localhost" in s.database_url
 llm = FakeLLM({"classify": {"scope": "in_scope", "search_query": "말티즈 구토", "question_age_text": "", "question_unclear": False,
                             "clarification_question": ""},

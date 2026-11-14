@@ -94,7 +94,9 @@ export type VetQuestion = {
   vet: VetInfo | null; answer_message_id: string | null; shared_fields: ShareField[]; quality_use_consent: boolean; created_at: string;
   snapshot: { question: string; ai_answer: string; note_to_vet: string | null; dog: Partial<Record<ShareField, string | number>>; shared_at: string; sources: string[] };
   reply: VetReply | null;
+  is_test?: boolean;
 };
+export type M03Availability = { enabled: boolean; vets: boolean; mode: "off" | "pilot" | "on" };
 export type VetQuestionIn = { link_id: string; answer_message_id: string; note_to_vet: string | null; shared_fields: ShareField[]; quality_use_consent: boolean };
 
 export class ApiError extends Error {
@@ -169,7 +171,8 @@ export const api = {
   care: () => request<{ items: CareCard[] }>("GET", "/care/consultations"),
   summarize: (cid: string) => request<CareCard>("POST", `/consultations/${cid}/summary`),
   // M03
-  m03Availability: () => request<{ enabled: boolean }>("GET", "/m03/availability"),
+  m03Availability: () => request<M03Availability>("GET", "/m03/availability"),
+  joinPilot: (code: string) => request<{ enabled: boolean }>("POST", "/m03/pilot", { code }),
   vets: () => request<{ items: VetInfo[] }>("GET", "/vets"),
   vetLinks: () => request<{ items: VetLink[] }>("GET", "/vet-links"),
   requestVetLink: (vetId: string) => request<VetLink>("POST", "/vet-links", { vet_id: vetId }),

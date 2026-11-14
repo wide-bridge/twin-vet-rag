@@ -14,7 +14,10 @@
 ## 현재 상태 (2026-11-14 밤)
 - 운영: main `c43a01d` (Vercel 자동 배포). Neon DB 버전 `9386107d035a`. 테스트 207개 통과.
 - 운영 중: 보호자 상담(twinvet), HITL 검토 도구(hitl-review, 운영자 계정 1개, 검토 묶음 0건), HITL 통계·서비스 이용통계.
-- 만들었지만 꺼 둔 것: **M03 보호자·수의사 연결**. 켜고 끄는 것을 **'수의사 상담 스위치'**라고 부른다(현재 구현: 환경변수 `M03_ENABLED`, 미설정=꺼짐). 운영 방식은 논의 중. 켜는 순서: 실제 수의사 확보·비대면 상담 법률 검토 → `python -m scripts.vet_admin create-vet`으로 운영 DB에 수의사 계정 등록(접근 키 1회 표시) → Vercel 환경변수 `M03_ENABLED=true`, `VET_HOST=vet.pawcheck.ai`, `ALLOWED_ORIGINS`에 `https://vet.pawcheck.ai` 추가 → 재배포.
+- 만들었지만 꺼 둔 것: **M03 보호자·수의사 연결**. 스위치 2개(2026-11-14 사용자 결정):
+  - **관리자 상담 스위치**(`M03_PILOT=true` + `M03_PILOT_CODE`): 운영자만 시험. 반려견 정보를 저장한 브라우저에서 `https://twinvet.pawcheck.ai/?pilot=<코드>`를 한 번 열면 그 프로필만 수의사 연결이 보이고, 다른 보호자는 화면에 없고 API도 404. 시험 수의사 계정(`vet_admin create-vet --test`)이 보이며 vet.pawcheck.ai가 열린다. 이때 보낸 질문·HITL 사본은 '시험'으로 표시되고, 그 사본으로 만든 지식은 운영에 발행할 수 없다(모의와 같은 취급). 쿠키를 지워 프로필이 바뀌면 링크를 다시 연다.
+  - **수의사 상담 스위치**(`M03_ENABLED=true`): 모든 보호자에게 공개. 실제 수의사 확보·비대면 상담 법률 검토 후. 켜면 관리자 상담 스위치는 무시된다.
+  - 순서: 관리자 상담 스위치를 켜서 시험 → 잘 되면 끄고 수의사 확보 → 수의사 상담 스위치 켜기. 둘 다 Vercel 환경변수라 바꾼 뒤 재배포해야 적용. 수의사 화면을 쓰려면 `VET_HOST=vet.pawcheck.ai`, `ALLOWED_ORIGINS`에 `https://vet.pawcheck.ai` 추가.
 - 정리 작업: Vercel Cron이 매일 04:00(KST, `vercel.json`의 `crons`, UTC 19:00)에 `GET /api/v1/internal/cleanup`을 호출 → 서비스 이용통계 숫자 저장 후 만료 데이터 삭제. Vercel 환경변수 `CRON_SECRET`이 있어야 동작(없거나 틀리면 404). 로컬·수동 실행은 `python -m scripts.cleanup_sessions`(같은 함수).
 - 미해결: 정기 백업 정책, 원천 자료 이용 조건 확인, 출처 근거 갈래의 정제 비교(4단계 보류).
 - 도메인: whois 네임서버 ns1·ns2에 hitl-review CNAME 미반영(19:58 조회 기준) — 재조회 필요.

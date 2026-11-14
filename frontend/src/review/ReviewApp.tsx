@@ -178,6 +178,7 @@ function ItemList({ onAuthError }: { onAuthError: (e: unknown) => void }) {
                 <Badge tone={i.is_mock ? "mock" : "muted"}>{ORIGIN[i.origin]}</Badge>
                 <Badge tone={i.review_status === "disputed" ? "warn" : i.review_status === "draft" ? "draft" : "ok"}>{STATUS[i.review_status]}</Badge>
                 {i.needs_recheck && <Badge tone="warn">재확인 필요</Badge>}
+                {i.is_test && <Badge tone="mock">시험</Badge>}
               </span>
               <span className="rv-row-q">{i.question}</span>
               <span className="rv-row-mine">{i.my_label === "submitted" ? "내 라벨 제출함" : i.my_label === "draft" ? "임시 저장" : "미작성"}</span>
@@ -273,6 +274,7 @@ function ItemScreen({ id, me, guide, concepts, onAuthError }: { id: string; me: 
         검토 묶음 <Badge tone={it.is_mock ? "mock" : "muted"}>{ORIGIN[it.origin]}</Badge>{" "}
         <Badge tone={it.review_status === "disputed" ? "warn" : it.review_status === "draft" ? "draft" : "ok"}>{STATUS[it.review_status]}</Badge>
         {it.needs_recheck && <Badge tone="warn">재확인 필요</Badge>}
+        {it.is_test && <Badge tone="mock">시험 · 운영 지식 발행 불가</Badge>}
       </h1>
       {it.needs_recheck && (
         <p className="rv-banner" role="note">이관한 뒤 수의사가 회신을 정정했습니다. 이 묶음의 참고 답변·라벨은 이관 당시 그대로이며, 새 회신은 운영자가 다시 정리해 별도 묶음으로 이관합니다.</p>

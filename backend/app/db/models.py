@@ -131,6 +131,8 @@ class DogProfile(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
     last_used_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
     expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), index=True)  # null = no expiry (MVP)
+    # 수의사 상담 시험 모드: this profile opened the pilot link (docs/04 §7-1); everything it sends is test data
+    m03_pilot: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="false")
     __table_args__ = (
         UniqueConstraint("token_hash", name="uq_dog_profile_token"),
         CheckConstraint("age_months BETWEEN 0 AND 371", name="ck_dog_profile_age"),

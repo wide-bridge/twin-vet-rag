@@ -8,7 +8,7 @@ import "../review/review.css";
 type Vet = { id: string; display_name: string; clinic_name: string | null; intro: string | null; is_test: boolean };
 type Link = { id: string; status: string; guardian_ref: string; requested_at: string; open_questions: number };
 type Reply = { body: string; sent_at: string; corrected: boolean; history: { kind: string; body: string; created_at: string }[] };
-type QItem = { id: string; status: "sent" | "answered" | "cancelled"; cancelled_reason: string | null; created_at: string; replied_at: string | null; guardian_ref: string; question_preview?: string };
+type QItem = { id: string; status: "sent" | "answered" | "cancelled"; cancelled_reason: string | null; created_at: string; replied_at: string | null; guardian_ref: string; question_preview?: string; is_test?: boolean };
 type QDetail = QItem & {
   snapshot?: { question: string; ai_answer: string; note_to_vet: string | null; sources: string[]; shared_at: string; dog: Record<string, string | number> };
   reply_draft?: string | null;
@@ -28,10 +28,10 @@ export function VetApp() {
   const [me, setMe] = useState<Vet | null | undefined>(undefined);
   const [openId, setOpenId] = useState<string | null>(null);
   useEffect(() => {
-    request<{ enabled: boolean }>("GET", "/m03/availability")
+    request<{ enabled: boolean; vets: boolean }>("GET", "/m03/availability")
       .then((r) => {
-        setEnabled(r.enabled);
-        if (r.enabled) request<Vet>("GET", `${V}/me`).then(setMe).catch(() => setMe(null));
+        setEnabled(r.vets);  // vet screens open with either switch (관리자 상담 / 수의사 상담)
+        if (r.vets) request<Vet>("GET", `${V}/me`).then(setMe).catch(() => setMe(null));
       })
       .catch(() => setEnabled(false));
   }, []);
@@ -164,7 +164,7 @@ function Home({ onOpen, onAuth }: { onOpen: (id: string) => void; onAuth: (e: un
               onClick={() => q.status !== "cancelled" && onOpen(q.id)} disabled={q.status === "cancelled"}>
               <span className={"rv-badge " + (q.status === "sent" ? "rv-badge-warn" : q.status === "answered" ? "rv-badge-ok" : "rv-badge-muted")}>{STATUS[q.status]}</span>
               <span className="rv-row-q">{q.status === "cancelled" ? (q.cancelled_reason === "link_ended" ? "연결 해제로 취소된 질문" : "보호자가 취소한 질문") : q.question_preview}</span>
-              <span className="rv-row-mine">보호자 {q.guardian_ref} · {at(q.created_at)}</span>
+              <span className="rv-row-mine">{q.is_test && <span className="rv-badge rv-badge-mock">시험</span>} 보호자 {q.guardian_ref} · {at(q.created_at)}</span>
             </button>
           </li>
         ))}

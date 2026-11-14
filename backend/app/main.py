@@ -113,6 +113,7 @@ def create_app(settings: Settings | None = None, *, llm=None, embedder=None, pla
     app.include_router(router)
     app.include_router(review_router)
     app.include_router(m03_routes.public)
+    app.include_router(m03_routes.by_link)  # before the guardian router so /by-token/... is matched first
     app.include_router(m03_routes.guardian)
     app.include_router(m03_routes.vet)
 

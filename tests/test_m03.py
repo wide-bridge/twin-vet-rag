@@ -255,7 +255,7 @@ def test_switch_off_hides_every_m03_route_but_availability(db, test_db_url):
     app = create_app(Settings(database_url=test_db_url, app_env="test", m03_enabled=False), llm=FakeLLM({}),
                      embedder=FakeEmbedder(), start_worker=False)
     c = TestClient(app, base_url="http://localhost:8000")
-    assert c.get("/api/v1/m03/availability").json() == {"enabled": False}
+    assert c.get("/api/v1/m03/availability").json()["enabled"] is False
     for method, path in (("get", "/api/v1/vets"), ("get", "/api/v1/vet-links"), ("get", "/api/v1/vet-questions"),
                          ("post", f"{V}/login"), ("get", f"{V}/me"), ("get", f"{V}/questions")):
         r = getattr(c, method)(path, headers=H, **({"json": {"access_key": "x" * 10}} if method == "post" else {}))
@@ -275,7 +275,7 @@ def test_vet_host_answers_only_the_vet_api(db, test_db_url):
     assert guardian_host.get(f"{V}/me").status_code == 404 and review_host.get(f"{V}/me").status_code == 404
     assert guardian_host.get("/api/v1/vets").status_code == 200
     for c in (vet_host, guardian_host, review_host):  # the switch is readable from every app
-        assert c.get("/api/v1/m03/availability").json() == {"enabled": True}
+        assert c.get("/api/v1/m03/availability").json()["enabled"] is True
 
 
 def test_cancelled_questions_close_their_link(m3):
