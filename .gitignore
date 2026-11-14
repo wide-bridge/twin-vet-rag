@@ -231,3 +231,6 @@ frontend/dist/
 # Python's default `lib/` rule above must not hide frontend source folders
 !frontend/src/lib/
 *.tsbuildinfo
+
+# Vercel CLI link (project/org ids; local only)
+.vercel/
