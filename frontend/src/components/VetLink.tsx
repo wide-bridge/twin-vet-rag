@@ -71,6 +71,16 @@ export function M03Provider({ hasProfile, children }: { hasProfile: boolean; chi
   }, [enabled, hasProfile]);
   useEffect(() => {
     refresh();
+    // the vet acts in another browser: pick up acceptance / replies when the guardian comes back, and every 30s
+    const onShow = () => { if (document.visibilityState === "visible") refresh(); };
+    document.addEventListener("visibilitychange", onShow);
+    window.addEventListener("focus", onShow);
+    const t = window.setInterval(onShow, 30_000);
+    return () => {
+      document.removeEventListener("visibilitychange", onShow);
+      window.removeEventListener("focus", onShow);
+      window.clearInterval(t);
+    };
   }, [refresh]);
   const value = useMemo(() => ({ enabled, pilot, linkDays, links, questions, refresh }), [enabled, pilot, linkDays, links, questions, refresh]);
   return <M03Context.Provider value={value}>{children}</M03Context.Provider>;
@@ -89,7 +99,8 @@ export function VetConnectSection({ hasProfile }: { hasProfile: boolean }) {
   const [busy, setBusy] = useState(false);
   useEffect(() => {
     if (enabled && hasProfile) api.vets().then((r) => setVets(r.items)).catch((e: ApiError) => setError(e.message));
-  }, [enabled, hasProfile]);
+    if (enabled && hasProfile) refresh();  // opening 설정 always shows the current link state
+  }, [enabled, hasProfile, refresh]);
   if (!enabled) return null;
   const mine = links.filter((l) => l.status === "accepted");
   const waiting = links.filter((l) => l.status === "requested");
