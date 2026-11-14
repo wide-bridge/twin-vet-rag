@@ -210,7 +210,7 @@ def test_profile_delete_and_expiry_remove_copies_and_expired_ones_are_hidden_fir
 
 
 def test_operator_status_works_while_m03_is_closed(db, test_db_url):
-    """운영자 현황 is visible in hitl-review even before M03 opens to guardians (all zero); vets still get 403."""
+    """HITL-flow 현황 is visible in hitl-review even before M03 opens to guardians (all zero); vets still get 403."""
     from backend.app.config import Settings
     from backend.app.main import create_app
     from backend.app.rag.embeddings import FakeEmbedder

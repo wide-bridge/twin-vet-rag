@@ -234,7 +234,7 @@ def approve_candidate(cand_id: uuid.UUID, reviewer: ReviewerDep, db: DBDep, sett
 
 # ------------------------------------------------------------------ M03 operator: stats + import (docs/04 §7-1)
 def m03_operator(reviewer: ReviewerDep) -> Reviewer:
-    """운영자 현황 works whether or not M03 is open to guardians (numbers are simply zero while it is off)."""
+    """HITL-flow 현황 works whether or not M03 is open to guardians (numbers are simply zero while it is off)."""
     if reviewer.role != "operator":
         raise ApiError(403, "operator_only", "운영자만 볼 수 있어요.")
     return reviewer
