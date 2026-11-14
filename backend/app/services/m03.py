@@ -117,9 +117,19 @@ def list_vets(db: DB, settings: Settings) -> list[dict]:
     return [vet_view(v) for v in rows if _visible(settings, v)]
 
 
+def link_active(link: VetLink) -> bool:
+    """주치수의사: accepted and still within its validity period."""
+    return link.status == "accepted" and (link.expires_at is None or link.expires_at > now())
+
+
+def _effective_status(link: VetLink) -> str:
+    return "expired" if link.status == "accepted" and not link_active(link) else link.status
+
+
 def link_view(db: DB, link: VetLink) -> dict:
     v = db.get(VetAccount, link.vet_id)
-    return {"id": str(link.id), "status": link.status, "vet": vet_view(v) if v else None,
+    return {"id": str(link.id), "status": _effective_status(link), "vet": vet_view(v) if v else None,
+            "expires_at": link.expires_at.isoformat() if link.expires_at else None,
             "requested_at": link.requested_at.isoformat(), "decided_at": link.decided_at.isoformat() if link.decided_at else None,
             "ended_at": link.ended_at.isoformat() if link.ended_at else None, "ended_by": link.ended_by}
 
@@ -128,6 +138,11 @@ def request_link(db: DB, settings: Settings, prof: DogProfile, vet_id: uuid.UUID
     v = db.get(VetAccount, vet_id)
     if not _visible(settings, v):
         raise ApiError(404, "not_found")
+    old = db.execute(select(VetLink).where(VetLink.profile_id == prof.id, VetLink.vet_id == v.id,
+                                           VetLink.status == "accepted").with_for_update()).scalar_one_or_none()
+    if old is not None and not link_active(old):
+        old.status, old.ended_at, old.ended_by = "ended", now(), "system"  # validity over: a new request starts
+        db.flush()
     link = VetLink(profile_id=prof.id, vet_id=v.id, status="requested")
     db.add(link)
     profile_svc.touch(db, settings, prof)
@@ -159,13 +174,19 @@ def _end_link(db: DB, link: VetLink, by: str) -> None:
     t = now()
     if link.status == "requested" and by == "guardian":
         link.status, link.ended_at, link.ended_by = "cancelled", t, by
+        reason = "guardian"
     elif link.status == "accepted":
         link.status, link.ended_at, link.ended_by = "ended", t, by
-        for q in db.execute(select(VetQuestion).where(VetQuestion.link_id == link.id, VetQuestion.status == "sent")
-                            .with_for_update()).scalars():
-            q.status, q.cancelled_reason, q.access_token_hash = "cancelled", "link_ended", None
+        reason = "link_ended"
     else:
         raise ApiError(409, "link_closed")
+    _cancel_waiting(db, link, reason)
+
+
+def _cancel_waiting(db: DB, link: VetLink, reason: str) -> None:
+    for q in db.execute(select(VetQuestion).where(VetQuestion.link_id == link.id, VetQuestion.status == "sent")
+                        .with_for_update()).scalars():
+        q.status, q.cancelled_reason, q.access_token_hash = "cancelled", reason, None
 
 
 def close_link(db: DB, settings: Settings, prof: DogProfile, link_id: uuid.UUID) -> dict:
@@ -189,7 +210,9 @@ def send_question(db: DB, settings: Settings, prof: DogProfile, session: Session
                   quality_use_consent: bool) -> tuple[dict, str]:
     """Freeze the chosen question (+ AI answer, note, chosen dog fields) for the linked vet. Returns (view, raw link token)."""
     link = _own_link(db, prof, link_id, lock=True)
-    if link.status != "accepted":
+    if link.status == "accepted" and not link_active(link):
+        raise ApiError(409, "link_expired")
+    if link.status not in ("requested", "accepted"):
         raise ApiError(409, "link_not_accepted")
     if not _visible(settings, db.get(VetAccount, link.vet_id)):
         raise ApiError(409, "link_not_accepted")
@@ -247,9 +270,24 @@ def _reply_view(revs: list[VetReplyRevision]) -> dict | None:
             "history": [{"kind": r.kind, "body": r.body, "created_at": r.created_at.isoformat()} for r in revs]}
 
 
+def question_stage(db: DB, q: VetQuestion) -> str:
+    """held (수락 대기) -> delivered (전달됨) -> seen (확인함) -> drafting (답변 준비 중) -> answered; or cancelled."""
+    if q.status != "sent":
+        return q.status
+    link = db.get(VetLink, q.link_id)
+    if link is None or link.status == "requested":
+        return "held"
+    if q.reply_draft:
+        return "drafting"
+    return "seen" if q.vet_seen_at else "delivered"
+
+
 def guardian_question_view(db: DB, q: VetQuestion) -> dict:
     v = db.get(VetAccount, q.vet_id)
-    return {"id": str(q.id), "link_id": str(q.link_id), "status": q.status, "cancelled_reason": q.cancelled_reason,
+    link = db.get(VetLink, q.link_id)
+    return {"id": str(q.id), "link_id": str(q.link_id), "status": q.status, "stage": question_stage(db, q),
+            "link_status": _effective_status(link) if link else None,
+            "cancelled_reason": q.cancelled_reason,
             "vet": vet_view(v) if v else None, "answer_message_id": str(q.source_answer_message_id) if q.source_answer_message_id else None,
             "snapshot": q.snapshot, "shared_fields": q.shared_fields, "quality_use_consent": q.quality_use_consent,
             "created_at": q.created_at.isoformat(), "reply": _reply_view(_revisions(db, q)), "is_test": q.is_test}
@@ -349,6 +387,11 @@ def _alive():
         (DogProfile.expires_at.is_(None)) | (DogProfile.expires_at > now())).exists()
 
 
+def _delivered():
+    """SQL: the question reached the vet — its link was accepted at some point (accepted or later ended)."""
+    return select(VetLink.id).where(VetLink.id == VetQuestion.link_id, VetLink.status.in_(("accepted", "ended"))).exists()
+
+
 def _alive_link():
     return select(DogProfile.id).where(DogProfile.id == VetLink.profile_id).where(
         (DogProfile.expires_at.is_(None)) | (DogProfile.expires_at > now())).exists()
@@ -364,7 +407,8 @@ def _vet_link(db: DB, vet: VetAccount, link_id: uuid.UUID, lock: bool = False) -
 
 def vet_link_view(link: VetLink, open_questions: int = 0) -> dict:
     """Before acceptance the vet sees only that someone asked and when (no consultation or dog details)."""
-    return {"id": str(link.id), "status": link.status, "guardian_ref": str(link.profile_id)[:8],
+    return {"id": str(link.id), "status": _effective_status(link), "guardian_ref": str(link.profile_id)[:8],
+            "expires_at": link.expires_at.isoformat() if link.expires_at else None,
             "requested_at": link.requested_at.isoformat(), "decided_at": link.decided_at.isoformat() if link.decided_at else None,
             "ended_at": link.ended_at.isoformat() if link.ended_at else None, "ended_by": link.ended_by,
             "open_questions": open_questions}
@@ -374,15 +418,22 @@ def vet_links(db: DB, vet: VetAccount) -> list[dict]:
     rows = db.execute(select(VetLink).where(VetLink.vet_id == vet.id, VetLink.status.in_(("requested", "accepted")), _alive_link())
                       .order_by(VetLink.requested_at.desc())).scalars().all()
     counts = dict(db.execute(select(VetQuestion.link_id, func.count()).where(
-        VetQuestion.vet_id == vet.id, VetQuestion.status == "sent", _alive()).group_by(VetQuestion.link_id)).all())
+        VetQuestion.vet_id == vet.id, VetQuestion.status == "sent", _alive(), _delivered()).group_by(VetQuestion.link_id)).all())
     return [vet_link_view(x, counts.get(x.id, 0)) for x in rows]
 
 
-def decide_link(db: DB, vet: VetAccount, link_id: uuid.UUID, accept: bool) -> dict:
+def decide_link(db: DB, vet: VetAccount, link_id: uuid.UUID, accept: bool, days: int = 90) -> dict:
+    """Accept: becomes the guardian's 주치수의사 for `days`; held questions are delivered. Decline: held questions are
+    cancelled without the vet ever seeing them."""
     link = _vet_link(db, vet, link_id, lock=True)
     if link.status != "requested":
         raise ApiError(409, "link_closed")
-    link.status, link.decided_at = ("accepted" if accept else "declined"), now()
+    t = now()
+    link.status, link.decided_at = ("accepted" if accept else "declined"), t
+    if accept:
+        link.expires_at = t + timedelta(days=days)
+    else:
+        _cancel_waiting(db, link, "link_declined")
     db.commit()
     return vet_link_view(link)
 
@@ -411,12 +462,13 @@ def vet_question_view(db: DB, q: VetQuestion, full: bool) -> dict:
 
 
 def vet_questions(db: DB, vet: VetAccount) -> list[dict]:
-    rows = db.execute(select(VetQuestion).where(VetQuestion.vet_id == vet.id, _alive()).order_by(VetQuestion.created_at.desc())).scalars()
+    rows = db.execute(select(VetQuestion).where(VetQuestion.vet_id == vet.id, _alive(), _delivered())
+                      .order_by(VetQuestion.created_at.desc())).scalars()
     return [vet_question_view(db, q, full=False) for q in rows]
 
 
 def _vet_question(db: DB, vet: VetAccount, qid: uuid.UUID, lock: bool = False) -> VetQuestion:
-    s = select(VetQuestion).where(VetQuestion.id == qid, VetQuestion.vet_id == vet.id, _alive())
+    s = select(VetQuestion).where(VetQuestion.id == qid, VetQuestion.vet_id == vet.id, _alive(), _delivered())
     q = db.execute(s.with_for_update() if lock else s).scalar_one_or_none()
     if q is None:
         raise ApiError(404, "not_found")
@@ -424,7 +476,11 @@ def _vet_question(db: DB, vet: VetAccount, qid: uuid.UUID, lock: bool = False) -
 
 
 def vet_question_detail(db: DB, vet: VetAccount, qid: uuid.UUID) -> dict:
-    return vet_question_view(db, _vet_question(db, vet, qid), full=True)
+    q = _vet_question(db, vet, qid, lock=True)
+    if q.status == "sent" and q.vet_seen_at is None:
+        q.vet_seen_at = now()  # guardian sees "주치수의사가 질문을 확인했어요"
+        db.commit()
+    return vet_question_view(db, q, full=True)
 
 
 def _body(text: str | None) -> str:

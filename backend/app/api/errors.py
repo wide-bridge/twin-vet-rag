@@ -32,6 +32,7 @@ MESSAGES = {
     "link_exists": "이미 연결 요청했거나 연결된 수의사예요.",
     "link_closed": "이미 처리된 연결이에요.",
     "link_not_accepted": "수의사가 연결을 수락한 뒤에 질문을 보낼 수 있어요.",
+    "link_expired": "주치수의사 연결 기간이 끝났어요. 다시 연결을 요청해 주세요.",
     "question_exists": "이 답변은 이미 이 수의사에게 보냈어요.",
     "question_closed": "이미 답변했거나 취소된 질문이에요.",
     "question_not_answered": "아직 회신하지 않은 질문이에요.",

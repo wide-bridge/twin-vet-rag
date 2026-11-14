@@ -85,18 +85,19 @@ export type CareCard = {
 
 // M03 guardian–vet link (docs/04 §7-1)
 export type VetInfo = { id: string; display_name: string; clinic_name: string | null; intro: string | null; is_test: boolean };
-export type VetLinkStatus = "requested" | "accepted" | "declined" | "cancelled" | "ended";
-export type VetLink = { id: string; status: VetLinkStatus; vet: VetInfo | null; requested_at: string; decided_at: string | null; ended_at: string | null; ended_by: string | null };
+export type VetLinkStatus = "requested" | "accepted" | "expired" | "declined" | "cancelled" | "ended";
+export type VetLink = { id: string; status: VetLinkStatus; vet: VetInfo | null; expires_at: string | null; requested_at: string; decided_at: string | null; ended_at: string | null; ended_by: string | null };
+export type QuestionStage = "held" | "delivered" | "seen" | "drafting" | "answered" | "cancelled";
 export type ShareField = "name" | "breed" | "age" | "weight" | "neutered" | "health_notes";
 export type VetReply = { body: string; sent_at: string; corrected: boolean; corrected_at: string | null; history: { kind: "original" | "correction"; body: string; created_at: string }[] };
 export type VetQuestion = {
-  id: string; link_id: string; status: "sent" | "answered" | "cancelled"; cancelled_reason: "guardian" | "link_ended" | null;
+  id: string; link_id: string; status: "sent" | "answered" | "cancelled"; stage?: QuestionStage; link_status?: VetLinkStatus | null; cancelled_reason: "guardian" | "link_ended" | "link_declined" | null;
   vet: VetInfo | null; answer_message_id: string | null; shared_fields: ShareField[]; quality_use_consent: boolean; created_at: string;
   snapshot: { question: string; ai_answer: string; note_to_vet: string | null; dog: Partial<Record<ShareField, string | number>>; shared_at: string; sources: string[] };
   reply: VetReply | null;
   is_test?: boolean;
 };
-export type M03Availability = { enabled: boolean; vets: boolean; mode: "off" | "pilot" | "on" };
+export type M03Availability = { enabled: boolean; vets: boolean; mode: "off" | "pilot" | "on"; link_days?: number };
 export type VetQuestionIn = { link_id: string; answer_message_id: string; note_to_vet: string | null; shared_fields: ShareField[]; quality_use_consent: boolean };
 
 export class ApiError extends Error {

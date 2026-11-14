@@ -93,7 +93,7 @@ with sync_playwright() as pw:
     link = a.locator("#vet-link-url").input_value()
     assert "/q/" in link
     a.get_by_role("button", name="확인").click()
-    expect(a.get_by_text("수의사 확인 대기")).to_be_visible()
+    expect(a.get_by_text("주치수의사에게 질문이 전달됐어요")).to_be_visible()
     expect(btns).to_have_count(1)  # the second answer can still be sent; the first is done
 
     # ④ vet: sees that one question (not the walk question), replies, then corrects

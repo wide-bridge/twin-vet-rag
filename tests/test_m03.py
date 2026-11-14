@@ -90,21 +90,21 @@ def test_round_trip_only_the_chosen_question_reaches_the_vet(m3):
     assert link.status_code == 201 and link.json()["status"] == "requested"
     lid = link.json()["id"]
     assert g.post("/api/v1/vet-links", json={"vet_id": m3.ids["v1"]}, headers=H).json()["error"]["code"] == "link_exists"
-    early = g.post("/api/v1/vet-questions", json={"link_id": lid, "answer_message_id": answer}, headers=H)
-    assert early.status_code == 409 and early.json()["error"]["code"] == "link_not_accepted"
-    pending = v1.get(f"{V}/links").json()["items"]
-    assert len(pending) == 1 and set(pending[0]) >= {"id", "status", "guardian_ref", "requested_at"}
-    assert not any(k in pending[0] for k in ("snapshot", "dog", "question", "breed"))  # no content before acceptance
-    assert v1.get(f"{V}/questions").json()["items"] == []
-    assert v1.post(f"{V}/links/{lid}/accept", headers=H).json()["status"] == "accepted"
-
-    # ③ share one question with a note and two dog fields
+    # ③ the question can go with the pending request: held, invisible to the vet until it accepts
     sent = g.post("/api/v1/vet-questions", headers=H, json={
         "link_id": lid, "answer_message_id": answer, "note_to_vet": "어제 물어본 사료 이야기예요",
         "shared_fields": ["breed", "age"], "quality_use_consent": False})
     assert sent.status_code == 201, sent.text
     q = sent.json()
-    assert q["status"] == "sent" and q["access_token"]
+    assert q["status"] == "sent" and q["stage"] == "held" and q["access_token"]
+    pending = v1.get(f"{V}/links").json()["items"]
+    assert len(pending) == 1 and set(pending[0]) >= {"id", "status", "guardian_ref", "requested_at"}
+    assert not any(k in pending[0] for k in ("snapshot", "dog", "question", "breed"))  # no content before acceptance
+    assert v1.get(f"{V}/questions").json()["items"] == []
+    assert v1.get(f"{V}/questions/{q['id']}").status_code == 404  # held: not even by id
+    acc = v1.post(f"{V}/links/{lid}/accept", headers=H).json()
+    assert acc["status"] == "accepted" and acc["expires_at"]  # 주치수의사 for VET_LINK_DAYS
+    assert g.get(f"/api/v1/vet-questions/{q['id']}").json()["stage"] == "delivered"
     snap = q["snapshot"]
     assert snap["question"] == "어제부터 두 번 토했어요" and snap["ai_answer"] == "탈수를 확인하세요."
     assert snap["note_to_vet"] == "어제 물어본 사료 이야기예요" and snap["dog"] == {"breed": "말티즈", "age": DOG["age_months"]}
@@ -117,7 +117,9 @@ def test_round_trip_only_the_chosen_question_reaches_the_vet(m3):
     detail = v1.get(f"{V}/questions/{q['id']}").json()
     assert detail["snapshot"]["question"] == "어제부터 두 번 토했어요" and "산책" not in str(detail)
     assert other_answer not in str(detail)
+    assert g.get(f"/api/v1/vet-questions/{q['id']}").json()["stage"] == "seen"  # the vet opened it
     assert v1.put(f"{V}/questions/{q['id']}/draft", json={"text": "초안"}, headers=H).json()["reply_draft"] == "초안"
+    assert g.get(f"/api/v1/vet-questions/{q['id']}").json()["stage"] == "drafting"
     assert v1.put(f"{V}/questions/{q['id']}/draft", json={"text": "수정한 초안"}, headers=H).json()["reply_draft"] == "수정한 초안"
     r = v1.post(f"{V}/questions/{q['id']}/reply", json={"text": "탈수 여부를 먼저 보세요."}, headers=H).json()
     assert r["status"] == "answered" and r["reply"]["body"] == "탈수 여부를 먼저 보세요." and r["reply_draft"] is None
@@ -333,3 +335,27 @@ def test_expired_profile_is_closed_to_the_vet_before_cleanup(m3):
     assert anon.get(f"/api/v1/vet-questions/by-token/{q1['access_token']}").status_code == 404
     assert g.get("/api/v1/vet-questions").status_code == 409  # the guardian's own profile is gone too
     assert v1.get(f"{V}/questions/{qb['id']}").status_code == 200  # other guardians unaffected
+
+
+def test_declined_request_cancels_held_questions_and_link_expires(m3):
+    """주치수의사 rules: a declined request never shows its held question to the vet; an accepted link expires after
+    VET_LINK_DAYS, after which questions need a new request (the vet stays a plain 수의사 until it accepts again)."""
+    g, cid, answer = m3.guardian()
+    v1 = m3.vet("v1")
+    lid = g.post("/api/v1/vet-links", json={"vet_id": m3.ids["v1"]}, headers=H).json()["id"]
+    q = g.post("/api/v1/vet-questions", json={"link_id": lid, "answer_message_id": answer}, headers=H).json()
+    assert v1.post(f"{V}/links/{lid}/decline", headers=H).json()["status"] == "declined"
+    after = g.get(f"/api/v1/vet-questions/{q['id']}").json()
+    assert after["stage"] == "cancelled" and after["cancelled_reason"] == "link_declined"
+    assert v1.get(f"{V}/questions").json()["items"] == [] and v1.get(f"{V}/questions/{q['id']}").status_code == 404
+
+    lid2 = _connect(m3, g, v1)
+    with m3.app.state.Session() as s:
+        s.execute(text("UPDATE vet_link SET expires_at = now() - interval '1 day' WHERE id = :i"), {"i": lid2})
+        s.commit()
+    assert [l["status"] for l in g.get("/api/v1/vet-links").json()["items"] if l["id"] == lid2] == ["expired"]
+    second = m3.ask(g, cid, "물은 얼마나?")
+    r = g.post("/api/v1/vet-questions", json={"link_id": lid2, "answer_message_id": second}, headers=H)
+    assert r.status_code == 409 and r.json()["error"]["code"] == "link_expired"
+    again = g.post("/api/v1/vet-links", json={"vet_id": m3.ids["v1"]}, headers=H)  # re-request after expiry
+    assert again.status_code == 201 and again.json()["status"] == "requested"

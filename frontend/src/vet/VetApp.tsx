@@ -6,7 +6,7 @@ import { formatAge } from "../lib/age";
 import "../review/review.css";
 
 type Vet = { id: string; display_name: string; clinic_name: string | null; intro: string | null; is_test: boolean };
-type Link = { id: string; status: string; guardian_ref: string; requested_at: string; open_questions: number };
+type Link = { id: string; status: string; guardian_ref: string; requested_at: string; open_questions: number; expires_at?: string | null };
 type Reply = { body: string; sent_at: string; corrected: boolean; history: { kind: string; body: string; created_at: string }[] };
 type QItem = { id: string; status: "sent" | "answered" | "cancelled"; cancelled_reason: string | null; created_at: string; replied_at: string | null; guardian_ref: string; question_preview?: string; is_test?: boolean };
 type QDetail = QItem & {
@@ -125,7 +125,7 @@ function Home({ onOpen, onAuth }: { onOpen: (id: string) => void; onAuth: (e: un
     }
   };
   const pending = (links ?? []).filter((l) => l.status === "requested");
-  const connected = (links ?? []).filter((l) => l.status === "accepted");
+  const connected = (links ?? []).filter((l) => l.status === "accepted" || l.status === "expired");
   return (
     <>
       <h1 className="rv-h1">연결 요청</h1>
@@ -149,7 +149,7 @@ function Home({ onOpen, onAuth }: { onOpen: (id: string) => void; onAuth: (e: un
           {connected.map((l) => (
             <li key={l.id} className="card rv-row">
               <span className="rv-badge rv-badge-ok">연결됨</span>
-              <span className="rv-row-q">보호자 {l.guardian_ref} · 회신 대기 {l.open_questions}건</span>
+              <span className="rv-row-q">보호자 {l.guardian_ref} · 회신 대기 {l.open_questions}건{l.expires_at ? ` · ${new Date(l.expires_at).toLocaleDateString("ko-KR")}까지` : ""}{l.status === "expired" ? " (기간 끝남)" : ""}</span>
               <button className="btn btn-ghost" onClick={() => act(`${V}/links/${l.id}/end`)}>연결 해제</button>
             </li>
           ))}

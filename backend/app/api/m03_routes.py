@@ -44,7 +44,8 @@ def availability(request: Request, db: DBDep, settings: SettingsDep):
     """Read by every app: enabled = this guardian can use it, vets = the vet screens are open, mode = switch state."""
     prof = profile_svc.resolve(db, request.cookies.get(PROFILE_COOKIE))
     m = m03.mode(settings)
-    return {"enabled": m03.guardian_allowed(settings, prof), "vets": m != "off", "mode": m}
+    return {"enabled": m03.guardian_allowed(settings, prof), "vets": m != "off", "mode": m,
+            "link_days": settings.vet_link_days}
 
 
 class PilotIn(BaseModel):
@@ -206,8 +207,8 @@ def vet_links(v: VetDep, db: DBDep):
 
 
 @vet.post("/links/{link_id}/accept", dependencies=Guard)
-def accept(link_id: uuid.UUID, v: VetDep, db: DBDep):
-    return m03.decide_link(db, v, link_id, accept=True)
+def accept(link_id: uuid.UUID, v: VetDep, db: DBDep, settings: SettingsDep):
+    return m03.decide_link(db, v, link_id, accept=True, days=settings.vet_link_days)
 
 
 @vet.post("/links/{link_id}/decline", dependencies=Guard)

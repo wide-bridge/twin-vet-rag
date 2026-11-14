@@ -55,6 +55,8 @@ class VetLink(Base):
     decided_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     ended_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     ended_by: Mapped[str | None] = mapped_column(String(8))
+    # 주치수의사: an accepted link is valid until expires_at (VET_LINK_DAYS after acceptance); then a new request is needed
+    expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     __table_args__ = (
         CheckConstraint(f"status IN {LINK_STATUSES}", name="ck_vet_link_status"),
         CheckConstraint("ended_by IS NULL OR ended_by IN ('guardian','vet','system')", name="ck_vet_link_ended_by"),
@@ -81,12 +83,13 @@ class VetQuestion(Base):
     reply_draft: Mapped[str | None] = mapped_column(Text)
     replied_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     guardian_seen_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    vet_seen_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))  # the vet opened it ("확인했어요")
     access_token_hash: Mapped[str | None] = mapped_column(String(64))
     is_test: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="false")  # pilot guardian or test vet
     created_at: Mapped[datetime] = _now()
     __table_args__ = (
         CheckConstraint(f"status IN {QUESTION_STATUSES}", name="ck_vet_question_status"),
-        CheckConstraint("cancelled_reason IS NULL OR cancelled_reason IN ('guardian','link_ended')",
+        CheckConstraint("cancelled_reason IS NULL OR cancelled_reason IN ('guardian','link_ended','link_declined')",
                         name="ck_vet_question_cancelled_reason"),
         UniqueConstraint("access_token_hash", name="uq_vet_question_token"),
         Index("uq_vet_question_open", "source_answer_message_id", "vet_id", unique=True,

@@ -92,6 +92,9 @@ class Settings(BaseSettings):
     m03_pilot_code: SecretStr | None = None
     vet_host: str = ""
     vet_session_hours: int = Field(default=12, ge=1, le=168)
+    # 주치수의사: once a vet accepts, the link stays valid this many days from acceptance (default proposal 90, not yet
+    # confirmed by the user). Questions/replies never extend it; either side may end it earlier.
+    vet_link_days: int = Field(default=90, ge=1, le=3650)
     vet_logins_per_minute: int = Field(default=10, ge=1)
     reviewer_session_hours: int = Field(default=12, ge=1, le=168)
     review_logins_per_minute: int = Field(default=10, ge=1)

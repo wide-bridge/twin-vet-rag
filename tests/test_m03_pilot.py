@@ -62,7 +62,7 @@ def test_only_the_pilot_guardian_can_use_it(pilot):
     other, _ = pilot.guardian()
 
     for c in (me, other):  # before the pilot link: closed for everyone
-        assert c.get("/api/v1/m03/availability").json() == {"enabled": False, "vets": True, "mode": "pilot"}
+        assert c.get("/api/v1/m03/availability").json() == {"enabled": False, "vets": True, "mode": "pilot", "link_days": 90}
         assert c.get("/api/v1/vets").status_code == 404
     assert me.post("/api/v1/m03/pilot", json={"code": "wrong"}, headers=H).status_code == 404
     anon = TestClient(pilot.app, base_url="http://localhost:8000")
@@ -125,6 +125,6 @@ def test_switches_off_means_nothing_opens(db, test_db_url):
     app = create_app(Settings(database_url=test_db_url, app_env="production", m03_pilot=False, m03_pilot_code=CODE),
                      llm=FakeLLM({}), embedder=FakeEmbedder(), start_worker=False)
     c = TestClient(app, base_url="http://localhost:8000")
-    assert c.get("/api/v1/m03/availability").json() == {"enabled": False, "vets": False, "mode": "off"}
+    assert c.get("/api/v1/m03/availability").json() == {"enabled": False, "vets": False, "mode": "off", "link_days": 90}
     assert c.post("/api/v1/m03/pilot", json={"code": CODE}, headers=H).status_code == 404
     assert c.get(f"{V}/me").status_code == 404

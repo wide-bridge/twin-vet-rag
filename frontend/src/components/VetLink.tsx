@@ -12,11 +12,12 @@ import { IconCheck, IconError, IconInfo } from "./Icons";
 type M03 = {
   enabled: boolean;
   pilot: boolean;
+  linkDays: number;
   links: VetLink[];
   questions: VetQuestion[];
   refresh: () => Promise<void>;
 };
-const M03Context = createContext<M03>({ enabled: false, pilot: false, links: [], questions: [], refresh: async () => undefined });
+const M03Context = createContext<M03>({ enabled: false, pilot: false, linkDays: 90, links: [], questions: [], refresh: async () => undefined });
 const PILOT_KEY = "tvc_pilot_code";
 
 // 관리자 상담 스위치: /?pilot=<code> marks this browser's dog profile as the operator's test profile (once).
@@ -39,10 +40,11 @@ export const useM03 = () => useContext(M03Context);
 export function M03Provider({ hasProfile, children }: { hasProfile: boolean; children: ReactNode }) {
   const [enabled, setEnabled] = useState(false);
   const [pilot, setPilot] = useState(false);
+  const [linkDays, setLinkDays] = useState(90);
   const [links, setLinks] = useState<VetLink[]>([]);
   const [questions, setQuestions] = useState<VetQuestion[]>([]);
   useEffect(() => {
-    const check = () => api.m03Availability().then((r) => { setEnabled(r.enabled); setPilot(r.mode === "pilot"); }).catch(() => setEnabled(false));
+    const check = () => api.m03Availability().then((r) => { setEnabled(r.enabled); setPilot(r.mode === "pilot"); setLinkDays(r.link_days ?? 90); }).catch(() => setEnabled(false));
     const code = takePilotCode();
     if (code && hasProfile) {
       api.joinPilot(code).catch(() => undefined).finally(() => {
@@ -70,17 +72,18 @@ export function M03Provider({ hasProfile, children }: { hasProfile: boolean; chi
   useEffect(() => {
     refresh();
   }, [refresh]);
-  const value = useMemo(() => ({ enabled, pilot, links, questions, refresh }), [enabled, pilot, links, questions, refresh]);
+  const value = useMemo(() => ({ enabled, pilot, linkDays, links, questions, refresh }), [enabled, pilot, linkDays, links, questions, refresh]);
   return <M03Context.Provider value={value}>{children}</M03Context.Provider>;
 }
 
-const LINK_LABEL: Record<string, string> = { requested: "요청 중", accepted: "연결됨", declined: "거절됨", cancelled: "취소함", ended: "해제됨" };
+// 주치수의사 = a vet who accepted (valid until expires_at); 수의사 = not accepted yet
+const day = (iso: string | null) => (iso ? new Date(iso).toLocaleDateString("ko-KR", { year: "numeric", month: "numeric", day: "numeric" }) : "");
 const vetName = (v: VetInfo | null) => (v ? `${v.display_name}${v.clinic_name ? ` · ${v.clinic_name}` : ""}` : "수의사");
 const at = (iso: string) => new Date(iso).toLocaleString("ko-KR", { month: "numeric", day: "numeric", hour: "numeric", minute: "2-digit" });
 
 // ---------------------------------------------------------------- S04 수의사 연결 (inside 설정)
 export function VetConnectSection({ hasProfile }: { hasProfile: boolean }) {
-  const { enabled, pilot, links, refresh } = useM03();
+  const { enabled, pilot, linkDays, links, refresh } = useM03();
   const [vets, setVets] = useState<VetInfo[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -88,8 +91,19 @@ export function VetConnectSection({ hasProfile }: { hasProfile: boolean }) {
     if (enabled && hasProfile) api.vets().then((r) => setVets(r.items)).catch((e: ApiError) => setError(e.message));
   }, [enabled, hasProfile]);
   if (!enabled) return null;
-  const open = links.filter((l) => l.status === "requested" || l.status === "accepted");
-  const openIds = new Set(open.map((l) => l.vet?.id));
+  const mine = links.filter((l) => l.status === "accepted");
+  const waiting = links.filter((l) => l.status === "requested");
+  const openIds = new Set([...mine, ...waiting].map((l) => l.vet?.id));
+  // latest closed link per vet (declined / ended / expired / cancelled) -> reason + reconnect guidance
+  const closed = new Map<string, VetLink>();
+  for (const l of links) {
+    if (["declined", "ended", "expired"].includes(l.status) && l.vet && !closed.has(l.vet.id)) closed.set(l.vet.id, l);
+  }
+  const REASON: Record<string, string> = {
+    declined: "연결이 거절됐어요. 다시 요청할 수 있어요.",
+    ended: "연결이 해제됐어요. 다시 요청할 수 있어요.",
+    expired: "주치수의사 기간이 끝났어요. 새 질문은 다시 연결을 요청한 뒤 보낼 수 있어요.",
+  };
   const act = async (fn: () => Promise<unknown>) => {
     setBusy(true);
     setError(null);
@@ -106,29 +120,40 @@ export function VetConnectSection({ hasProfile }: { hasProfile: boolean }) {
     <section className="card settings-card" aria-labelledby="vet-h">
       <h2 id="vet-h">수의사 연결 <small>(선택)</small>{pilot && <span className="vet-badge is-sent">관리자 시험 중</span>}</h2>
       {pilot && <p className="help"><IconInfo small /> 관리자 상담 스위치로 이 브라우저에서만 열린 시험 화면이에요. 보내는 질문은 시험 데이터로 표시돼요.</p>}
-      <p className="help">연결된 수의사에게 상담 중 고른 질문만 보낼 수 있어요. 연결만으로는 상담 내용이 공유되지 않아요. 주치동물병원 등록과는 별개예요.</p>
+      <p className="help">수의사를 선택해 연결을 요청하세요. 수의사가 수락하면 수락일부터 {linkDays}일 동안 <b>주치수의사</b>가 돼요. 상담 중 고른 질문만 보낼 수 있고, 연결만으로는 상담 내용이 공유되지 않아요. 위의 주치동물병원 등록과는 별개예요.</p>
       {!hasProfile && <p className="help"><IconInfo small /> 반려견 정보를 먼저 저장하면 연결할 수 있어요.</p>}
-      {open.length > 0 && (
-        <ul className="vet-list">
-          {open.map((l) => (
+      {mine.length > 0 && (
+        <ul className="vet-list" aria-label="주치수의사">
+          {mine.map((l) => (
             <li key={l.id} className="vet-row">
-              <div><strong>{vetName(l.vet)}</strong><span className={"vet-badge is-" + l.status}>{LINK_LABEL[l.status]}</span></div>
-              <button type="button" className="btn btn-ghost" disabled={busy} onClick={() => act(() => api.closeVetLink(l.id))}>
-                {l.status === "requested" ? "요청 취소" : "연결 해제"}
-              </button>
+              <div><strong>{vetName(l.vet)}</strong><span className="vet-badge is-accepted">주치수의사</span>
+                {l.expires_at && <span className="help">{day(l.expires_at)}까지</span>}</div>
+              <button type="button" className="btn btn-ghost" disabled={busy} onClick={() => act(() => api.closeVetLink(l.id))}>연결 해제</button>
+            </li>
+          ))}
+        </ul>
+      )}
+      {waiting.length > 0 && (
+        <ul className="vet-list" aria-label="연결 요청한 수의사">
+          {waiting.map((l) => (
+            <li key={l.id} className="vet-row">
+              <div><strong>{vetName(l.vet)}</strong><span className="vet-badge is-requested">연결 요청함</span>
+                <span className="help">연결 수락을 기다리고 있어요. 수락 전에 보낸 질문은 수락되면 전달돼요.</span></div>
+              <button type="button" className="btn btn-ghost" disabled={busy} onClick={() => act(() => api.closeVetLink(l.id))}>요청 취소</button>
             </li>
           ))}
         </ul>
       )}
       {hasProfile && vets && vets.filter((v) => !openIds.has(v.id)).length > 0 && (
-        <ul className="vet-list" aria-label="연결할 수 있는 수의사">
+        <ul className="vet-list" aria-label="수의사 선택">
           {vets.filter((v) => !openIds.has(v.id)).map((v) => (
             <li key={v.id} className="vet-row">
               <div>
                 <strong>{vetName(v)}</strong>{v.is_test && <span className="vet-badge">시험 계정</span>}
+                {closed.has(v.id) && <span className="help">{REASON[closed.get(v.id)!.status]}</span>}
                 {v.intro && <span className="help">{v.intro}</span>}
               </div>
-              <button type="button" className="btn" disabled={busy} onClick={() => act(() => api.requestVetLink(v.id))}>연결 요청</button>
+              <button type="button" className="btn" disabled={busy} onClick={() => act(() => api.requestVetLink(v.id))}>{closed.has(v.id) ? "다시 연결 요청" : "연결 요청"}</button>
             </li>
           ))}
         </ul>
@@ -148,14 +173,15 @@ export function VetAsk({ answer, question }: { answer: Message; question: string
   const [open, setOpen] = useState(false);
   if (!enabled) return null;
   const sent = questions.filter((q) => q.answer_message_id === answer.id);
-  const accepted = links.filter((l) => l.status === "accepted");
+  const accepted = links.filter((l) => l.status === "accepted" || l.status === "requested");
+  const hasPrimary = links.some((l) => l.status === "accepted");
   const sentTo = new Set(sent.filter((q) => q.status !== "cancelled").map((q) => q.link_id));
   const canSend = accepted.some((l) => !sentTo.has(l.id));
   if (!sent.length && !canSend) return null;
   return (
     <div className="vet-ask">
       {sent.map((q) => <VetQuestionCard key={q.id} q={q} />)}
-      {canSend && <button type="button" className="btn" onClick={() => setOpen(true)}>수의사에게 질문 보내기</button>}
+      {canSend && <button type="button" className="btn" onClick={() => setOpen(true)}>{hasPrimary ? "주치수의사에게 질문 보내기" : "수의사에게 질문 보내기"}</button>}
       {open && <ShareSheet answer={answer} question={question} links={accepted.filter((l) => !sentTo.has(l.id))} onClose={() => setOpen(false)} />}
     </div>
   );
@@ -208,10 +234,13 @@ function ShareSheet({ answer, question, links, onClose }: { answer: Message; que
         <div className="field">
           <label htmlFor="vet-to">받는 수의사</label>
           <select id="vet-to" className="input" value={linkId} onChange={(e) => setLinkId(e.target.value)}>
-            {links.map((l) => <option key={l.id} value={l.id}>{vetName(l.vet)}</option>)}
+            {links.map((l) => <option key={l.id} value={l.id}>{l.status === "accepted" ? "주치수의사 " : "연결 요청한 수의사 "}{vetName(l.vet)}</option>)}
           </select>
         </div>
-      ) : <p className="help">받는 수의사: <strong>{vetName(links[0]?.vet ?? null)}</strong></p>}
+      ) : <p className="help">받는 수의사: <strong>{links[0]?.status === "accepted" ? "주치수의사 " : "연결 요청한 수의사 "}{vetName(links[0]?.vet ?? null)}</strong></p>}
+      {links.find((l) => l.id === linkId)?.status === "requested" && (
+        <p className="help"><IconInfo small /> 아직 연결을 수락하지 않은 수의사예요. 수락하면 이 질문이 전달되고, 거절하면 전달되지 않아요.</p>
+      )}
       <div className="share-preview">
         <p className="label">보낼 질문</p>
         <p className="quote">{question}</p>
@@ -254,17 +283,27 @@ function VetQuestionCard({ q, standalone }: { q: VetQuestion; standalone?: boole
       setBusy(false);
     }
   };
-  const status = q.status === "answered" ? "답변 완료" : q.status === "sent" ? "수의사 확인 대기" : q.cancelled_reason === "link_ended" ? "연결 해제로 취소됨" : "취소됨";
+  const stage = q.stage ?? (q.status === "sent" ? "delivered" : q.status);
+  const who = q.link_status === "accepted" ? "주치수의사" : q.link_status === "requested" ? "연결 요청한 수의사" : "수의사";
+  const STAGE: Record<string, string> = {
+    held: "연결 수락을 기다리고 있어요",
+    delivered: `${who}에게 질문이 전달됐어요`,
+    seen: `${who}가 질문을 확인했어요`,
+    drafting: `${who}가 답변을 준비 중이에요`,
+    answered: "답변 완료",
+  };
+  const status = STAGE[stage] ?? (q.cancelled_reason === "link_declined" ? "연결이 거절돼 전달되지 않았어요"
+    : q.cancelled_reason === "link_ended" ? "연결 해제로 취소됨" : "보내기 취소됨");
   return (
     <section className={"vet-card is-" + q.status} aria-label="수의사 질문">
       <div className="answer-head">
-        <span className="vet-tag">수의사 질문 · {vetName(q.vet)}</span>
+        <span className="vet-tag">{who} 질문 · {vetName(q.vet)}</span>
         <span>{q.is_test && <span className="vet-badge">시험</span>}<span className={"vet-badge is-" + q.status}>{status}</span></span>
       </div>
       {standalone && <p className="quote">{q.snapshot.question}</p>}
       {q.reply && (
         <div className="vet-reply">
-          <p className="vet-reply-head"><IconCheck small /> 수의사 답변 · {at(q.reply.corrected_at ?? q.reply.sent_at)}{q.reply.corrected && " · 정정됨"}</p>
+          <p className="vet-reply-head"><IconCheck small /> {who === "연결 요청한 수의사" ? "수의사" : who} 답변 · {at(q.reply.corrected_at ?? q.reply.sent_at)}{q.reply.corrected && " · 정정됨"}</p>
           <p className="vet-reply-body">{q.reply.body}</p>
           {q.reply.corrected && (
             <button type="button" className="link" onClick={() => setShowHistory(!showHistory)}>{showHistory ? "이력 닫기" : "정정 이력 보기"}</button>
