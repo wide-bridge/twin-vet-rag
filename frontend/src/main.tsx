@@ -1,4 +1,4 @@
-import { lazy, StrictMode, Suspense, useEffect, useState } from "react";
+import { Component, lazy, StrictMode, Suspense, useEffect, useState, type ReactNode } from "react";
 import { createRoot } from "react-dom/client";
 import { App } from "./App";
 import { Showcase } from "./components/Showcase";
@@ -65,10 +65,31 @@ function GuardianRoot() {
   return wide && !framed ? <Showcase /> : <App />;
 }
 
+// A render error shows a recovery notice instead of a blank page (and the reason, for support)
+class ErrorBoundary extends Component<{ children: ReactNode }, { error: string | null }> {
+  state = { error: null as string | null };
+  static getDerivedStateFromError(e: unknown) {
+    return { error: e instanceof Error ? e.message : String(e) };
+  }
+  render() {
+    if (!this.state.error) return this.props.children;
+    return (
+      <div style={{ padding: 24, maxWidth: 520, margin: "40px auto", fontFamily: "inherit" }} role="alert">
+        <h1 style={{ fontSize: 20 }}>화면을 불러오지 못했어요</h1>
+        <p>새로고침해도 계속되면 아래 내용을 캡처해 알려 주세요.</p>
+        <button type="button" className="btn btn-primary" onClick={() => window.location.reload()}>새로고침</button>
+        <pre style={{ whiteSpace: "pre-wrap", fontSize: 12, color: "#526078", marginTop: 16 }}>{this.state.error}</pre>
+      </div>
+    );
+  }
+}
+
 const root = document.getElementById("root");
 if (!root) throw new Error("root element missing");
 createRoot(root).render(
   <StrictMode>
-    <Root />
+    <ErrorBoundary>
+      <Root />
+    </ErrorBoundary>
   </StrictMode>,
 );
