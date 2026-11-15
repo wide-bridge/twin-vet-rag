@@ -92,8 +92,8 @@ export function ReviewApp() {
         <div className="rv-header-inner">
           <a className="rv-brand" href="#/">TwinVet HITL Review</a>
           <nav className="rv-nav" aria-label="작업 메뉴">
-            <a href="#/" aria-current={route.name === "list" || route.name === "item" ? "page" : undefined}>검토 목록</a>
             {me.role === "operator" && <a href="#/imports" aria-current={route.name === "imports" ? "page" : undefined}>이관 대기{queueCount ? <> <span className="rv-count">{queueCount}</span></> : null}</a>}
+            <a href="#/" aria-current={route.name === "list" || route.name === "item" ? "page" : undefined}>검토 목록</a>
             <a href="#/candidates" aria-current={route.name === "candidates" ? "page" : undefined}>지식 후보</a>
             {me.role === "operator" && <a href="#/m03" aria-current={route.name === "m03" ? "page" : undefined}>HITL 통계</a>}
             {me.role === "operator" && <a href="#/usage" aria-current={route.name === "usage" ? "page" : undefined}>서비스 이용통계</a>}
