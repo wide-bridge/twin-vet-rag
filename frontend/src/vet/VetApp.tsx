@@ -264,7 +264,7 @@ function QuestionScreen({ id, onBack, onAuth }: { id: string; onBack: () => void
               {msg && <p className="ok-text" role="status">{msg}</p>}
               {err && <p className="error-text" role="alert">{err}</p>}
             </section>
-            {q.status !== "cancelled" && <AiReviewCard key={q.ai_review?.id ?? "new"} q={q} onSaved={setQ} onAuth={onAuth} />}
+            {q.status !== "cancelled" && <AiReviewCard q={q} onSaved={setQ} onAuth={onAuth} />}
           </div>
         </div>
       )}
@@ -273,6 +273,8 @@ function QuestionScreen({ id, onBack, onAuth }: { id: string; onBack: () => void
 }
 
 // ---------------------------------------------------------------- AI 답변 검토 ('HITL 우리'): TwinVet only, never the guardian
+// One continuous form: checking, fixing and sending are one action. After sending, the form stays open with what the
+// vet wrote (never collapsed into a summary), so they can keep reading their own words and send again if they change it.
 function AiReviewCard({ q, onSaved, onAuth }: { q: QDetail; onSaved: (d: QDetail) => void; onAuth: (e: unknown) => void }) {
   const ai = q.snapshot?.ai_answer ?? "";
   const consent = !!q.quality_use_consent;
@@ -281,23 +283,21 @@ function AiReviewCard({ q, onSaved, onAuth }: { q: QDetail; onSaved: (d: QDetail
   const [safety, setSafety] = useState(last?.safety_issue ?? false);
   const [fixed, setFixed] = useState(last?.corrected_answer ?? ai);
   const [comment, setComment] = useState(last?.comment ?? "");
-  const [editing, setEditing] = useState(!last);
   const [busy, setBusy] = useState(false);
-  const [msg, setMsg] = useState("");
   const [err, setErr] = useState("");
   const changed = fixed.trim() !== "" && fixed.trim() !== ai.trim();
   const needsText = consent && verdict !== null && verdict !== "correct" && !changed && !comment.trim();
+  const dirty = !last || verdict !== last.verdict || safety !== last.safety_issue
+    || (changed ? fixed.trim() : null) !== (last.corrected_answer ?? null) || (comment.trim() || null) !== (last.comment ?? null);
   const save = async () => {
     if (!verdict) return;
     setBusy(true);
     setErr("");
-    setMsg("");
     try {
-      const d = await request<QDetail>("PUT", `${V}/questions/${q.id}/ai-review`, {
+      onSaved(await request<QDetail>("PUT", `${V}/questions/${q.id}/ai-review`, {
         verdict, safety_issue: safety,
-        corrected_answer: consent && changed ? fixed : null, comment: consent ? comment.trim() || null : null,
-      });
-      onSaved(d);
+        corrected_answer: consent && changed ? fixed.trim() : null, comment: consent ? comment.trim() || null : null,
+      }));
     } catch (e) {
       onAuth(e);
       setErr((e as Error).message);
@@ -309,46 +309,32 @@ function AiReviewCard({ q, onSaved, onAuth }: { q: QDetail; onSaved: (d: QDetail
     <section className="card rv-card" aria-labelledby="ai-review-title">
       <h2 className="rv-h2" id="ai-review-title">AI 답변 검토 및 수정 <small>TwinVet에만 전달 · 보호자에게 보내지 않음</small></h2>
       <p className="help">보호자가 받은 AI 답변을 검토·수정해 TwinVet에 보내 주시면 AI 답변 품질을 개선하는 데 씁니다. 보호자에게는 보내지 않으며, 회신과는 별개입니다.</p>
-      {last && !editing ? (
+      <div className="rv-filters" role="group" aria-label="결론">
+        {VERDICT.map(([k, label]) => (
+          <button key={k} type="button" className="chip" aria-pressed={verdict === k} onClick={() => setVerdict(k)}>{label}</button>
+        ))}
+      </div>
+      <label className="rv-check"><input type="checkbox" checked={safety} onChange={(e) => setSafety(e.target.checked)} /> 안전 문제가 있어요 (따르면 위험한 내용, 빠진 응급 경고 등)</label>
+      {consent ? (
         <>
-          <p><span className="rv-badge rv-badge-ai">{VERDICT.find(([k]) => k === last.verdict)?.[1]}</span>
-            {last.safety_issue && <> <span className="rv-badge rv-badge-warn">안전 문제</span></>}
-            <small className="help"> · {at(last.created_at)} 검토 보냄</small></p>
-          {last.corrected_answer && (<><h3 className="rv-h2">고친 답변</h3><p className="rv-quote">{last.corrected_answer}</p></>)}
-          {last.comment && (<><h3 className="rv-h2">의견</h3><p className="rv-quote">{last.comment}</p></>)}
-          <button className="btn" onClick={() => setEditing(true)}>검토 다시 보내기</button>
+          <div className="field" style={{ marginTop: 8 }}>
+            <label htmlFor="ai-fixed">AI 답변 고치기 <small className="help">AI 답변이 채워져 있어요. 고칠 부분만 수정하세요.</small></label>
+            <textarea id="ai-fixed" className="textarea rv-textarea" rows={8} maxLength={4000} value={fixed} onChange={(e) => setFixed(e.target.value)} />
+          </div>
+          <div className="field">
+            <label htmlFor="ai-comment">의견 (선택)</label>
+            <textarea id="ai-comment" className="textarea rv-textarea" rows={3} maxLength={4000} value={comment} onChange={(e) => setComment(e.target.value)}
+              placeholder="예) 응급 경고가 빠졌어요. 노령견은 각막 질환을 먼저 확인해야 해요." />
+          </div>
+          {needsText && <p className="help">보완 필요·다르게 봐야 해요는 AI 답변을 고치거나 의견을 적어 주세요.</p>}
         </>
       ) : (
-        <>
-          <div className="rv-filters" role="group" aria-label="결론">
-            {VERDICT.map(([k, label]) => (
-              <button key={k} type="button" className="chip" aria-pressed={verdict === k} onClick={() => setVerdict(k)}>{label}</button>
-            ))}
-          </div>
-          <label className="rv-check"><input type="checkbox" checked={safety} onChange={(e) => setSafety(e.target.checked)} /> 안전 문제가 있어요 (따르면 위험한 내용, 빠진 응급 경고 등)</label>
-          {consent ? (
-            <>
-              <div className="field" style={{ marginTop: 8 }}>
-                <label htmlFor="ai-fixed">AI 답변 고치기 <small className="help">AI 답변이 채워져 있어요. 고칠 부분만 수정하세요.</small></label>
-                <textarea id="ai-fixed" className="textarea rv-textarea" rows={8} maxLength={4000} value={fixed} onChange={(e) => setFixed(e.target.value)} />
-              </div>
-              <div className="field">
-                <label htmlFor="ai-comment">의견 (선택)</label>
-                <textarea id="ai-comment" className="textarea rv-textarea" rows={3} maxLength={4000} value={comment} onChange={(e) => setComment(e.target.value)}
-                  placeholder="예) 응급 경고가 빠졌어요. 노령견은 각막 질환을 먼저 확인해야 해요." />
-              </div>
-              {needsText && <p className="help">보완 필요·다르게 봐야 해요는 AI 답변을 고치거나 의견을 적어 주세요.</p>}
-            </>
-          ) : (
-            <p className="help">보호자가 품질 개선 활용에 동의하지 않은 질문이에요. 결론과 안전 체크만 보낼 수 있고, 내용은 저장되지 않습니다.</p>
-          )}
-          <div className="row-actions" style={{ marginTop: 8 }}>
-            {last && <button className="btn" onClick={() => setEditing(false)}>취소</button>}
-            <button className="btn btn-primary" disabled={busy || !verdict || needsText} onClick={save}>검토 보내기</button>
-          </div>
-        </>
+        <p className="help">보호자가 품질 개선 활용에 동의하지 않은 질문이에요. 결론과 안전 체크만 보낼 수 있고, 내용은 저장되지 않습니다.</p>
       )}
-      {msg && <p className="ok-text" role="status">{msg}</p>}
+      <div className="row-actions" style={{ marginTop: 8, alignItems: "center" }}>
+        <button className="btn btn-primary" disabled={busy || !verdict || needsText || !dirty} onClick={save}>검토 보내기</button>
+        {last && <span className="help" role="status">{dirty ? `${at(last.created_at)}에 보낸 뒤 고친 내용이 있어요. 아직 보내지 않았어요.` : `${at(last.created_at)} 검토 보냄`}</span>}
+      </div>
       {err && <p className="error-text" role="alert">{err}</p>}
     </section>
   );

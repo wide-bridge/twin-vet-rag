@@ -64,8 +64,15 @@ with sync_playwright() as pw:
     v.get_by_label("의견 (선택)").fill("노령견이라 각막 질환을 먼저 확인해야 하고, 냄새가 나면 바로 내원 안내가 필요해요.")
     v.get_by_role("button", name="검토 보내기").click()
     expect(v.get_by_text("검토 보냄")).to_be_visible()
+    # the form stays open with what was written; editing shows "not sent yet" and enables sending again
+    expect(v.get_by_label("의견 (선택)")).to_have_value("노령견이라 각막 질환을 먼저 확인해야 하고, 냄새가 나면 바로 내원 안내가 필요해요.")
+    expect(v.get_by_role("button", name="검토 보내기")).to_be_disabled()
     assert v.get_by_text("회신에도 알려").count() == 0  # nothing from the review is pushed toward the guardian
     v.screenshot(path=str(SP / "m03_review_2_vet_after.png"), full_page=True)
+    v.get_by_label("의견 (선택)").fill("노령견이라 각막 질환을 먼저 확인해야 해요. 냄새가 나면 바로 내원 안내가 필요해요.")
+    expect(v.get_by_text("아직 보내지 않았어요")).to_be_visible()
+    v.get_by_role("button", name="검토 보내기").click()
+    expect(v.get_by_text("검토 보냄")).to_be_visible()
 
     a.reload()
     body = a.locator("body").inner_text()
