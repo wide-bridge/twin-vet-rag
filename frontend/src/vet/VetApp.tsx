@@ -17,6 +17,12 @@ type QDetail = QItem & {
   reply?: Reply | null;
   quality_use_consent?: boolean;
   ai_review?: AiReview | null;
+  memo?: { body: string; updated_at: string } | null;
+};
+type Booking = { phone: string | null; hours: string | null; note: string | null };
+const bookingText = (b: Booking | null) => {
+  if (!b || !(b.phone || b.hours || b.note)) return "";
+  return ["[예약 안내]", b.phone && `전화: ${b.phone}`, b.hours && `진료 시간: ${b.hours}`, b.note].filter(Boolean).join("\n");
 };
 
 const V = "/vet";
@@ -130,6 +136,7 @@ function Home({ onOpen, onAuth }: { onOpen: (id: string) => void; onAuth: (e: un
     }
   };
   const pending = (links ?? []).filter((l) => l.status === "requested");
+  const booking = <BookingCard onAuth={onAuth} />;
   const connected = (links ?? []).filter((l) => l.status === "accepted" || l.status === "expired");
   return (
     <>
@@ -175,7 +182,52 @@ function Home({ onOpen, onAuth }: { onOpen: (id: string) => void; onAuth: (e: un
         ))}
       </ul>
       {err && <p className="error-text" role="alert">{err}</p>}
+      <h2 className="rv-h2" style={{ marginTop: 28 }}>예약 안내 <small>회신에 [예약 안내 넣기]로 넣을 수 있어요</small></h2>
+      {booking}
     </>
+  );
+}
+
+// ---------------------------------------------------------------- 예약 안내: the clinic writes its own phone / hours / note
+function BookingCard({ onAuth }: { onAuth: (e: unknown) => void }) {
+  const [b, setB] = useState<Booking | null>(null);
+  const [f, setF] = useState({ phone: "", hours: "", note: "" });
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState("");
+  const [err, setErr] = useState("");
+  useEffect(() => {
+    request<Booking>("GET", `${V}/booking`).then((x) => { setB(x); setF({ phone: x.phone ?? "", hours: x.hours ?? "", note: x.note ?? "" }); }).catch(onAuth);
+  }, [onAuth]);
+  const dirty = !!b && (f.phone.trim() !== (b.phone ?? "") || f.hours.trim() !== (b.hours ?? "") || f.note.trim() !== (b.note ?? ""));
+  const save = async () => {
+    setBusy(true);
+    setErr("");
+    setMsg("");
+    try {
+      setB(await request<Booking>("PUT", `${V}/booking`, { phone: f.phone, hours: f.hours, note: f.note }));
+      setMsg("저장했습니다.");
+    } catch (e) {
+      onAuth(e);
+      setErr((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <section className="card rv-card">
+      <div className="field"><label htmlFor="bk-phone">전화번호</label>
+        <input id="bk-phone" className="input" disabled={!b} maxLength={40} value={f.phone} onChange={(e) => { const x = e.target.value; setF((o) => ({ ...o, phone: x })); }} placeholder="예) 02-123-4567" /></div>
+      <div className="field"><label htmlFor="bk-hours">진료 시간</label>
+        <input id="bk-hours" className="input" disabled={!b} maxLength={300} value={f.hours} onChange={(e) => { const x = e.target.value; setF((o) => ({ ...o, hours: x })); }} placeholder="예) 평일 9-19시, 토 9-13시, 일·공휴일 휴진" /></div>
+      <div className="field"><label htmlFor="bk-note">기타 안내 (선택)</label>
+        <textarea id="bk-note" className="textarea" disabled={!b} rows={2} maxLength={500} value={f.note} onChange={(e) => { const x = e.target.value; setF((o) => ({ ...o, note: x })); }} placeholder="예) 예약은 전화로 부탁드려요. 응급은 24시 ○○동물병원으로." /></div>
+      <div className="row-actions" style={{ alignItems: "center" }}>
+        <button className="btn btn-primary" disabled={busy || !dirty} onClick={save}>저장</button>
+        {dirty && <span className="help">저장하지 않은 내용이 있어요.</span>}
+      </div>
+      {msg && !dirty && <p className="ok-text" role="status">{msg}</p>}
+      {err && <p className="error-text" role="alert">{err}</p>}
+    </section>
   );
 }
 
@@ -187,6 +239,18 @@ function QuestionScreen({ id, onBack, onAuth }: { id: string; onBack: () => void
   const [err, setErr] = useState("");
   const [busy, setBusy] = useState(false);
   const [correcting, setCorrecting] = useState(false);
+  const [booking, setBooking] = useState<Booking | null>(null);
+  useEffect(() => {
+    request<Booking>("GET", `${V}/booking`).then(setBooking).catch(() => setBooking(null));
+  }, []);
+  const insertBooking = () => {
+    const b = bookingText(booking);
+    if (b) setText((t) => (t.trim() ? `${t.trimEnd()}\n\n${b}` : b));
+  };
+  const bookingBtn = (
+    <button type="button" className="btn btn-ghost" onClick={insertBooking} disabled={!bookingText(booking)}
+      title={bookingText(booking) ? "" : "목록 화면 아래 '예약 안내'를 먼저 저장하세요"}>예약 안내 넣기</button>
+  );
   useEffect(() => {
     request<QDetail>("GET", `${V}/questions/${id}`).then((d) => { setQ(d); setText(d.reply_draft ?? ""); }).catch((e) => { onAuth(e); setErr((e as Error).message); });
   }, [id, onAuth]);
@@ -240,7 +304,9 @@ function QuestionScreen({ id, onBack, onAuth }: { id: string; onBack: () => void
                   <div className="row-actions" style={{ marginTop: 8 }}>
                     <button className="btn" disabled={busy} onClick={() => call("PUT", `${V}/questions/${id}/draft`, { text }, "초안을 저장했습니다.")}>초안 저장</button>
                     <button className="btn btn-primary" disabled={busy || !text.trim()} onClick={() => call("POST", `${V}/questions/${id}/reply`, { text }, "회신을 보냈습니다.")}>회신 보내기</button>
+                    {bookingBtn}
                   </div>
+                  {!bookingText(booking) && <p className="help">예약 안내(전화번호·진료 시간)를 목록 화면 아래에 저장해 두면 [예약 안내 넣기]로 회신에 넣을 수 있어요.</p>}
                   <p className="help">보낸 뒤에는 정정만 할 수 있고, 처음 답변과 정정 이력이 보호자에게 함께 남습니다.</p>
                 </>
               )}
@@ -256,6 +322,7 @@ function QuestionScreen({ id, onBack, onAuth }: { id: string; onBack: () => void
                       <div className="row-actions" style={{ marginTop: 8 }}>
                         <button className="btn" onClick={() => setCorrecting(false)}>취소</button>
                         <button className="btn btn-primary" disabled={busy || !text.trim()} onClick={() => call("POST", `${V}/questions/${id}/correction`, { text }, "정정을 보냈습니다.")}>정정 보내기</button>
+                        {bookingBtn}
                       </div>
                     </>
                   )}
@@ -265,6 +332,7 @@ function QuestionScreen({ id, onBack, onAuth }: { id: string; onBack: () => void
               {err && <p className="error-text" role="alert">{err}</p>}
             </section>
             {q.status !== "cancelled" && <AiReviewCard q={q} onSaved={setQ} onAuth={onAuth} />}
+            {q.status !== "cancelled" && <MemoCard q={q} onSaved={setQ} onAuth={onAuth} />}
           </div>
         </div>
       )}
@@ -309,6 +377,7 @@ function AiReviewCard({ q, onSaved, onAuth }: { q: QDetail; onSaved: (d: QDetail
     <section className="card rv-card" aria-labelledby="ai-review-title">
       <h2 className="rv-h2" id="ai-review-title">AI 답변 검토 및 수정 <small>TwinVet에만 전달 · 보호자에게 보내지 않음</small></h2>
       <p className="help">보호자가 받은 AI 답변을 검토·수정해 TwinVet에 보내 주시면 AI 답변 품질을 개선하는 데 씁니다. 보호자에게는 보내지 않으며, 회신과는 별개입니다.</p>
+      <p className="rv-caution" role="note"><strong>검토에는 이 아이의 개인 정보를 넣지 마세요.</strong> 평소 상태·병력·이름처럼 이 아이에게만 해당하는 내용은 아래 <strong>메모</strong>에 남겨 주세요. 검토는 다른 보호자의 AI 답변에도 쓰일 수 있습니다.</p>
       <div className="rv-filters" role="group" aria-label="결론">
         {VERDICT.map(([k, label]) => (
           <button key={k} type="button" className="chip" aria-pressed={verdict === k} onClick={() => setVerdict(k)}>{label}</button>
@@ -322,9 +391,9 @@ function AiReviewCard({ q, onSaved, onAuth }: { q: QDetail; onSaved: (d: QDetail
             <textarea id="ai-fixed" className="textarea rv-textarea" rows={8} maxLength={4000} value={fixed} onChange={(e) => setFixed(e.target.value)} />
           </div>
           <div className="field">
-            <label htmlFor="ai-comment">의견 (선택)</label>
+            <label htmlFor="ai-comment">검토 의견 (선택)</label>
             <textarea id="ai-comment" className="textarea rv-textarea" rows={3} maxLength={4000} value={comment} onChange={(e) => setComment(e.target.value)}
-              placeholder="예) 응급 경고가 빠졌어요. 노령견은 각막 질환을 먼저 확인해야 해요." />
+              placeholder="예) 응급 경고가 빠졌어요. 노령견은 각막 질환을 먼저 확인해야 해요. (일반적인 내용만)" />
           </div>
           {needsText && <p className="help">보완 필요·다르게 봐야 해요는 AI 답변을 고치거나 의견을 적어 주세요.</p>}
         </>
@@ -333,7 +402,42 @@ function AiReviewCard({ q, onSaved, onAuth }: { q: QDetail; onSaved: (d: QDetail
       )}
       <div className="row-actions" style={{ marginTop: 8, alignItems: "center" }}>
         <button className="btn btn-primary" disabled={busy || !verdict || needsText || !dirty} onClick={save}>검토 보내기</button>
+        {!verdict && <span className="help">결론(맞아요 / 보완 필요 / 다르게 봐야 해요)을 먼저 골라 주세요.</span>}
         {last && <span className="help" role="status">{dirty ? `${at(last.created_at)}에 보낸 뒤 고친 내용이 있어요. 아직 보내지 않았어요.` : `${at(last.created_at)} 검토 보냄`}</span>}
+      </div>
+      {err && <p className="error-text" role="alert">{err}</p>}
+    </section>
+  );
+}
+
+// ---------------------------------------------------------------- 메모: the vet's own notes about this dog (personal info)
+function MemoCard({ q, onSaved, onAuth }: { q: QDetail; onSaved: (d: QDetail) => void; onAuth: (e: unknown) => void }) {
+  const last = q.memo?.body ?? "";
+  const [text, setText] = useState(last);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+  const dirty = text.trim() !== last;
+  const save = async () => {
+    setBusy(true);
+    setErr("");
+    try {
+      onSaved(await request<QDetail>("PUT", `${V}/questions/${q.id}/memo`, { text }));
+    } catch (e) {
+      onAuth(e);
+      setErr((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <section className="card rv-card" aria-labelledby="memo-title">
+      <h2 className="rv-h2" id="memo-title">메모 <small>이 아이에 대한 수의사님의 메모 · TwinVet·보호자에게 보내지 않음</small></h2>
+      <p className="help">평소 상태, 병력, 성격처럼 이 아이에게만 해당하는 내용을 적어 두세요. 이 보호자의 다음 질문에서도 보입니다.</p>
+      <textarea className="textarea rv-textarea" rows={4} maxLength={2000} value={text} onChange={(e) => setText(e.target.value)}
+        aria-label="메모" placeholder="예) 평소 건강하고 활동량이 많음. 작년 슬개골 수술." />
+      <div className="row-actions" style={{ marginTop: 8, alignItems: "center" }}>
+        <button className="btn" disabled={busy || !dirty} onClick={save}>메모 저장</button>
+        {q.memo && <span className="help" role="status">{dirty ? "저장하지 않은 내용이 있어요." : `${at(q.memo.updated_at)} 저장됨`}</span>}
       </div>
       {err && <p className="error-text" role="alert">{err}</p>}
     </section>

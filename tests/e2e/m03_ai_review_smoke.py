@@ -61,21 +61,37 @@ with sync_playwright() as pw:
 
     v.get_by_role("button", name="보완 필요").click()
     v.get_by_label("안전 문제가 있어요", exact=False).check()
-    v.get_by_label("의견 (선택)").fill("노령견이라 각막 질환을 먼저 확인해야 하고, 냄새가 나면 바로 내원 안내가 필요해요.")
+    v.get_by_label("검토 의견 (선택)").fill("노령견이라 각막 질환을 먼저 확인해야 하고, 냄새가 나면 바로 내원 안내가 필요해요.")
     v.get_by_role("button", name="검토 보내기").click()
     expect(v.get_by_text("검토 보냄")).to_be_visible()
     # the form stays open with what was written; editing shows "not sent yet" and enables sending again
-    expect(v.get_by_label("의견 (선택)")).to_have_value("노령견이라 각막 질환을 먼저 확인해야 하고, 냄새가 나면 바로 내원 안내가 필요해요.")
+    expect(v.get_by_label("검토 의견 (선택)")).to_have_value("노령견이라 각막 질환을 먼저 확인해야 하고, 냄새가 나면 바로 내원 안내가 필요해요.")
     expect(v.get_by_role("button", name="검토 보내기")).to_be_disabled()
     assert v.get_by_text("회신에도 알려").count() == 0  # nothing from the review is pushed toward the guardian
     v.screenshot(path=str(SP / "m03_review_2_vet_after.png"), full_page=True)
-    v.get_by_label("의견 (선택)").fill("노령견이라 각막 질환을 먼저 확인해야 해요. 냄새가 나면 바로 내원 안내가 필요해요.")
+    v.get_by_label("검토 의견 (선택)").fill("노령견이라 각막 질환을 먼저 확인해야 해요. 냄새가 나면 바로 내원 안내가 필요해요.")
     expect(v.get_by_text("아직 보내지 않았어요")).to_be_visible()
     v.get_by_role("button", name="검토 보내기").click()
     expect(v.get_by_text("검토 보냄")).to_be_visible()
 
+    # memo (personal, vet only) and booking info inserted into the reply
+    v.get_by_role("textbox", name="메모").fill("평소 건강하고 활동량이 많음")
+    v.get_by_role("button", name="메모 저장").click()
+    expect(v.get_by_text("저장됨")).to_be_visible()
+    v.get_by_role("link", name="← 목록").or_(v.get_by_role("button", name="← 목록")).first.click()
+    v.get_by_label("전화번호").fill("02-123-4567")
+    v.get_by_label("진료 시간").fill("평일 9-19시")
+    v.get_by_role("button", name="저장", exact=True).click()
+    expect(v.get_by_text("저장했습니다.")).to_be_visible()
+    v.locator(".rv-list button.rv-row").first.click()
+    v.get_by_role("button", name="예약 안내 넣기").first.click()
+    expect(v.get_by_label("회신")).to_have_value("[예약 안내]\n전화: 02-123-4567\n진료 시간: 평일 9-19시")
+    expect(v.get_by_role("textbox", name="메모")).to_have_value("평소 건강하고 활동량이 많음")
+    v.screenshot(path=str(SP / "m03_review_3_memo_booking.png"), full_page=True)
+
     a.reload()
     body = a.locator("body").inner_text()
+    assert "활동량" not in body, "guardian must not see the vet memo"
     assert "각막 질환" not in body and "보완 필요" not in body, "guardian must not see the AI review"
     print("ok: review sent, guardian sees nothing")
     b.close()

@@ -173,6 +173,16 @@ class ReplyIn(BaseModel):
     text: str | None = Field(default=None, max_length=m03.REPLY_MAX)
 
 
+class MemoIn(BaseModel):
+    text: str | None = Field(default=None, max_length=m03.MEMO_MAX)
+
+
+class BookingIn(BaseModel):
+    phone: str | None = Field(default=None, max_length=40)
+    hours: str | None = Field(default=None, max_length=300)
+    note: str | None = Field(default=None, max_length=500)
+
+
 class AiReviewIn(BaseModel):
     verdict: str = Field(max_length=12)
     safety_issue: bool = False
@@ -258,3 +268,19 @@ def ai_review(qid: uuid.UUID, body: AiReviewIn, v: VetDep, db: DBDep):
     """The vet's review of the AI answer ('HITL 우리'): to TwinVet only, never shown to the guardian."""
     return m03.save_ai_review(db, v, qid, verdict=body.verdict, safety_issue=body.safety_issue,
                               corrected_answer=body.corrected_answer, comment=body.comment)
+
+
+@vet.put("/questions/{qid}/memo", dependencies=Guard)
+def memo(qid: uuid.UUID, body: MemoIn, v: VetDep, db: DBDep):
+    """The vet's own memo about this dog (personal info). Never sent to the guardian, HITL or the AI."""
+    return m03.save_memo(db, v, qid, body.text)
+
+
+@vet.get("/booking")
+def booking(v: VetDep):
+    return m03.booking_view(v)
+
+
+@vet.put("/booking", dependencies=Guard)
+def save_booking(body: BookingIn, v: VetDep, db: DBDep):
+    return m03.save_booking(db, v, body.phone, body.hours, body.note)

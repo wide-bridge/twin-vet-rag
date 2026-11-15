@@ -21,7 +21,7 @@ from sqlalchemy.orm import Session as DB
 from ..api.errors import ApiError
 from ..config import Settings
 from ..db.models import AnswerRun, Consultation, DogProfile, Message, Session as SessionRow
-from ..db.models_m03 import AI_VERDICTS, VetAccount, VetAiReview, VetLink, VetQuestion, VetReplyRevision, VetSession
+from ..db.models_m03 import AI_VERDICTS, VetAccount, VetAiReview, VetDogMemo, VetLink, VetQuestion, VetReplyRevision, VetSession
 from . import m03_hitl
 from . import profile as profile_svc
 from .consult import citation_list, now, sha256
@@ -30,6 +30,8 @@ SHAREABLE_FIELDS = ("name", "breed", "age", "weight", "neutered", "health_notes"
 DEFAULT_FIELDS = ("breed", "age", "weight", "neutered")
 NOTE_MAX = 500
 REPLY_MAX = 4000
+MEMO_MAX = 2000
+BOOKING_MAX = {"phone": 40, "hours": 300, "note": 500}
 
 
 def mode(settings: Settings) -> str:
@@ -462,6 +464,8 @@ def vet_question_view(db: DB, q: VetQuestion, full: bool) -> dict:
         v["reply_draft"] = q.reply_draft
         v["reply"] = _reply_view(_revisions(db, q))
         v["quality_use_consent"] = q.quality_use_consent  # the vet's review text is kept only with consent
+        memo = db.execute(select(VetDogMemo).where(VetDogMemo.profile_id == q.profile_id, VetDogMemo.vet_id == q.vet_id)).scalar_one_or_none()
+        v["memo"] = {"body": memo.body, "updated_at": memo.updated_at.isoformat()} if memo else None
         v["ai_review"] = ai_review_view(rv) if rv else None
     return v
 
@@ -562,3 +566,40 @@ def save_ai_review(db: DB, vet: VetAccount, qid: uuid.UUID, *, verdict: str, saf
         m03_hitl.flag_correction(db, q)  # copies imported from an earlier review -> 'needs_recheck'
     db.commit()
     return vet_question_view(db, q, full=True)
+
+
+# ---------------------------------------------------------------- vet's own memo about a dog, and booking info
+def save_memo(db: DB, vet: VetAccount, qid: uuid.UUID, text: str | None) -> dict:
+    """Personal notes stay with the vet: never the guardian, HITL, the AI or operators. Empty text deletes it."""
+    q = _vet_question(db, vet, qid, lock=True)
+    if q.status == "cancelled":
+        raise ApiError(409, "question_closed")
+    body = (text or "").strip()
+    if len(body) > MEMO_MAX:
+        raise ApiError(422, "invalid_input", extra={"fields": ["memo"]})
+    memo = db.execute(select(VetDogMemo).where(VetDogMemo.profile_id == q.profile_id, VetDogMemo.vet_id == vet.id)
+                      .with_for_update()).scalar_one_or_none()
+    if not body:
+        if memo is not None:
+            db.delete(memo)
+    elif memo is None:
+        db.add(VetDogMemo(profile_id=q.profile_id, vet_id=vet.id, body=body, updated_at=now()))
+    else:
+        memo.body, memo.updated_at = body, now()
+    db.commit()
+    return vet_question_view(db, q, full=True)
+
+
+def booking_view(v: VetAccount) -> dict:
+    return {"phone": v.booking_phone, "hours": v.booking_hours, "note": v.booking_note}
+
+
+def save_booking(db: DB, vet: VetAccount, phone: str | None, hours: str | None, note: str | None) -> dict:
+    vals = {"phone": (phone or "").strip() or None, "hours": (hours or "").strip() or None, "note": (note or "").strip() or None}
+    bad = [k for k, val in vals.items() if val and len(val) > BOOKING_MAX[k]]
+    if bad:
+        raise ApiError(422, "invalid_input", extra={"fields": bad})
+    vet = db.get(VetAccount, vet.id, with_for_update=True)
+    vet.booking_phone, vet.booking_hours, vet.booking_note = vals["phone"], vals["hours"], vals["note"]
+    db.commit()
+    return booking_view(vet)

@@ -32,6 +32,10 @@ class VetAccount(Base):
     access_key_hash: Mapped[str] = mapped_column(String(64), nullable=False)
     created_at: Mapped[datetime] = _now()
     last_login_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # 예약 안내 (written by the clinic/vet; inserted into replies on demand)
+    booking_phone: Mapped[str | None] = mapped_column(String(40))
+    booking_hours: Mapped[str | None] = mapped_column(String(300))
+    booking_note: Mapped[str | None] = mapped_column(String(500))
     __table_args__ = (UniqueConstraint("access_key_hash", name="uq_vet_account_access_key"),)
 
 
@@ -122,3 +126,16 @@ class VetAiReview(Base):
     comment: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = _now()
     __table_args__ = (CheckConstraint(f"verdict IN {AI_VERDICTS}", name="ck_vet_ai_review_verdict"),)
+
+
+class VetDogMemo(Base):
+    """The vet's own memo about one dog (personal information, e.g. "평소 건강함"). Shown only to that vet: never to
+    the guardian, never copied into HITL, the AI or operator views. One per vet and dog profile, kept across links;
+    deleted with the dog profile."""
+    __tablename__ = "vet_dog_memo"
+    id: Mapped[uuid.UUID] = _pk()
+    profile_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("dog_profile.id", ondelete="CASCADE"), nullable=False, index=True)
+    vet_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("vet_account.id", ondelete="CASCADE"), nullable=False, index=True)
+    body: Mapped[str] = mapped_column(Text, nullable=False)
+    updated_at: Mapped[datetime] = _now()
+    __table_args__ = (UniqueConstraint("profile_id", "vet_id", name="uq_vet_dog_memo"),)
