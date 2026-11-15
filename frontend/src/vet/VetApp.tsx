@@ -8,16 +8,21 @@ import "../review/review.css";
 type Vet = { id: string; display_name: string; clinic_name: string | null; intro: string | null; is_test: boolean };
 type Link = { id: string; status: string; guardian_ref: string; requested_at: string; open_questions: number; expires_at?: string | null };
 type Reply = { body: string; sent_at: string; corrected: boolean; history: { kind: string; body: string; created_at: string }[] };
-type QItem = { id: string; status: "sent" | "answered" | "cancelled"; cancelled_reason: string | null; created_at: string; replied_at: string | null; guardian_ref: string; question_preview?: string; is_test?: boolean };
+type QItem = { id: string; status: "sent" | "answered" | "cancelled"; cancelled_reason: string | null; created_at: string; replied_at: string | null; guardian_ref: string; question_preview?: string; is_test?: boolean; ai_reviewed?: boolean };
+type Verdict = "correct" | "needs_fix" | "different";
+type AiReview = { id: string; verdict: Verdict; safety_issue: boolean; corrected_answer: string | null; comment: string | null; created_at: string };
 type QDetail = QItem & {
   snapshot?: { question: string; ai_answer: string; note_to_vet: string | null; sources: string[]; shared_at: string; dog: Record<string, string | number> };
   reply_draft?: string | null;
   reply?: Reply | null;
+  quality_use_consent?: boolean;
+  ai_review?: AiReview | null;
 };
 
 const V = "/vet";
 const at = (iso: string) => new Date(iso).toLocaleString("ko-KR", { month: "numeric", day: "numeric", hour: "numeric", minute: "2-digit" });
 const STATUS: Record<string, string> = { sent: "회신 대기", answered: "회신 완료", cancelled: "취소됨" };
+const VERDICT: [Verdict, string][] = [["correct", "맞아요"], ["needs_fix", "보완 필요"], ["different", "다르게 봐야 해요"]];
 const DOG_LABEL: Record<string, string> = { name: "이름", breed: "품종", age: "나이", weight: "체중", neutered: "중성화", health_notes: "건강 메모" };
 const NEUTERED: Record<string, string> = { yes: "했음", no: "안 했음", unknown: "모름" };
 const dogValue = (k: string, v: string | number) =>
@@ -164,7 +169,7 @@ function Home({ onOpen, onAuth }: { onOpen: (id: string) => void; onAuth: (e: un
               onClick={() => q.status !== "cancelled" && onOpen(q.id)} disabled={q.status === "cancelled"}>
               <span className={"rv-badge " + (q.status === "sent" ? "rv-badge-warn" : q.status === "answered" ? "rv-badge-ok" : "rv-badge-muted")}>{STATUS[q.status]}</span>
               <span className="rv-row-q">{q.status === "cancelled" ? (q.cancelled_reason === "link_ended" ? "연결 해제로 취소된 질문" : "보호자가 취소한 질문") : q.question_preview}</span>
-              <span className="rv-row-mine">{q.is_test && <span className="rv-badge rv-badge-mock">시험</span>} 보호자 {q.guardian_ref} · {at(q.created_at)}</span>
+              <span className="rv-row-mine">{q.ai_reviewed && <span className="rv-badge rv-badge-ai">AI 검토함</span>} {q.is_test && <span className="rv-badge rv-badge-mock">시험</span>} 보호자 {q.guardian_ref} · {at(q.created_at)}</span>
             </button>
           </li>
         ))}
@@ -182,6 +187,7 @@ function QuestionScreen({ id, onBack, onAuth }: { id: string; onBack: () => void
   const [err, setErr] = useState("");
   const [busy, setBusy] = useState(false);
   const [correcting, setCorrecting] = useState(false);
+  const [safetyDraft, setSafetyDraft] = useState(false);  // checked in the review card, not sent yet
   useEffect(() => {
     request<QDetail>("GET", `${V}/questions/${id}`).then((d) => { setQ(d); setText(d.reply_draft ?? ""); }).catch((e) => { onAuth(e); setErr((e as Error).message); });
   }, [id, onAuth]);
@@ -225,7 +231,12 @@ function QuestionScreen({ id, onBack, onAuth }: { id: string; onBack: () => void
             <section className="card rv-card">
               {q.status === "sent" && (
                 <>
-                  <h2 className="rv-h2">회신 작성</h2>
+                  <h2 className="rv-h2">회신 작성 <small>보호자에게 전달</small></h2>
+                  <p className="rv-caution" role="note">
+                    <strong>비대면 진료가 되지 않도록 주의해 주세요.</strong> 회신은 진찰을 대신하지 않는 일반적인 안내입니다.
+                    질병을 단정하거나 약 이름·용량을 적지 말고, 상태 확인이 필요하면 내원을 권해 주세요.
+                  </p>
+                  {(q.ai_review?.safety_issue || safetyDraft) && <p className="rv-caution rv-caution-strong" role="note">AI 답변에 안전 문제가 있다고 표시하셨어요. 보호자가 그 내용을 따르지 않도록 회신에도 알려 주세요.</p>}
                   <textarea className="textarea rv-textarea" rows={8} maxLength={4000} value={text} onChange={(e) => setText(e.target.value)}
                     aria-label="회신" placeholder="보호자에게 보낼 답변을 작성하세요. 진료·처방이 아닌 안내임을 고려해 주세요." />
                   <div className="row-actions" style={{ marginTop: 8 }}>
@@ -255,9 +266,93 @@ function QuestionScreen({ id, onBack, onAuth }: { id: string; onBack: () => void
               {msg && <p className="ok-text" role="status">{msg}</p>}
               {err && <p className="error-text" role="alert">{err}</p>}
             </section>
+            {q.status !== "cancelled" && <AiReviewCard key={q.ai_review?.id ?? "new"} q={q} onSaved={setQ} onAuth={onAuth} onSafety={setSafetyDraft} />}
           </div>
         </div>
       )}
     </>
+  );
+}
+
+// ---------------------------------------------------------------- AI 답변 검토 ('HITL 우리'): TwinVet only, never the guardian
+function AiReviewCard({ q, onSaved, onAuth, onSafety }: { q: QDetail; onSaved: (d: QDetail) => void; onAuth: (e: unknown) => void; onSafety: (v: boolean) => void }) {
+  const ai = q.snapshot?.ai_answer ?? "";
+  const consent = !!q.quality_use_consent;
+  const last = q.ai_review ?? null;
+  const [verdict, setVerdict] = useState<Verdict | null>(last?.verdict ?? null);
+  const [safety, setSafety] = useState(last?.safety_issue ?? false);
+  const [fixed, setFixed] = useState(last?.corrected_answer ?? ai);
+  const [comment, setComment] = useState(last?.comment ?? "");
+  const [editing, setEditing] = useState(!last);
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState("");
+  const [err, setErr] = useState("");
+  useEffect(() => () => onSafety(false), [onSafety]);  // leaving the form: the saved review decides
+  const changed = fixed.trim() !== "" && fixed.trim() !== ai.trim();
+  const needsText = consent && verdict !== null && verdict !== "correct" && !changed && !comment.trim();
+  const save = async () => {
+    if (!verdict) return;
+    setBusy(true);
+    setErr("");
+    setMsg("");
+    try {
+      const d = await request<QDetail>("PUT", `${V}/questions/${q.id}/ai-review`, {
+        verdict, safety_issue: safety,
+        corrected_answer: consent && changed ? fixed : null, comment: consent ? comment.trim() || null : null,
+      });
+      onSaved(d);
+    } catch (e) {
+      onAuth(e);
+      setErr((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <section className="card rv-card" aria-labelledby="ai-review-title">
+      <h2 className="rv-h2" id="ai-review-title">AI 답변 검토 <small>TwinVet에만 전달 · 보호자에게 보이지 않음</small></h2>
+      <p className="help">보호자가 받은 AI 답변이 맞는지 알려 주시면 AI 답변 품질을 개선하는 데 씁니다. 회신과는 별개이며, 회신하지 않아도 보낼 수 있습니다.</p>
+      {last && !editing ? (
+        <>
+          <p><span className="rv-badge rv-badge-ai">{VERDICT.find(([k]) => k === last.verdict)?.[1]}</span>
+            {last.safety_issue && <> <span className="rv-badge rv-badge-warn">안전 문제</span></>}
+            <small className="help"> · {at(last.created_at)} TwinVet에 보냄</small></p>
+          {last.corrected_answer && (<><h3 className="rv-h2">고친 답변</h3><p className="rv-quote">{last.corrected_answer}</p></>)}
+          {last.comment && (<><h3 className="rv-h2">의견</h3><p className="rv-quote">{last.comment}</p></>)}
+          <button className="btn" onClick={() => setEditing(true)}>검토 다시 보내기</button>
+        </>
+      ) : (
+        <>
+          <div className="rv-filters" role="group" aria-label="결론">
+            {VERDICT.map(([k, label]) => (
+              <button key={k} type="button" className="chip" aria-pressed={verdict === k} onClick={() => setVerdict(k)}>{label}</button>
+            ))}
+          </div>
+          <label className="rv-check"><input type="checkbox" checked={safety} onChange={(e) => { setSafety(e.target.checked); onSafety(e.target.checked); }} /> 안전 문제가 있어요 (따르면 위험한 내용, 빠진 응급 경고 등)</label>
+          {consent ? (
+            <>
+              <div className="field" style={{ marginTop: 8 }}>
+                <label htmlFor="ai-fixed">AI 답변 고치기 <small className="help">AI 답변이 채워져 있어요. 고칠 부분만 수정하세요.</small></label>
+                <textarea id="ai-fixed" className="textarea rv-textarea" rows={8} maxLength={4000} value={fixed} onChange={(e) => setFixed(e.target.value)} />
+              </div>
+              <div className="field">
+                <label htmlFor="ai-comment">의견 (선택)</label>
+                <textarea id="ai-comment" className="textarea rv-textarea" rows={3} maxLength={4000} value={comment} onChange={(e) => setComment(e.target.value)}
+                  placeholder="예) 응급 경고가 빠졌어요. 노령견은 각막 질환을 먼저 확인해야 해요." />
+              </div>
+              {needsText && <p className="help">보완 필요·다르게 봐야 해요는 AI 답변을 고치거나 의견을 적어 주세요.</p>}
+            </>
+          ) : (
+            <p className="help">보호자가 품질 개선 활용에 동의하지 않은 질문이에요. 결론과 안전 체크만 보낼 수 있고, 내용은 저장되지 않습니다.</p>
+          )}
+          <div className="row-actions" style={{ marginTop: 8 }}>
+            {last && <button className="btn" onClick={() => setEditing(false)}>취소</button>}
+            <button className="btn btn-primary" disabled={busy || !verdict || needsText} onClick={save}>TwinVet에 보내기</button>
+          </div>
+        </>
+      )}
+      {msg && <p className="ok-text" role="status">{msg}</p>}
+      {err && <p className="error-text" role="alert">{err}</p>}
+    </section>
   );
 }

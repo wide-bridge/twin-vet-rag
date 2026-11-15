@@ -173,6 +173,13 @@ class ReplyIn(BaseModel):
     text: str | None = Field(default=None, max_length=m03.REPLY_MAX)
 
 
+class AiReviewIn(BaseModel):
+    verdict: str = Field(max_length=12)
+    safety_issue: bool = False
+    corrected_answer: str | None = Field(default=None, max_length=m03.REPLY_MAX)
+    comment: str | None = Field(default=None, max_length=m03.REPLY_MAX)
+
+
 @vet.post("/login", dependencies=Guard)
 def login(body: VetLoginIn, request: Request, response: Response, db: DBDep, settings: SettingsDep):
     fwd = request.headers.get("x-forwarded-for", "")
@@ -244,3 +251,10 @@ def reply(qid: uuid.UUID, body: ReplyIn, v: VetDep, db: DBDep):
 @vet.post("/questions/{qid}/correction", dependencies=Guard)
 def correction(qid: uuid.UUID, body: ReplyIn, v: VetDep, db: DBDep):
     return m03.correct_reply(db, v, qid, body.text)
+
+
+@vet.put("/questions/{qid}/ai-review", dependencies=Guard)
+def ai_review(qid: uuid.UUID, body: AiReviewIn, v: VetDep, db: DBDep):
+    """The vet's review of the AI answer ('HITL 우리'): to TwinVet only, never shown to the guardian."""
+    return m03.save_ai_review(db, v, qid, verdict=body.verdict, safety_issue=body.safety_issue,
+                              corrected_answer=body.corrected_answer, comment=body.comment)

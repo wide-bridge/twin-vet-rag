@@ -741,15 +741,17 @@ function M03Screen({ onAuthError }: { onAuthError: (e: unknown) => void }) {
             <p>{st.consent.yes}/{st.consent.total}건 {st.consent.rate === null ? "" : `(${Math.round(st.consent.rate * 100)}%)`}</p></div>
           <div className="card rv-card"><h2 className="rv-h2">HITL 이관</h2>
             <p>대기 {st.import.pending} · 이관 {st.import.imported} · 재확인 필요 {st.import.needs_recheck}</p></div>
+          {st.ai_review && <div className="card rv-card"><h2 className="rv-h2">수의사 AI 답변 검토</h2>
+            <p>검토 {st.ai_review.reviewed} · 맞아요 {st.ai_review.correct} · 보완 필요 {st.ai_review.needs_fix} · 다르게 봐야 해요 {st.ai_review.different} · 안전 문제 {st.ai_review.safety_issue}</p></div>}
         </div>
       )}
-      <h1 className="rv-h1" style={{ marginTop: 28 }}>이관 대기 <small className="help">품질 개선에 동의했고 수의사 회신이 있는 질문만</small></h1>
+      <h1 className="rv-h1" style={{ marginTop: 28 }}>이관 대기 <small className="help">품질 개선에 동의했고 수의사 회신 또는 AI 답변 검토가 있는 질문만</small></h1>
       {items && items.length === 0 && <p className="help">이관할 질문이 없습니다.</p>}
       <ul className="rv-list">
         {items?.map((p) => (
-          <li key={p.id + p.revision_id}>
+          <li key={p.id + p.revision_id + p.review_id}>
             <a className="card rv-row" href={`#/m03/${p.id}`}>
-              <span className="rv-row-badges">{p.corrected ? <Badge tone="warn">정정된 회신</Badge> : <Badge>새 회신</Badge>}{p.earlier_imports > 0 && <Badge>이전 이관 {p.earlier_imports}</Badge>}</span>
+              <span className="rv-row-badges">{p.revision_id && (p.corrected ? <Badge tone="warn">정정된 회신</Badge> : <Badge>회신</Badge>)}{p.verdict && <Badge>AI 검토: {VERDICT_KO[p.verdict] ?? p.verdict}</Badge>}{p.safety_issue && <Badge tone="warn">안전 문제</Badge>}{p.earlier_imports > 0 && <Badge>이전 이관 {p.earlier_imports}</Badge>}</span>
               <span className="rv-row-q">{p.question_preview}</span>
               <span className="rv-row-mine">{p.replied_at ? new Date(p.replied_at).toLocaleString("ko-KR") : ""}</span>
             </a>
@@ -758,6 +760,19 @@ function M03Screen({ onAuthError }: { onAuthError: (e: unknown) => void }) {
       </ul>
     </section>
   );
+}
+
+const VERDICT_KO: Record<string, string> = { correct: "맞아요", needs_fix: "보완 필요", different: "다르게 봐야 해요" };
+
+function reviewReference(x: M03PendingDetail): string {
+  const parts: string[] = [];
+  if (x.review) {
+    parts.push(`[수의사 AI 답변 검토] ${VERDICT_KO[x.review.verdict] ?? x.review.verdict}${x.review.safety_issue ? " · 안전 문제" : ""}`);
+    if (x.review.corrected_answer) parts.push(`[고친 답변]\n${x.review.corrected_answer}`);
+    if (x.review.comment) parts.push(`[의견] ${x.review.comment}`);
+  }
+  if (x.vet_reply) parts.push(`[보호자에게 보낸 회신]\n${x.vet_reply}`);
+  return parts.join("\n\n");
 }
 
 function M03ImportScreen({ id, onAuthError }: { id: string; onAuthError: (e: unknown) => void }) {
@@ -770,7 +785,7 @@ function M03ImportScreen({ id, onAuthError }: { id: string; onAuthError: (e: unk
   useEffect(() => {
     reviewApi.m03PendingDetail(id).then((x) => {
       setD(x);
-      setF({ question: x.question, ai_answer: x.ai_answer, note_to_vet: x.note_to_vet ?? "", vet_reply: x.vet_reply });
+      setF({ question: x.question, ai_answer: x.ai_answer, note_to_vet: x.note_to_vet ?? "", vet_reply: reviewReference(x) });
     }).catch((e) => { onAuthError(e); setErr(e instanceof Error ? e.message : "불러올 수 없습니다."); });
   }, [id, onAuthError]);
   const submit = async () => {
@@ -778,7 +793,7 @@ function M03ImportScreen({ id, onAuthError }: { id: string; onAuthError: (e: unk
     setBusy(true);
     setErr("");
     try {
-      const r = await reviewApi.m03Import(id, { revision_id: d.revision_id, question: f.question, ai_answer: f.ai_answer,
+      const r = await reviewApi.m03Import(id, { revision_id: d.revision_id, review_id: d.review?.id ?? null, question: f.question, ai_answer: f.ai_answer,
         note_to_vet: f.note_to_vet.trim() || null, vet_reply: f.vet_reply });
       setDone(r.item_id);
     } catch (e) {
@@ -809,7 +824,8 @@ function M03ImportScreen({ id, onAuthError }: { id: string; onAuthError: (e: unk
           {field("question", "보호자 질문", 3)}
           {field("note_to_vet", "보호자가 덧붙인 설명 (비우면 넘기지 않음)", 3)}
           {field("ai_answer", "AI 답변", 6)}
-          {field("vet_reply", "수의사 회신 (참고 답변, 라벨 아님)", 6)}
+          {d.review && <p className="help">수의사 AI 답변 검토: <strong>{VERDICT_KO[d.review.verdict] ?? d.review.verdict}</strong>{d.review.safety_issue ? " · 안전 문제" : ""} (결론은 검토 묶음에 함께 기록됩니다)</p>}
+          {field("vet_reply", "수의사 참고 (AI 답변 검토·회신, 라벨 아님)", 8)}
           <label className="rv-check"><input type="checkbox" checked={checked} onChange={(e) => setChecked(e.target.checked)} /> 본문을 모두 읽고 식별 정보를 정리했습니다</label>
           <button className="btn btn-primary" disabled={busy || !checked || !f.question.trim() || !f.ai_answer.trim() || !f.vet_reply.trim()} onClick={submit}>검토 묶음으로 이관</button>
         </div>

@@ -245,7 +245,8 @@ OperatorDep = Annotated[Reviewer, Depends(m03_operator)]
 
 class M03ImportIn(BaseModel):
     model_config = ConfigDict(extra="forbid")
-    revision_id: uuid.UUID
+    revision_id: uuid.UUID | None = None
+    review_id: uuid.UUID | None = None
     question: str = Field(max_length=4000)
     ai_answer: str = Field(max_length=4000)
     note_to_vet: str | None = Field(default=None, max_length=4000)
@@ -275,7 +276,7 @@ def m03_pending_detail(qid: uuid.UUID, op: OperatorDep, db: DBDep):
 @router.post("/m03/pending/{qid}/import", status_code=201, dependencies=Guard)
 def m03_import(qid: uuid.UUID, body: M03ImportIn, op: OperatorDep, db: DBDep):
     from ..services import m03_hitl
-    return m03_hitl.import_question(db, op, qid, revision_id=body.revision_id, question=body.question,
+    return m03_hitl.import_question(db, op, qid, revision_id=body.revision_id, review_id=body.review_id, question=body.question,
                                     ai_answer=body.ai_answer, note=body.note_to_vet, vet_reply=body.vet_reply)
 
 

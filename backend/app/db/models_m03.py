@@ -17,6 +17,7 @@ from .models import Base, _now, _pk
 
 LINK_STATUSES = ("requested", "accepted", "declined", "cancelled", "ended")
 QUESTION_STATUSES = ("sent", "answered", "cancelled")
+AI_VERDICTS = ("correct", "needs_fix", "different")  # 맞아요 / 보완 필요 / 다르게 봐야 해요
 
 
 class VetAccount(Base):
@@ -106,3 +107,18 @@ class VetReplyRevision(Base):
     body: Mapped[str] = mapped_column(Text, nullable=False)
     created_at: Mapped[datetime] = _now()
     __table_args__ = (CheckConstraint("kind IN ('original','correction')", name="ck_vet_reply_kind"),)
+
+
+class VetAiReview(Base):
+    """The vet's review of the AI answer the guardian received ('HITL 우리'). Goes to TwinVet only, never to the
+    guardian. Rows are versions (latest = current). Text (corrected answer, comment) is kept only while the guardian's
+    quality-use consent stands; without it only the verdict and the safety flag are stored (numbers)."""
+    __tablename__ = "vet_ai_review"
+    id: Mapped[uuid.UUID] = _pk()
+    question_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("vet_question.id", ondelete="CASCADE"), nullable=False, index=True)
+    verdict: Mapped[str] = mapped_column(String(12), nullable=False)
+    safety_issue: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="false")
+    corrected_answer: Mapped[str | None] = mapped_column(Text)
+    comment: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = _now()
+    __table_args__ = (CheckConstraint(f"verdict IN {AI_VERDICTS}", name="ck_vet_ai_review_verdict"),)

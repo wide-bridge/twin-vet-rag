@@ -21,7 +21,7 @@ from sqlalchemy.orm import Session as DB
 from ..api.errors import ApiError
 from ..config import Settings
 from ..db.models import AnswerRun, Consultation, DogProfile, Message, Session as SessionRow
-from ..db.models_m03 import VetAccount, VetLink, VetQuestion, VetReplyRevision, VetSession
+from ..db.models_m03 import AI_VERDICTS, VetAccount, VetAiReview, VetLink, VetQuestion, VetReplyRevision, VetSession
 from . import m03_hitl
 from . import profile as profile_svc
 from .consult import citation_list, now, sha256
@@ -343,6 +343,7 @@ def set_consent(db: DB, settings: Settings, prof: DogProfile, qid: uuid.UUID, co
         q.quality_use_consent, q.consent_changed_at = consent, now()
         if not consent:
             m03_hitl.release(db, [q.id], "consent_withdrawn")
+            m03_hitl.drop_review_text(db, q.id)  # the vet's AI-answer review keeps only verdict + safety flag
     profile_svc.touch(db, settings, prof)
     db.commit()
     return guardian_question_view(db, q)
@@ -454,11 +455,20 @@ def vet_question_view(db: DB, q: VetQuestion, full: bool) -> dict:
     if q.status == "cancelled":
         return v  # a cancelled question shows no content
     v["question_preview"] = q.snapshot.get("question", "")[:80]
+    rv = m03_hitl.latest_review(db, q.id)
+    v["ai_reviewed"] = rv is not None
     if full:
         v["snapshot"] = q.snapshot
         v["reply_draft"] = q.reply_draft
         v["reply"] = _reply_view(_revisions(db, q))
+        v["quality_use_consent"] = q.quality_use_consent  # the vet's review text is kept only with consent
+        v["ai_review"] = ai_review_view(rv) if rv else None
     return v
+
+
+def ai_review_view(rv: VetAiReview) -> dict:
+    return {"id": str(rv.id), "verdict": rv.verdict, "safety_issue": rv.safety_issue,
+            "corrected_answer": rv.corrected_answer, "comment": rv.comment, "created_at": rv.created_at.isoformat()}
 
 
 def vet_questions(db: DB, vet: VetAccount) -> list[dict]:
@@ -520,5 +530,35 @@ def correct_reply(db: DB, vet: VetAccount, qid: uuid.UUID, text: str | None) -> 
     db.add(VetReplyRevision(question_id=q.id, kind="correction", body=_body(text), created_at=now()))
     q.guardian_seen_at = None  # the guardian has not seen the correction yet
     m03_hitl.flag_correction(db, q)  # imported copies -> 'needs_recheck'; labels untouched
+    db.commit()
+    return vet_question_view(db, q, full=True)
+
+
+def save_ai_review(db: DB, vet: VetAccount, qid: uuid.UUID, *, verdict: str, safety_issue: bool,
+                   corrected_answer: str | None, comment: str | None) -> dict:
+    """The vet's review of the AI answer ('HITL 우리'): to TwinVet only, never shown to the guardian. Independent of
+    the reply. A new version each time; an imported copy of an earlier version is flagged for recheck.
+    Without the guardian's quality-use consent only the verdict and safety flag are stored."""
+    q = _vet_question(db, vet, qid, lock=True)  # same row lock as consent withdrawal and HITL import
+    if q.status == "cancelled":
+        raise ApiError(409, "question_closed")
+    if verdict not in AI_VERDICTS:
+        raise ApiError(422, "invalid_input", extra={"fields": ["verdict"]})
+    fixed = (corrected_answer or "").strip() or None
+    note = (comment or "").strip() or None
+    if fixed and fixed == (q.snapshot.get("ai_answer") or "").strip():
+        fixed = None  # unchanged AI answer is not a correction
+    for val, field in ((fixed, "corrected_answer"), (note, "comment")):
+        if val and len(val) > REPLY_MAX:
+            raise ApiError(422, "invalid_input", extra={"fields": [field]})
+    if not q.quality_use_consent and (fixed or note):
+        raise ApiError(409, "consent_required", "보호자가 품질 개선에 동의하지 않은 질문이라 결론과 안전 체크만 보낼 수 있어요.")
+    if q.quality_use_consent and verdict != "correct" and not (fixed or note):
+        raise ApiError(422, "review_text_required", "보완 필요 또는 다르게 봐야 해요는 고친 답변이나 의견을 함께 적어 주세요.")
+    earlier = m03_hitl.latest_review(db, q.id)
+    db.add(VetAiReview(question_id=q.id, verdict=verdict, safety_issue=bool(safety_issue),
+                       corrected_answer=fixed, comment=note, created_at=now()))
+    if earlier is not None:
+        m03_hitl.flag_correction(db, q)  # copies imported from an earlier review -> 'needs_recheck'
     db.commit()
     return vet_question_view(db, q, full=True)

@@ -1,7 +1,8 @@
 """M03 → HITL (docs/01 §4-1 '②→③ 연결 규칙', 'HITL 이관 조건'): operator stats, the import queue, and the rules that
 keep withdrawal / deletion / correction consistent all the way into HITL.
 
-- Only questions with quality-use consent, a sent reply and a live dog profile can be imported, by an operator, from
+- Only questions with quality-use consent, a sent reply or a vet review of the AI answer ('HITL 우리', never shown to
+  the guardian), and a live dog profile can be imported, by an operator, from
   text the operator has read and cleaned. The copy stays linked to the shared question (review_item.vet_question_id).
 - Import and withdrawal/deletion lock the same vet_question row, and import re-checks consent, existence, reply and
   expiry under that lock: whichever order they run in, no copy survives a withdrawal.
@@ -21,7 +22,7 @@ from sqlalchemy.orm import Session as DB
 
 from ..api.errors import ApiError
 from ..db.models import DogProfile, Document
-from ..db.models_m03 import VetLink, VetQuestion, VetReplyRevision
+from ..db.models_m03 import AI_VERDICTS, VetAiReview, VetLink, VetQuestion, VetReplyRevision
 from ..db.models_review import KnowledgeCandidate, Reviewer, ReviewEvent, ReviewItem
 from ..ingest import load
 from .consult import now
@@ -38,6 +39,31 @@ def _alive_q():
 def _latest_revision(db: DB, qid: uuid.UUID) -> VetReplyRevision | None:
     return db.execute(select(VetReplyRevision).where(VetReplyRevision.question_id == qid)
                       .order_by(VetReplyRevision.created_at.desc(), VetReplyRevision.id.desc()).limit(1)).scalar_one_or_none()
+
+
+def latest_review(db: DB, qid: uuid.UUID) -> VetAiReview | None:
+    return db.execute(select(VetAiReview).where(VetAiReview.question_id == qid)
+                      .order_by(VetAiReview.created_at.desc(), VetAiReview.id.desc()).limit(1)).scalar_one_or_none()
+
+
+def drop_review_text(db: DB, qid: uuid.UUID) -> None:
+    """Consent withdrawn: the review keeps only verdict + safety flag (numbers), never the text."""
+    db.execute(update(VetAiReview).where(VetAiReview.question_id == qid).values(corrected_answer=None, comment=None))
+
+
+def _review_stats(db: DB, since) -> dict:
+    """Latest review per question: verdict counts and safety flags (numbers only)."""
+    q = select(VetAiReview.question_id, VetAiReview.verdict, VetAiReview.safety_issue, VetAiReview.created_at)
+    if since:
+        q = q.join(VetQuestion, VetQuestion.id == VetAiReview.question_id).where(VetQuestion.created_at >= since)
+    latest: dict = {}
+    for qid, verdict, safety, created in db.execute(q).all():
+        if qid not in latest or created >= latest[qid][2]:
+            latest[qid] = (verdict, safety, created)
+    out = {k: 0 for k in AI_VERDICTS}
+    for verdict, _, _ in latest.values():
+        out[verdict] += 1
+    return {"reviewed": len(latest), **out, "safety_issue": sum(1 for v in latest.values() if v[1])}
 
 
 # ---------------------------------------------------------------- stats (numbers only; screen and CLI share this)
@@ -67,38 +93,51 @@ def stats(db: DB, days: int | None = None) -> dict:
                         "max": round(waits[-1], 1) if waits else None},
         "consent": {"yes": consent.get(True, 0), "total": total, "rate": round(consent.get(True, 0) / total, 3) if total else None},
         "import": {"pending": len(pending(db)), "imported": imported, "needs_recheck": recheck},
+        "ai_review": _review_stats(db, since),
     }
 
 
 # ---------------------------------------------------------------- import queue
+def _sources(db: DB, q: VetQuestion) -> tuple[VetReplyRevision | None, VetAiReview | None]:
+    return _latest_revision(db, q.id), latest_review(db, q.id)
+
+
 def pending(db: DB) -> list[dict]:
-    """Consented + answered + live questions whose latest reply version has not been imported yet."""
-    rows = db.execute(select(VetQuestion).where(VetQuestion.quality_use_consent.is_(True), VetQuestion.status == "answered",
-                                                _alive_q()).order_by(VetQuestion.replied_at)).scalars().all()
+    """Consented + live questions with a sent reply and/or a vet review of the AI answer whose latest versions have
+    not been imported together yet."""
+    rows = db.execute(select(VetQuestion).where(VetQuestion.quality_use_consent.is_(True), VetQuestion.status != "cancelled",
+                                                _alive_q()).order_by(VetQuestion.created_at)).scalars().all()
     out = []
     for q in rows:
-        rev = _latest_revision(db, q.id)
-        if rev is None:
+        rev, rv = _sources(db, q)
+        if rev is None and rv is None:
             continue
-        done = db.execute(select(ReviewItem.id).where(ReviewItem.vet_question_id == q.id,
-                                                      ReviewItem.vet_reply_revision_id == rev.id)).first()
+        done = db.execute(select(ReviewItem.id).where(
+            ReviewItem.vet_question_id == q.id,
+            ReviewItem.vet_reply_revision_id.is_not_distinct_from(rev.id if rev else None),
+            ReviewItem.vet_ai_review_id.is_not_distinct_from(rv.id if rv else None))).first()
         if done:
             continue
         earlier = db.execute(select(func.count()).select_from(ReviewItem).where(ReviewItem.vet_question_id == q.id)).scalar()
         out.append({"id": str(q.id), "replied_at": q.replied_at.isoformat() if q.replied_at else None,
-                    "revision_id": str(rev.id), "corrected": rev.kind == "correction", "earlier_imports": earlier,
+                    "revision_id": str(rev.id) if rev else None, "corrected": bool(rev and rev.kind == "correction"),
+                    "review_id": str(rv.id) if rv else None, "verdict": rv.verdict if rv else None,
+                    "safety_issue": bool(rv and rv.safety_issue), "earlier_imports": earlier,
                     "question_preview": (q.snapshot.get("question") or "")[:80]})
     return out
 
 
 def pending_detail(db: DB, qid: uuid.UUID) -> dict:
     q = _importable(db, qid, lock=False)
-    rev = _latest_revision(db, q.id)
+    rev, rv = _sources(db, q)
     s = q.snapshot
     dog = {k: v for k, v in (s.get("dog") or {}).items() if k not in ("name", "health_notes")}
-    return {"id": str(q.id), "revision_id": str(rev.id), "corrected": rev.kind == "correction",
+    return {"id": str(q.id), "revision_id": str(rev.id) if rev else None, "corrected": bool(rev and rev.kind == "correction"),
             "question": s.get("question", ""), "ai_answer": s.get("ai_answer", ""), "note_to_vet": s.get("note_to_vet"),
-            "vet_reply": rev.body, "dog": dog, "sources": s.get("sources", []), "ai_response_type": s.get("ai_response_type")}
+            "vet_reply": rev.body if rev else None, "dog": dog, "sources": s.get("sources", []),
+            "ai_response_type": s.get("ai_response_type"),
+            "review": None if rv is None else {"id": str(rv.id), "verdict": rv.verdict, "safety_issue": rv.safety_issue,
+                                               "corrected_answer": rv.corrected_answer, "comment": rv.comment}}
 
 
 def _importable(db: DB, qid: uuid.UUID, lock: bool) -> VetQuestion:
@@ -108,8 +147,8 @@ def _importable(db: DB, qid: uuid.UUID, lock: bool) -> VetQuestion:
     alive = prof is not None and (prof.expires_at is None or prof.expires_at > now())
     if q is None or not alive:
         raise ApiError(404, "not_found")
-    if not q.quality_use_consent or q.status != "answered":
-        raise ApiError(409, "not_importable", "품질 개선 동의와 수의사 회신이 있는 질문만 이관할 수 있어요.")
+    if not q.quality_use_consent or q.status == "cancelled" or _sources(db, q) == (None, None):
+        raise ApiError(409, "not_importable", "품질 개선 동의와 수의사 회신 또는 AI 답변 검토가 있는 질문만 이관할 수 있어요.")
     return q
 
 
@@ -124,34 +163,41 @@ def _clean(text: str | None, field: str, required: bool = True) -> str | None:
     return t
 
 
-def import_question(db: DB, operator: Reviewer, qid: uuid.UUID, *, revision_id: uuid.UUID, question: str,
-                    ai_answer: str, note: str | None, vet_reply: str) -> dict:
-    """Create the review copy from the operator's cleaned text. Re-checks everything under the question row lock."""
+def import_question(db: DB, operator: Reviewer, qid: uuid.UUID, *, revision_id: uuid.UUID | None,
+                    review_id: uuid.UUID | None = None, question: str, ai_answer: str, note: str | None,
+                    vet_reply: str) -> dict:
+    """Create the review copy from the operator's cleaned text. Re-checks everything under the question row lock.
+    `vet_reply` is the operator-cleaned vet reference (the reply and/or the vet's review of the AI answer)."""
     from . import review as review_svc  # local import: review imports nothing from M03
 
     if operator.role != "operator":
         raise ApiError(403, "operator_only", "운영자만 이관할 수 있어요.")
     question, ai_answer = _clean(question, "question"), _clean(ai_answer, "ai_answer")
     vet_reply, note = _clean(vet_reply, "vet_reply"), _clean(note, "note_to_vet", required=False)
-    q = _importable(db, qid, lock=True)  # same lock as withdrawal / deletion / correction
-    rev = _latest_revision(db, q.id)
-    if rev is None or rev.id != revision_id:
-        raise ApiError(409, "source_changed", "수의사 회신이 바뀌었어요. 최신 내용으로 다시 정리해 주세요.")
+    q = _importable(db, qid, lock=True)  # same lock as withdrawal / deletion / correction / review
+    rev, rv = _sources(db, q)
+    if (rev.id if rev else None) != revision_id or (rv.id if rv else None) != review_id:
+        raise ApiError(409, "source_changed", "수의사 회신이나 AI 답변 검토가 바뀌었어요. 최신 내용으로 다시 정리해 주세요.")
     s = q.snapshot
     dog = {k: v for k, v in (s.get("dog") or {}).items() if k not in ("name", "health_notes")}
     history = [{"role": "note", "content": note}] if note else []
+    ref = f"m03:{q.id}:{rev.id if rev else '-'}" + (f":r{rv.id}" if rv else "")  # reply-only keeps the old form
+    versions = {"source": "m03", "shared_at": s.get("shared_at", ""), "reply_version": rev.kind if rev else None}
+    if rv:
+        versions |= {"vet_verdict": rv.verdict, "vet_safety_issue": rv.safety_issue}
     item, created = review_svc.create_item(
-        db, origin="consultation", source_ref=f"m03:{q.id}:{rev.id}", question=question, ai_answer=ai_answer,
+        db, origin="consultation", source_ref=ref, question=question, ai_answer=ai_answer,
         history=history, dog=dog, response_type=s.get("ai_response_type"),
-        citations=[{"title": t} for t in s.get("sources", [])],
-        versions={"source": "m03", "shared_at": s.get("shared_at", ""), "reply_version": rev.kind},
-        link={"vet_question_id": q.id, "vet_reply_revision_id": rev.id, "vet_reference": vet_reply, "is_test": q.is_test})
+        citations=[{"title": t} for t in s.get("sources", [])], versions=versions,
+        link={"vet_question_id": q.id, "vet_reply_revision_id": rev.id if rev else None,
+              "vet_ai_review_id": rv.id if rv else None, "vet_reference": vet_reply, "is_test": q.is_test})
     if not created:
-        raise ApiError(409, "already_imported", "이미 이관한 회신 버전이에요.")
+        raise ApiError(409, "already_imported", "이미 이관한 버전이에요.")
     db.add(ReviewEvent(item_id=item.id, actor_kind="operator", reviewer_id=operator.id, event="imported_from_m03",
-                       detail={"reply_revision": str(rev.id), "reply_kind": rev.kind}))
+                       detail={"reply_revision": str(rev.id) if rev else None, "reply_kind": rev.kind if rev else None,
+                               "ai_review": str(rv.id) if rv else None}))
     db.commit()
-    return {"item_id": str(item.id), "revision_id": str(rev.id)}
+    return {"item_id": str(item.id), "revision_id": str(rev.id) if rev else None, "review_id": str(rv.id) if rv else None}
 
 
 # ---------------------------------------------------------------- consistency rules (called by M03 / profile code)

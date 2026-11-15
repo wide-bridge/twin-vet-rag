@@ -22,6 +22,7 @@ export type M03Stats = {
   reply_hours: { count: number; median: number | null; max: number | null };
   consent: { yes: number; total: number; rate: number | null };
   import: { pending: number; imported: number; needs_recheck: number };
+  ai_review?: { reviewed: number; correct: number; needs_fix: number; different: number; safety_issue: number };
 };
 // 서비스 이용통계 (operator): Flow per KST day + Stock levels, counts only
 export type UsageFlow = Record<string, number | null> & { topics?: Record<string, number> };
@@ -30,10 +31,13 @@ export type UsageReport = {
   flow: { totals: UsageFlow; by_day: (UsageFlow & { day: string })[] };
   stock: { now: Record<string, number>; by_day: (Record<string, number> & { day: string })[] };
 };
-export type M03Pending = { id: string; replied_at: string | null; revision_id: string; corrected: boolean; earlier_imports: number; question_preview: string };
+export type M03Pending = { id: string; replied_at: string | null; revision_id: string | null; corrected: boolean; review_id: string | null;
+  verdict: string | null; safety_issue: boolean; earlier_imports: number; question_preview: string };
+export type M03Review = { id: string; verdict: string; safety_issue: boolean; corrected_answer: string | null; comment: string | null };
 export type M03PendingDetail = {
-  id: string; revision_id: string; corrected: boolean; question: string; ai_answer: string; note_to_vet: string | null;
-  vet_reply: string; dog: Record<string, string | number>; sources: string[]; ai_response_type: string | null;
+  id: string; revision_id: string | null; corrected: boolean; question: string; ai_answer: string; note_to_vet: string | null;
+  vet_reply: string | null; dog: Record<string, string | number>; sources: string[]; ai_response_type: string | null;
+  review: M03Review | null;
 };
 export type ConceptTag = { code: string; assertion: string };
 export type Label = {
@@ -171,7 +175,7 @@ export const reviewApi = {
   m03Stats: (days?: number) => call<M03Stats>("GET", "/m03/stats" + (days ? `?days=${days}` : "")),
   m03Pending: () => call<{ items: M03Pending[] }>("GET", "/m03/pending"),
   m03PendingDetail: (id: string) => call<M03PendingDetail>("GET", `/m03/pending/${id}`),
-  m03Import: (id: string, b: { revision_id: string; question: string; ai_answer: string; note_to_vet: string | null; vet_reply: string }) =>
-    call<{ item_id: string; revision_id: string }>("POST", `/m03/pending/${id}/import`, b),
+  m03Import: (id: string, b: { revision_id: string | null; review_id: string | null; question: string; ai_answer: string; note_to_vet: string | null; vet_reply: string }) =>
+    call<{ item_id: string; revision_id: string | null }>("POST", `/m03/pending/${id}/import`, b),
   m03Availability: () => fetch("/api/v1/m03/availability").then((r) => r.json() as Promise<{ enabled: boolean }>).catch(() => ({ enabled: false })),
 };

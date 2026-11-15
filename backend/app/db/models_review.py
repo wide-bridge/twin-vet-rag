@@ -106,7 +106,8 @@ class ReviewItem(Base):
     # is deleted with it (withdrawal / deletion / expiry); the vet reply used is recorded, a later correction only flags it
     vet_question_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("vet_question.id", ondelete="CASCADE"), index=True)
     vet_reply_revision_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("vet_reply_revision.id", ondelete="SET NULL"))
-    vet_reference: Mapped[str | None] = mapped_column(Text)  # cleaned vet reply: reference answer, never a label
+    vet_ai_review_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("vet_ai_review.id", ondelete="SET NULL"))
+    vet_reference: Mapped[str | None] = mapped_column(Text)  # cleaned vet reply and/or AI-answer review: reference answer, never a label
     needs_recheck: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="false")
     is_test: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="false")  # copy of a test M03 question
     created_at: Mapped[datetime] = _now()
