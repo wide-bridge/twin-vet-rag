@@ -69,6 +69,8 @@ with sync_playwright() as pw:
     stats_text = op.locator(".rv-stats").inner_text()
     assert "설사" not in stats_text and SECRET not in stats_text
     op.screenshot(path=str(SP / "m03_hitl_1_stats.png"), full_page=True)
+    op.get_by_role("link", name="이관 대기").first.click()
+    expect(op.get_by_role("heading", name="이관 대기")).to_be_visible()
     op.locator(".rv-list a.rv-row", has_text="사료를 바꾼 뒤").click()
     expect(op.get_by_role("heading", name="검토 묶음으로 이관")).to_be_visible()
     note = op.get_by_label("보호자가 덧붙인 설명 (비우면 넘기지 않음)")

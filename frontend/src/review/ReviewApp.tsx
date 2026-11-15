@@ -36,7 +36,7 @@ const COMPARE_FIELDS = ["accuracy", "evidence_support", "sufficiency", "guidance
 const SUMMARY_FIELDS = ["accuracy", "evidence_support", "sufficiency", "guidance", "reuse_scope"] as const;
 const AGREEMENT: readonly string[] = COMPARE_FIELDS;
 
-type Route = { name: "list" } | { name: "item"; id: string } | { name: "candidates"; itemId?: string } | { name: "m03"; id?: string } | { name: "usage" };
+type Route = { name: "list" } | { name: "item"; id: string } | { name: "candidates"; itemId?: string } | { name: "m03" } | { name: "imports"; id?: string } | { name: "usage" };
 
 function parseHash(): Route {
   const h = window.location.hash.replace(/^#\/?/, "");
@@ -44,7 +44,8 @@ function parseHash(): Route {
   const parts = path.split("/").filter(Boolean);
   if (parts[0] === "items" && parts[1]) return { name: "item", id: parts[1] };
   if (parts[0] === "usage") return { name: "usage" };
-  if (parts[0] === "m03") return { name: "m03", id: parts[1] };
+  if (parts[0] === "imports") return { name: "imports", id: parts[1] };
+  if (parts[0] === "m03") return parts[1] ? { name: "imports", id: parts[1] } : { name: "m03" };  // old links
   if (parts[0] === "candidates") return { name: "candidates", itemId: new URLSearchParams(query ?? "").get("item") ?? undefined };
   return { name: "list" };
 }
@@ -73,6 +74,12 @@ export function ReviewApp() {
     reviewApi.concepts().then((r) => setConcepts(r.items)).catch(() => undefined);
   }, [me]);
 
+  const [queueCount, setQueueCount] = useState<number | null>(null);
+  useEffect(() => {
+    if (me?.role !== "operator") return;
+    reviewApi.m03Pending().then((r) => setQueueCount(r.items.length)).catch(() => undefined);
+  }, [me, route]);
+
   const onAuthError = useCallback((e: unknown) => {
     if (e instanceof ReviewApiError && e.status === 401) setMe(null);
   }, []);
@@ -86,6 +93,7 @@ export function ReviewApp() {
           <a className="rv-brand" href="#/">TwinVet HITL Review</a>
           <nav className="rv-nav" aria-label="작업 메뉴">
             <a href="#/" aria-current={route.name === "list" || route.name === "item" ? "page" : undefined}>검토 목록</a>
+            {me.role === "operator" && <a href="#/imports" aria-current={route.name === "imports" ? "page" : undefined}>이관 대기{queueCount ? <> <span className="rv-count">{queueCount}</span></> : null}</a>}
             <a href="#/candidates" aria-current={route.name === "candidates" ? "page" : undefined}>지식 후보</a>
             {me.role === "operator" && <a href="#/m03" aria-current={route.name === "m03" ? "page" : undefined}>HITL 통계</a>}
             {me.role === "operator" && <a href="#/usage" aria-current={route.name === "usage" ? "page" : undefined}>서비스 이용통계</a>}
@@ -106,8 +114,9 @@ export function ReviewApp() {
         {route.name === "item" && guide && <ItemScreen key={route.id} id={route.id} me={me} guide={guide} concepts={concepts} onAuthError={onAuthError} />}
         {route.name === "candidates" && <CandidateScreen me={me} itemId={route.itemId} onAuthError={onAuthError} />}
         {route.name === "usage" && me.role === "operator" && <UsageScreen onAuthError={onAuthError} />}
-        {route.name === "m03" && me.role === "operator" && (
-          route.id ? <M03ImportScreen key={route.id} id={route.id} onAuthError={onAuthError} /> : <M03Screen onAuthError={onAuthError} />
+        {route.name === "m03" && me.role === "operator" && <M03Screen onAuthError={onAuthError} />}
+        {route.name === "imports" && me.role === "operator" && (
+          route.id ? <M03ImportScreen key={route.id} id={route.id} onAuthError={onAuthError} /> : <ImportQueue onAuthError={onAuthError} />
         )}
       </main>
     </div>
@@ -711,14 +720,10 @@ function CandidateScreen({ me, itemId, onAuthError }: { me: Me; itemId?: string;
 function M03Screen({ onAuthError }: { onAuthError: (e: unknown) => void }) {
   const [days, setDays] = useState<number | undefined>(30);
   const [st, setSt] = useState<M03Stats | null>(null);
-  const [items, setItems] = useState<M03Pending[] | null>(null);
   const [err, setErr] = useState("");
   useEffect(() => {
     reviewApi.m03Stats(days).then(setSt).catch((e) => { onAuthError(e); setErr(e instanceof Error ? e.message : "불러올 수 없습니다."); });
   }, [days, onAuthError]);
-  useEffect(() => {
-    reviewApi.m03Pending().then((r) => setItems(r.items)).catch(onAuthError);
-  }, [onAuthError]);
   const n = (v: number | null | undefined, unit = "") => (v === null || v === undefined ? "-" : `${v}${unit}`);
   return (
     <section aria-labelledby="m03-title">
@@ -740,24 +745,11 @@ function M03Screen({ onAuthError }: { onAuthError: (e: unknown) => void }) {
           <div className="card rv-card"><h2 className="rv-h2">품질 개선 동의</h2>
             <p>{st.consent.yes}/{st.consent.total}건 {st.consent.rate === null ? "" : `(${Math.round(st.consent.rate * 100)}%)`}</p></div>
           <div className="card rv-card"><h2 className="rv-h2">HITL 이관</h2>
-            <p>대기 {st.import.pending} · 이관 {st.import.imported} · 재확인 필요 {st.import.needs_recheck}</p></div>
+            <p><a href="#/imports">대기 {st.import.pending}</a> · 이관 {st.import.imported} · 재확인 필요 {st.import.needs_recheck}</p></div>
           {st.ai_review && <div className="card rv-card"><h2 className="rv-h2">수의사 AI 답변 검토</h2>
             <p>검토 {st.ai_review.reviewed} · 맞아요 {st.ai_review.correct} · 보완 필요 {st.ai_review.needs_fix} · 다르게 봐야 해요 {st.ai_review.different} · 안전 문제 {st.ai_review.safety_issue}</p></div>}
         </div>
       )}
-      <h1 className="rv-h1" style={{ marginTop: 28 }}>이관 대기 <small className="help">품질 개선에 동의했고 수의사 회신 또는 AI 답변 검토가 있는 질문만</small></h1>
-      {items && items.length === 0 && <p className="help">이관할 질문이 없습니다.</p>}
-      <ul className="rv-list">
-        {items?.map((p) => (
-          <li key={p.id + p.revision_id + p.review_id}>
-            <a className="card rv-row" href={`#/m03/${p.id}`}>
-              <span className="rv-row-badges">{p.revision_id && (p.corrected ? <Badge tone="warn">정정된 회신</Badge> : <Badge>회신</Badge>)}{p.verdict && <Badge>AI 검토: {VERDICT_KO[p.verdict] ?? p.verdict}</Badge>}{p.safety_issue && <Badge tone="warn">안전 문제</Badge>}{p.earlier_imports > 0 && <Badge>이전 이관 {p.earlier_imports}</Badge>}</span>
-              <span className="rv-row-q">{p.question_preview}</span>
-              <span className="rv-row-mine">{p.replied_at ? new Date(p.replied_at).toLocaleString("ko-KR") : ""}</span>
-            </a>
-          </li>
-        ))}
-      </ul>
     </section>
   );
 }
@@ -773,6 +765,31 @@ function reviewReference(x: M03PendingDetail): string {
   }
   if (x.vet_reply) parts.push(`[보호자에게 보낸 회신]\n${x.vet_reply}`);
   return parts.join("\n\n");
+}
+
+function ImportQueue({ onAuthError }: { onAuthError: (e: unknown) => void }) {
+  const [items, setItems] = useState<M03Pending[] | null>(null);
+  useEffect(() => {
+    reviewApi.m03Pending().then((r) => setItems(r.items)).catch(onAuthError);
+  }, [onAuthError]);
+  return (
+    <section aria-labelledby="imports-title">
+      <h1 id="imports-title" className="rv-h1">이관 대기 <small className="help">품질 개선에 동의했고 수의사 회신 또는 AI 답변 검토가 있는 질문만</small></h1>
+      {items && items.length === 0 && <p className="help">이관할 질문이 없습니다.</p>}
+      <ul className="rv-list">
+        {items?.map((p) => (
+          <li key={p.id + p.revision_id + p.review_id}>
+            <a className="card rv-row" href={`#/imports/${p.id}`}>
+              <span className="rv-row-badges">{p.revision_id && (p.corrected ? <Badge tone="warn">정정된 회신</Badge> : <Badge>회신</Badge>)}{p.verdict && <Badge>AI 검토: {VERDICT_KO[p.verdict] ?? p.verdict}</Badge>}{p.safety_issue && <Badge tone="warn">안전 문제</Badge>}{p.earlier_imports > 0 && <Badge>이전 이관 {p.earlier_imports}</Badge>}</span>
+              <span className="rv-row-q">{p.question_preview}</span>
+              <span className="rv-row-mine">{p.replied_at ? new Date(p.replied_at).toLocaleString("ko-KR") : ""}</span>
+            </a>
+          </li>
+        ))}
+      </ul>
+      <p className="help">수의사 회신·AI 답변 검토를 운영자가 읽고 식별 정보를 정리한 뒤 검토 묶음으로 넘기는 곳입니다. 넘긴 묶음은 '검토 목록'에서 검토합니다.</p>
+    </section>
+  );
 }
 
 function M03ImportScreen({ id, onAuthError }: { id: string; onAuthError: (e: unknown) => void }) {
@@ -812,7 +829,7 @@ function M03ImportScreen({ id, onAuthError }: { id: string; onAuthError: (e: unk
   );
   return (
     <section aria-labelledby="m03-imp-title">
-      <p><a href="#/m03">← HITL 통계</a></p>
+      <p><a href="#/imports">← 이관 대기</a></p>
       <h1 id="m03-imp-title" className="rv-h1">검토 묶음으로 이관 {d?.corrected && <Badge tone="warn">정정된 회신</Badge>}</h1>
       {err && <p className="error-text" role="alert">{err}</p>}
       {done ? (
