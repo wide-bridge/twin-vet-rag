@@ -187,7 +187,6 @@ function QuestionScreen({ id, onBack, onAuth }: { id: string; onBack: () => void
   const [err, setErr] = useState("");
   const [busy, setBusy] = useState(false);
   const [correcting, setCorrecting] = useState(false);
-  const [safetyDraft, setSafetyDraft] = useState(false);  // checked in the review card, not sent yet
   useEffect(() => {
     request<QDetail>("GET", `${V}/questions/${id}`).then((d) => { setQ(d); setText(d.reply_draft ?? ""); }).catch((e) => { onAuth(e); setErr((e as Error).message); });
   }, [id, onAuth]);
@@ -236,7 +235,6 @@ function QuestionScreen({ id, onBack, onAuth }: { id: string; onBack: () => void
                     <strong>비대면 진료가 되지 않도록 주의해 주세요.</strong> 회신은 진찰을 대신하지 않는 일반적인 안내입니다.
                     질병을 단정하거나 약 이름·용량을 적지 말고, 상태 확인이 필요하면 내원을 권해 주세요.
                   </p>
-                  {(q.ai_review?.safety_issue || safetyDraft) && <p className="rv-caution rv-caution-strong" role="note">AI 답변에 안전 문제가 있다고 표시하셨어요. 보호자가 그 내용을 따르지 않도록 회신에도 알려 주세요.</p>}
                   <textarea className="textarea rv-textarea" rows={8} maxLength={4000} value={text} onChange={(e) => setText(e.target.value)}
                     aria-label="회신" placeholder="보호자에게 보낼 답변을 작성하세요. 진료·처방이 아닌 안내임을 고려해 주세요." />
                   <div className="row-actions" style={{ marginTop: 8 }}>
@@ -266,7 +264,7 @@ function QuestionScreen({ id, onBack, onAuth }: { id: string; onBack: () => void
               {msg && <p className="ok-text" role="status">{msg}</p>}
               {err && <p className="error-text" role="alert">{err}</p>}
             </section>
-            {q.status !== "cancelled" && <AiReviewCard key={q.ai_review?.id ?? "new"} q={q} onSaved={setQ} onAuth={onAuth} onSafety={setSafetyDraft} />}
+            {q.status !== "cancelled" && <AiReviewCard key={q.ai_review?.id ?? "new"} q={q} onSaved={setQ} onAuth={onAuth} />}
           </div>
         </div>
       )}
@@ -275,7 +273,7 @@ function QuestionScreen({ id, onBack, onAuth }: { id: string; onBack: () => void
 }
 
 // ---------------------------------------------------------------- AI 답변 검토 ('HITL 우리'): TwinVet only, never the guardian
-function AiReviewCard({ q, onSaved, onAuth, onSafety }: { q: QDetail; onSaved: (d: QDetail) => void; onAuth: (e: unknown) => void; onSafety: (v: boolean) => void }) {
+function AiReviewCard({ q, onSaved, onAuth }: { q: QDetail; onSaved: (d: QDetail) => void; onAuth: (e: unknown) => void }) {
   const ai = q.snapshot?.ai_answer ?? "";
   const consent = !!q.quality_use_consent;
   const last = q.ai_review ?? null;
@@ -287,7 +285,6 @@ function AiReviewCard({ q, onSaved, onAuth, onSafety }: { q: QDetail; onSaved: (
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState("");
   const [err, setErr] = useState("");
-  useEffect(() => () => onSafety(false), [onSafety]);  // leaving the form: the saved review decides
   const changed = fixed.trim() !== "" && fixed.trim() !== ai.trim();
   const needsText = consent && verdict !== null && verdict !== "correct" && !changed && !comment.trim();
   const save = async () => {
@@ -310,13 +307,13 @@ function AiReviewCard({ q, onSaved, onAuth, onSafety }: { q: QDetail; onSaved: (
   };
   return (
     <section className="card rv-card" aria-labelledby="ai-review-title">
-      <h2 className="rv-h2" id="ai-review-title">AI 답변 검토 <small>TwinVet에만 전달 · 보호자에게 보이지 않음</small></h2>
-      <p className="help">보호자가 받은 AI 답변이 맞는지 알려 주시면 AI 답변 품질을 개선하는 데 씁니다. 회신과는 별개이며, 회신하지 않아도 보낼 수 있습니다.</p>
+      <h2 className="rv-h2" id="ai-review-title">AI 답변 검토 및 수정 <small>TwinVet에만 전달 · 보호자에게 보내지 않음</small></h2>
+      <p className="help">보호자가 받은 AI 답변을 검토·수정해 TwinVet에 보내 주시면 AI 답변 품질을 개선하는 데 씁니다. 보호자에게는 보내지 않으며, 회신과는 별개입니다.</p>
       {last && !editing ? (
         <>
           <p><span className="rv-badge rv-badge-ai">{VERDICT.find(([k]) => k === last.verdict)?.[1]}</span>
             {last.safety_issue && <> <span className="rv-badge rv-badge-warn">안전 문제</span></>}
-            <small className="help"> · {at(last.created_at)} TwinVet에 보냄</small></p>
+            <small className="help"> · {at(last.created_at)} 검토 보냄</small></p>
           {last.corrected_answer && (<><h3 className="rv-h2">고친 답변</h3><p className="rv-quote">{last.corrected_answer}</p></>)}
           {last.comment && (<><h3 className="rv-h2">의견</h3><p className="rv-quote">{last.comment}</p></>)}
           <button className="btn" onClick={() => setEditing(true)}>검토 다시 보내기</button>
@@ -328,7 +325,7 @@ function AiReviewCard({ q, onSaved, onAuth, onSafety }: { q: QDetail; onSaved: (
               <button key={k} type="button" className="chip" aria-pressed={verdict === k} onClick={() => setVerdict(k)}>{label}</button>
             ))}
           </div>
-          <label className="rv-check"><input type="checkbox" checked={safety} onChange={(e) => { setSafety(e.target.checked); onSafety(e.target.checked); }} /> 안전 문제가 있어요 (따르면 위험한 내용, 빠진 응급 경고 등)</label>
+          <label className="rv-check"><input type="checkbox" checked={safety} onChange={(e) => setSafety(e.target.checked)} /> 안전 문제가 있어요 (따르면 위험한 내용, 빠진 응급 경고 등)</label>
           {consent ? (
             <>
               <div className="field" style={{ marginTop: 8 }}>
@@ -347,7 +344,7 @@ function AiReviewCard({ q, onSaved, onAuth, onSafety }: { q: QDetail; onSaved: (
           )}
           <div className="row-actions" style={{ marginTop: 8 }}>
             {last && <button className="btn" onClick={() => setEditing(false)}>취소</button>}
-            <button className="btn btn-primary" disabled={busy || !verdict || needsText} onClick={save}>TwinVet에 보내기</button>
+            <button className="btn btn-primary" disabled={busy || !verdict || needsText} onClick={save}>검토 보내기</button>
           </div>
         </>
       )}

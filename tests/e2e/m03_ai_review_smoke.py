@@ -56,15 +56,15 @@ with sync_playwright() as pw:
     v.reload()
     v.locator(".rv-list button.rv-row").first.click()
     expect(v.get_by_text("비대면 진료가 되지 않도록 주의해 주세요.")).to_be_visible()
-    expect(v.get_by_role("heading", name="AI 답변 검토")).to_be_visible()
+    expect(v.get_by_role("heading", name="AI 답변 검토 및 수정")).to_be_visible()
     v.screenshot(path=str(SP / "m03_review_1_vet_before.png"), full_page=True)
 
     v.get_by_role("button", name="보완 필요").click()
     v.get_by_label("안전 문제가 있어요", exact=False).check()
     v.get_by_label("의견 (선택)").fill("노령견이라 각막 질환을 먼저 확인해야 하고, 냄새가 나면 바로 내원 안내가 필요해요.")
-    v.get_by_role("button", name="TwinVet에 보내기").click()
-    expect(v.get_by_text("TwinVet에 보냄")).to_be_visible()
-    expect(v.get_by_text("AI 답변에 안전 문제가 있다고 표시하셨어요")).to_be_visible()
+    v.get_by_role("button", name="검토 보내기").click()
+    expect(v.get_by_text("검토 보냄")).to_be_visible()
+    assert v.get_by_text("회신에도 알려").count() == 0  # nothing from the review is pushed toward the guardian
     v.screenshot(path=str(SP / "m03_review_2_vet_after.png"), full_page=True)
 
     a.reload()
